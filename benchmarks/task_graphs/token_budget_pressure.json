@@ -1,0 +1,86 @@
+{
+  "quality_threshold": 0.82,
+  "context_token_budget": 700,
+  "token_budget": {
+    "max_input_tokens": 3500,
+    "max_output_tokens": 2000,
+    "max_cost": 0.05,
+    "quality_threshold": 0.82
+  },
+  "tasks": [
+    {
+      "id": "inspect-large-codebase",
+      "title": "Inspect large codebase",
+      "description": "Inspect a broad repository surface while preserving budget.",
+      "priority": 9,
+      "dependencies": [],
+      "risk": 0.1,
+      "expected_value": 8.5,
+      "uncertainty": 0.35,
+      "required_capabilities": ["repository-inspection", "analysis"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 2200,
+      "estimated_output_tokens": 650,
+      "allowed_tools": ["filesystem"],
+      "requires_approval": false
+    },
+    {
+      "id": "choose-validation-slice",
+      "title": "Choose validation slice",
+      "description": "Select the validation commands that maximize signal under token pressure.",
+      "priority": 8,
+      "dependencies": ["inspect-large-codebase"],
+      "risk": 0.16,
+      "expected_value": 8.0,
+      "uncertainty": 0.4,
+      "required_capabilities": ["planning", "testing"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1800,
+      "estimated_output_tokens": 550,
+      "allowed_tools": ["shell"],
+      "requires_approval": false
+    },
+    {
+      "id": "write-budget-summary",
+      "title": "Write budget summary",
+      "description": "Summarize what was included, excluded, and why.",
+      "priority": 7,
+      "dependencies": ["choose-validation-slice"],
+      "risk": 0.06,
+      "expected_value": 7.8,
+      "uncertainty": 0.2,
+      "required_capabilities": ["writing"],
+      "privacy_level": "internal",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 800,
+      "allowed_tools": [],
+      "requires_approval": false
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "critical-constraints",
+      "content": "Do not exceed budget; keep validation signal high.",
+      "relevance": 0.95,
+      "importance": 0.95,
+      "token_cost": 260,
+      "critical": true
+    },
+    {
+      "id": "historical-release-log",
+      "content": "A long historical release log with many details that may not fit.",
+      "relevance": 0.45,
+      "importance": 0.45,
+      "token_cost": 1200,
+      "critical": false
+    },
+    {
+      "id": "recent-failure",
+      "content": "Recent failures came from skipping the fastest smoke tests.",
+      "relevance": 0.8,
+      "importance": 0.85,
+      "token_cost": 220,
+      "critical": false
+    }
+  ]
+}

@@ -14,11 +14,14 @@
 - Richer constraints.
 - Task graph validation.
 - Generated implementation plans.
-- Run history capture.
+- SQLite run history capture.
+- Persistent local memory.
+- Benchmark fixture preparation.
 
 ## v0.3 Quantum Planner Benchmarks
 
 - Benchmark suites for task order and model/context decisions.
+- Reporting over `benchmarks/task_graphs/` fixtures.
 - QUBO/Ising formulations.
 - Simulated annealing tuning.
 - Comparison against greedy and naive baselines.
@@ -32,7 +35,6 @@
 
 ## v0.5 Memory Monster
 
-- SQLite persistence.
 - Hybrid search.
 - Graph memory.
 - Verification and decay.
@@ -60,4 +62,3 @@
 - Multi-agent allocation.
 - Persistent skills and memory.
 - Production-ready policy and audit.
-

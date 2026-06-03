@@ -1,0 +1,94 @@
+{
+  "quality_threshold": 0.78,
+  "context_token_budget": 1000,
+  "token_budget": {
+    "max_input_tokens": 9000,
+    "max_output_tokens": 3500,
+    "max_cost": 0.1,
+    "quality_threshold": 0.78
+  },
+  "tasks": [
+    {
+      "id": "publish-artifacts",
+      "title": "Publish artifacts",
+      "description": "Prepare a publish action that must wait for validation and approval.",
+      "priority": 10,
+      "dependencies": ["run-full-validation", "approval-gate"],
+      "risk": 0.72,
+      "expected_value": 9.5,
+      "uncertainty": 0.15,
+      "required_capabilities": ["git", "safety"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 400,
+      "estimated_output_tokens": 250,
+      "allowed_tools": ["git"],
+      "requires_approval": true
+    },
+    {
+      "id": "map-dependencies",
+      "title": "Map dependencies",
+      "description": "Identify package dependencies and validation order.",
+      "priority": 8,
+      "dependencies": [],
+      "risk": 0.08,
+      "expected_value": 8.0,
+      "uncertainty": 0.3,
+      "required_capabilities": ["repository-inspection", "planning"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 300,
+      "allowed_tools": ["filesystem"],
+      "requires_approval": false
+    },
+    {
+      "id": "run-full-validation",
+      "title": "Run full validation",
+      "description": "Run complete validation after dependency mapping.",
+      "priority": 9,
+      "dependencies": ["map-dependencies"],
+      "risk": 0.2,
+      "expected_value": 9.0,
+      "uncertainty": 0.35,
+      "required_capabilities": ["shell", "testing"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1400,
+      "estimated_output_tokens": 700,
+      "allowed_tools": ["shell"],
+      "requires_approval": false
+    },
+    {
+      "id": "approval-gate",
+      "title": "Approval gate",
+      "description": "Require explicit approval before publish-like actions.",
+      "priority": 10,
+      "dependencies": ["run-full-validation"],
+      "risk": 0.55,
+      "expected_value": 6.0,
+      "uncertainty": 0.1,
+      "required_capabilities": ["safety"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 250,
+      "estimated_output_tokens": 150,
+      "allowed_tools": [],
+      "requires_approval": true
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "approval-policy",
+      "content": "High-risk publish actions must be approval gated.",
+      "relevance": 0.95,
+      "importance": 0.95,
+      "token_cost": 180,
+      "critical": true
+    },
+    {
+      "id": "dependency-warning",
+      "content": "The highest priority task is invalid if dependencies are incomplete.",
+      "relevance": 0.85,
+      "importance": 0.8,
+      "token_cost": 210,
+      "critical": false
+    }
+  ]
+}

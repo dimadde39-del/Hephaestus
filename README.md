@@ -8,8 +8,9 @@ approval.
 
 This repository is an early Phase 0 / Phase 1 foundation. It is not a production
 agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a typed,
-testable Python core for spec-driven planning, local memory, model routing,
-context packing, token budgeting, safe tool gating, and a working CLI demo.
+testable Python core for spec-driven planning, persistent local memory, model
+routing, context packing, token budgeting, safe tool gating, and a working CLI
+demo.
 
 ## Core Loop
 
@@ -22,6 +23,7 @@ Observe -> Understand -> Remember -> Specify -> Plan -> Optimize -> Act -> Refle
 ```text
 CLI
  |-- Spec layer: constitution, goals, tasks, execution plans
+ |-- Storage layer: SQLite memory, run history, decisions, approvals
  |-- Memory layer: episodic, semantic, project, failure, decision records
  |-- Optimization core
  |    |-- central objective function
@@ -64,13 +66,29 @@ that cannot meet the threshold is rejected.
 uv sync --extra dev
 uv run heph --help
 uv run heph doctor
+uv run heph db init
+uv run heph db path
 uv run heph plan "prepare this repo for release"
 uv run heph optimize examples/repo_release_demo.json
+uv run heph runs
 uv run heph models
 uv run heph memory add --type failure --content "Validation failed because tests were missing"
 uv run heph memory search tests
+uv run heph memory list
 uv run heph budget demo
 ```
+
+By default, durable local state is stored in:
+
+```text
+.hephaestus/hephaestus.db
+```
+
+The path is relative to the current working directory. Memory commands
+auto-initialize the database, and `heph optimize ...` saves a run record with
+tasks, scheduler decisions, model routing decisions, context packing, budget
+evaluation, and pending approval markers. Use `heph run show <run_id>` to inspect
+a saved run.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -92,7 +110,9 @@ Tests do not require paid APIs.
 uv run ruff format .
 uv run ruff check .
 uv run pytest
+uv run mypy
 uv run heph doctor
+uv run heph db init
 uv run heph optimize examples/repo_release_demo.json
 ```
 
@@ -102,7 +122,8 @@ Built:
 
 - Typed Pydantic schemas for tasks, models, memories, tools, and plans.
 - Deterministic goal-to-task spec pipeline.
-- In-memory memory store with lexical retrieval.
+- SQLite-backed persistent memory with lexical retrieval.
+- SQLite-backed optimization run history.
 - Fake model provider and optional DeepSeek provider.
 - Greedy and simulated annealing task schedulers.
 - Quality-preserving model router.
@@ -113,10 +134,8 @@ Built:
 
 Not built yet:
 
-- Persistent SQLite memory.
 - Live always-on daemon.
 - Browser/desktop/voice/Telegram automation.
 - Full self-improving skill promotion.
 - Production sandbox execution.
-- Optimization benchmarks.
-
+- Full optimization benchmark reporting.

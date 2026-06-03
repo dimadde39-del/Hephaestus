@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import os
 import platform
 import sys
+from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 from pydantic import BaseModel, Field
@@ -16,15 +16,25 @@ from rich.panel import Panel
 from rich.table import Table
 
 from hephaestus import __version__
-from hephaestus.core.config import DEFAULT_CONFIG, PrivacyLevel
-from hephaestus.memory import InMemoryMemoryStore, MemoryItem, MemoryType
+from hephaestus.core.config import DEFAULT_CONFIG, PrivacyLevel, RiskLevel
+from hephaestus.memory import MemoryItem, MemoryType
 from hephaestus.models import DeepSeekProvider, ModelProfile, fake_model_profiles
 from hephaestus.optimize.context_packer import ContextCandidate, pack_context
 from hephaestus.optimize.model_router import ModelRouteRequest, ModelRoutingError, route_model
 from hephaestus.optimize.task_scheduler import compare_schedulers
-from hephaestus.optimize.token_firewall import TokenBudget, evaluate_budget
+from hephaestus.optimize.token_firewall import BudgetDecision, TokenBudget, evaluate_budget
 from hephaestus.spec.goal import build_goal_spec
 from hephaestus.spec.tasks import Task, generate_initial_tasks
+from hephaestus.storage import (
+    ApprovalRecord,
+    RunDecisionRecord,
+    RunRecord,
+    RunRepository,
+    RunTaskRecord,
+    SqliteMemoryRepository,
+    get_default_database_path,
+    init_database,
+)
 
 console = Console()
 
@@ -33,10 +43,14 @@ app = typer.Typer(
     help="Hephaestus: an optimization-first agent runtime foundation.",
     no_args_is_help=True,
 )
-memory_app = typer.Typer(help="Process-local memory commands.", no_args_is_help=True)
+memory_app = typer.Typer(help="Persistent local memory commands.", no_args_is_help=True)
 budget_app = typer.Typer(help="Token and cost budget commands.", no_args_is_help=True)
+db_app = typer.Typer(help="Local SQLite database commands.", no_args_is_help=True)
+run_app = typer.Typer(help="Run history commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
+app.add_typer(db_app, name="db")
+app.add_typer(run_app, name="run")
 
 
 class DemoScenario(BaseModel):
@@ -104,6 +118,21 @@ def doctor() -> None:
     console.print(table)
 
 
+@db_app.command("init")
+def db_init() -> None:
+    """Initialize the local SQLite database."""
+
+    path = init_database()
+    console.print(f"Initialized database: {path}")
+
+
+@db_app.command("path")
+def db_path() -> None:
+    """Show the default local SQLite database path."""
+
+    console.print(str(get_default_database_path()))
+
+
 @app.command()
 def plan(
     goal: Annotated[str, typer.Argument(help="User goal to turn into a spec/task graph.")],
@@ -143,8 +172,64 @@ def optimize(
     """Compare greedy and annealing plans, then route models and pack context."""
 
     scenario = DemoScenario.model_validate_json(path.read_text(encoding="utf-8"))
+    run_repository = RunRepository()
+    run = run_repository.save_run(RunRecord(goal=f"Optimize {path}", mode="optimize"))
     comparison = compare_schedulers(scenario.tasks, DEFAULT_CONFIG.objective_weights)
     context = pack_context(scenario.context_candidates, scenario.context_token_budget)
+    run_repository.save_run_tasks(
+        RunTaskRecord(
+            run_id=run.id,
+            task_id=task.id,
+            title=task.title,
+            description=task.description,
+            selected_order=index,
+            priority=task.priority,
+            risk=task.risk,
+            expected_value=task.expected_value,
+            dependencies=task.dependencies,
+            required_capabilities=sorted(task.required_capabilities),
+            requires_approval=task.requires_approval,
+        )
+        for index, task in enumerate(comparison.best_order, start=1)
+    )
+    for task in comparison.best_order:
+        if task.requires_approval:
+            run_repository.save_approval(
+                ApprovalRecord(
+                    run_id=run.id,
+                    action_type="task",
+                    action_description=task.description,
+                    risk_level=_risk_level_from_score(task.risk),
+                )
+            )
+    run_repository.save_decision(
+        RunDecisionRecord(
+            run_id=run.id,
+            decision_type="scheduler_greedy",
+            selected_option=_task_order_text(comparison.greedy.order),
+            objective_score=comparison.greedy.score,
+            rationale=comparison.greedy.explanation,
+        )
+    )
+    run_repository.save_decision(
+        RunDecisionRecord(
+            run_id=run.id,
+            decision_type="scheduler_annealing",
+            selected_option=_task_order_text(comparison.annealed.order),
+            objective_score=comparison.annealed.score,
+            rationale=comparison.annealed.explanation,
+        )
+    )
+    run_repository.save_decision(
+        RunDecisionRecord(
+            run_id=run.id,
+            decision_type="context_packing",
+            selected_option=", ".join(item.id for item in context.selected) or "none",
+            rejected_options=[f"{item.id}: {item.reason}" for item in context.excluded],
+            objective_score=context.score,
+            rationale=context.explanation,
+        )
+    )
 
     console.print(Panel("Naive greedy vs simulated annealing", title="Optimization"))
     schedule_table = Table()
@@ -194,10 +279,33 @@ def optimize(
             )
         except ModelRoutingError as error:
             route_table.add_row(task.id, "unrouted", "-", "-", style="red")
+            run_repository.save_decision(
+                RunDecisionRecord(
+                    run_id=run.id,
+                    decision_type=f"model_route:{task.id}",
+                    selected_option="unrouted",
+                    rejected_options=[str(error)],
+                    estimated_cost=0.0,
+                    rationale=str(error),
+                )
+            )
             console.print(f"[red]{error}[/red]")
             continue
         total_cost += route.estimated_cost
         selected_routes.append((task, route.profile, route.quality))
+        run_repository.save_decision(
+            RunDecisionRecord(
+                run_id=run.id,
+                decision_type=f"model_route:{task.id}",
+                selected_option=route.profile.identifier,
+                rejected_options=[
+                    f"{rejected.identifier}: {rejected.reason}" for rejected in route.rejected
+                ],
+                objective_score=route.quality,
+                estimated_cost=route.estimated_cost,
+                rationale=route.explanation,
+            )
+        )
         route_table.add_row(
             task.id,
             route.profile.identifier,
@@ -225,24 +333,43 @@ def optimize(
             selected_quality=quality,
             budget=scenario.token_budget,
         )
+        run_repository.save_decision(
+            RunDecisionRecord(
+                run_id=run.id,
+                decision_type="token_budget",
+                selected_option="approved" if budget_decision.approved else "blocked",
+                rejected_options=_budget_rejections(budget_decision),
+                estimated_cost=budget_decision.estimated_cost,
+                rationale=budget_decision.explanation,
+            )
+        )
+
+    summary_lines = [
+        comparison.explanation,
+        context.explanation,
+        f"Estimated tokens: {total_input} input + {total_output} output",
+        f"Estimated routed cost: ${total_cost:.6f}",
+        "Approval-needed tasks: " + (", ".join(approval_tasks) or "none"),
+        budget_decision.explanation if budget_decision else "No routed model for budget check.",
+    ]
+    run_repository.complete_run(
+        run.id,
+        estimated_input_tokens=total_input,
+        estimated_output_tokens=total_output,
+        estimated_cost=total_cost,
+        objective_score=comparison.best_score,
+        risk_score=max((task.risk for task in comparison.best_order), default=0.0),
+        summary="\n".join(summary_lines),
+    )
 
     console.print(
         Panel(
-            "\n".join(
-                [
-                    comparison.explanation,
-                    context.explanation,
-                    f"Estimated tokens: {total_input} input + {total_output} output",
-                    f"Estimated routed cost: ${total_cost:.6f}",
-                    "Approval-needed tasks: " + (", ".join(approval_tasks) or "none"),
-                    budget_decision.explanation
-                    if budget_decision
-                    else "No routed model for budget check.",
-                ]
-            ),
+            "\n".join(summary_lines),
             title="Summary",
         )
     )
+    console.print(f"Saved run: {run.id}")
+    console.print(f"View with: heph run show {run.id}")
 
 
 @app.command("models")
@@ -282,8 +409,17 @@ def memory_add(
     summary: Annotated[str, typer.Option("--summary", help="Short summary.")] = "",
     tag: Annotated[list[str] | None, typer.Option("--tag", help="Repeatable tag.")] = None,
     project: Annotated[str, typer.Option("--project", help="Project namespace.")] = "default",
+    confidence: Annotated[
+        float,
+        typer.Option("--confidence", min=0.0, max=1.0, help="Memory confidence."),
+    ] = 0.7,
+    importance: Annotated[
+        float,
+        typer.Option("--importance", min=0.0, max=1.0, help="Memory importance."),
+    ] = 0.5,
+    source: Annotated[str, typer.Option("--source", help="Memory source.")] = "user",
 ) -> None:
-    """Add a memory to the process-local store."""
+    """Add a memory to the persistent local store."""
 
     item = MemoryItem(
         type=type_,
@@ -291,33 +427,166 @@ def memory_add(
         summary=summary,
         tags=tag or [],
         project=project,
+        confidence=confidence,
+        importance=importance,
+        source=source,
     )
-    store = _demo_memory_store()
+    store = SqliteMemoryRepository()
     store.add(item)
     console.print(
         f"Added {item.type.value} memory {item.id} with tags: {', '.join(item.tags) or '-'}"
     )
-    console.print(
-        "[dim]Phase 1 CLI memory is process-local; persistent storage arrives later.[/dim]"
-    )
+    console.print(f"[dim]Stored in {store.database_path}[/dim]")
 
 
 @memory_app.command("search")
 def memory_search(
     query: Annotated[str, typer.Argument(help="Text query.")],
     project: Annotated[str | None, typer.Option("--project", help="Project namespace.")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum results.")] = 5,
 ) -> None:
-    """Search process-local demo memories."""
+    """Search persistent local memories."""
 
-    store = _demo_memory_store()
-    results = store.retrieve_top(query, project=project)
-    table = Table(title="Memory Search")
-    table.add_column("ID")
+    store = SqliteMemoryRepository()
+    results = store.retrieve_top(query, project=project, limit=limit)
+    _print_memory_table("Memory Search", results)
+
+
+@memory_app.command("list")
+def memory_list(
+    project: Annotated[str | None, typer.Option("--project", help="Project namespace.")] = None,
+) -> None:
+    """List persistent local memories."""
+
+    store = SqliteMemoryRepository()
+    _print_memory_table("Memory List", store.list(project=project))
+
+
+@app.command("runs")
+def list_runs(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum runs to show.")] = 10,
+) -> None:
+    """List recent persisted runs."""
+
+    repository = RunRepository()
+    runs = repository.list_recent_runs(limit=limit)
+    table = Table(title="Recent Runs")
+    table.add_column("ID", no_wrap=True)
+    table.add_column("Status")
+    table.add_column("Started")
+    table.add_column("Goal", overflow="fold")
+    table.add_column("Score", justify="right")
+    table.add_column("Cost", justify="right")
+    for run in runs:
+        table.add_row(
+            run.id,
+            run.status,
+            _format_datetime(run.started_at),
+            run.goal,
+            f"{run.objective_score:.2f}",
+            f"${run.estimated_cost:.6f}",
+        )
+    console.print(table)
+
+
+@run_app.command("show")
+def run_show(
+    run_id: Annotated[str, typer.Argument(help="Run ID to inspect.")],
+) -> None:
+    """Show a persisted run with tasks, decisions, and approvals."""
+
+    repository = RunRepository()
+    detail = repository.get_run(run_id)
+    if detail is None:
+        console.print(f"[red]Run not found: {run_id}[/red]")
+        raise typer.Exit(1)
+
+    run = detail.run
+    console.print(
+        Panel(
+            "\n".join(
+                [
+                    f"Goal: {run.goal}",
+                    f"Mode: {run.mode}",
+                    f"Status: {run.status}",
+                    f"Started: {_format_datetime(run.started_at)}",
+                    f"Completed: {_format_datetime(run.completed_at)}",
+                    f"Estimated tokens: {run.estimated_input_tokens} input + "
+                    f"{run.estimated_output_tokens} output",
+                    f"Estimated cost: ${run.estimated_cost:.6f}",
+                    f"Objective score: {run.objective_score:.2f}",
+                    f"Risk score: {run.risk_score:.2f}",
+                    "",
+                    run.summary or "No summary recorded.",
+                ]
+            ),
+            title=f"Run {run.id}",
+        )
+    )
+
+    task_table = Table(title="Run Tasks")
+    task_table.add_column("Order", justify="right")
+    task_table.add_column("Task")
+    task_table.add_column("Priority", justify="right")
+    task_table.add_column("Risk", justify="right")
+    task_table.add_column("Approval")
+    for task in detail.tasks:
+        task_table.add_row(
+            str(task.selected_order),
+            task.task_id,
+            str(task.priority),
+            f"{task.risk:.2f}",
+            "yes" if task.requires_approval else "no",
+        )
+    console.print(task_table)
+
+    decision_table = Table(title="Run Decisions")
+    decision_table.add_column("Type")
+    decision_table.add_column("Selected")
+    decision_table.add_column("Rejected")
+    decision_table.add_column("Score", justify="right")
+    decision_table.add_column("Cost", justify="right")
+    for decision in detail.decisions:
+        decision_table.add_row(
+            decision.decision_type,
+            decision.selected_option,
+            ", ".join(decision.rejected_options) or "-",
+            f"{decision.objective_score:.2f}" if decision.objective_score is not None else "-",
+            f"${decision.estimated_cost:.6f}" if decision.estimated_cost is not None else "-",
+        )
+    console.print(decision_table)
+
+    if detail.approvals:
+        approval_table = Table(title="Approvals")
+        approval_table.add_column("ID")
+        approval_table.add_column("Action")
+        approval_table.add_column("Risk")
+        approval_table.add_column("Status")
+        for approval in detail.approvals:
+            approval_table.add_row(
+                approval.id,
+                approval.action_type,
+                approval.risk_level.value,
+                approval.status.value,
+            )
+        console.print(approval_table)
+
+
+def _print_memory_table(title: str, memories: list[MemoryItem]) -> None:
+    table = Table(title=title)
+    table.add_column("ID", no_wrap=True)
     table.add_column("Type")
+    table.add_column("Project")
     table.add_column("Tags")
     table.add_column("Summary")
-    for item in results:
-        table.add_row(item.id, item.type.value, ", ".join(item.tags), item.summary or item.content)
+    for item in memories:
+        table.add_row(
+            item.id,
+            item.type.value,
+            item.project,
+            ", ".join(item.tags),
+            item.summary or item.content,
+        )
     console.print(table)
 
 
@@ -358,31 +627,35 @@ def budget_demo() -> None:
     )
 
 
-def _demo_memory_store() -> InMemoryMemoryStore:
-    return InMemoryMemoryStore(
-        [
-            MemoryItem(
-                type=MemoryType.PROJECT,
-                content="Hephaestus is optimization-first and model-agnostic.",
-                summary="Optimization-first project direction.",
-                tags=["hephaestus", "optimization", "architecture"],
-                project="hephaestus",
-                importance=0.9,
-            ),
-            MemoryItem(
-                type=MemoryType.FAILURE,
-                content="Do not require paid APIs for tests or demos.",
-                summary="Tests must run without paid APIs.",
-                tags=["testing", "models", "cost"],
-                project="hephaestus",
-                importance=0.8,
-            ),
-        ]
-    )
+def _task_order_text(tasks: list[Task]) -> str:
+    return " -> ".join(task.id for task in tasks)
 
 
-def _json_dump(data: Any) -> str:
-    return json.dumps(data, indent=2, sort_keys=True)
+def _risk_level_from_score(score: float) -> RiskLevel:
+    if score >= 0.75:
+        return RiskLevel.CRITICAL
+    if score >= 0.5:
+        return RiskLevel.HIGH
+    if score >= 0.25:
+        return RiskLevel.MEDIUM
+    return RiskLevel.LOW
+
+
+def _budget_rejections(decision: BudgetDecision) -> list[str]:
+    rejected: list[str] = []
+    if not decision.within_token_budget:
+        rejected.append("token budget exceeded")
+    if not decision.within_cost_budget:
+        rejected.append("cost budget exceeded")
+    if not decision.meets_quality_threshold:
+        rejected.append("quality threshold missed")
+    return rejected
+
+
+def _format_datetime(value: datetime | None) -> str:
+    if value is None:
+        return "-"
+    return value.isoformat(timespec="seconds")
 
 
 if __name__ == "__main__":

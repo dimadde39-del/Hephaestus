@@ -1,0 +1,78 @@
+{
+  "quality_threshold": 0.76,
+  "context_token_budget": 1200,
+  "token_budget": {
+    "max_input_tokens": 8000,
+    "max_output_tokens": 3000,
+    "max_cost": 0.1,
+    "quality_threshold": 0.76
+  },
+  "tasks": [
+    {
+      "id": "inspect-release-state",
+      "title": "Inspect release state",
+      "description": "Review repository status, package metadata, and release notes.",
+      "priority": 9,
+      "dependencies": [],
+      "risk": 0.05,
+      "expected_value": 8.0,
+      "uncertainty": 0.2,
+      "required_capabilities": ["repository-inspection"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 700,
+      "estimated_output_tokens": 250,
+      "allowed_tools": ["filesystem", "git"],
+      "requires_approval": false
+    },
+    {
+      "id": "run-smoke-validation",
+      "title": "Run smoke validation",
+      "description": "Run the shortest reliable release validation commands.",
+      "priority": 8,
+      "dependencies": ["inspect-release-state"],
+      "risk": 0.15,
+      "expected_value": 8.5,
+      "uncertainty": 0.25,
+      "required_capabilities": ["shell", "testing"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1000,
+      "estimated_output_tokens": 500,
+      "allowed_tools": ["shell"],
+      "requires_approval": false
+    },
+    {
+      "id": "summarize-release",
+      "title": "Summarize release",
+      "description": "Summarize release readiness and remaining risks.",
+      "priority": 7,
+      "dependencies": ["run-smoke-validation"],
+      "risk": 0.08,
+      "expected_value": 7.5,
+      "uncertainty": 0.2,
+      "required_capabilities": ["analysis", "writing"],
+      "privacy_level": "internal",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 650,
+      "allowed_tools": [],
+      "requires_approval": false
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "release-policy",
+      "content": "Run validation before summarizing release readiness.",
+      "relevance": 0.9,
+      "importance": 0.9,
+      "token_cost": 220,
+      "critical": true
+    },
+    {
+      "id": "prior-smoke-check",
+      "content": "Smoke tests caught missing package metadata in a prior release.",
+      "relevance": 0.72,
+      "importance": 0.7,
+      "token_cost": 180,
+      "critical": false
+    }
+  ]
+}

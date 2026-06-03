@@ -8,7 +8,9 @@ always-on runtime without forcing paid APIs or a single model provider.
 - `core`: shared runtime settings, privacy/risk levels, and event schemas.
 - `spec`: a deterministic Phase 1 pipeline from user goal to `GoalSpec`, tasks,
   and `ExecutionPlan`.
-- `memory`: typed memory records and an in-memory repository.
+- `storage`: SQLite initialization, migrations, persistent memories, run history,
+  decisions, and approval records.
+- `memory`: typed memory records and lexical retrieval behavior.
 - `optimize`: task ordering, model routing, context packing, and token budgets.
 - `models`: provider-agnostic model profiles, fake provider, optional DeepSeek.
 - `tools`: typed tool definitions before execution.
@@ -33,7 +35,9 @@ User goal
 ```
 
 Phase 1 intentionally avoids a long-running daemon. The CLI proves the module
-boundaries and gives tests a stable surface.
+boundaries and gives tests a stable surface. Phase 2A adds a local SQLite file at
+`.hephaestus/hephaestus.db` so separate CLI invocations can share memory and run
+history before any always-on process exists.
 
 ## Design Constraints
 
@@ -42,5 +46,5 @@ boundaries and gives tests a stable surface.
 - Treat writes, pushes, publishes, external sends, and destructive commands as
   approval-gated.
 - Keep state simple now; introduce SQLite/vector/graph storage later.
+- Keep SQLite local and migration-friendly before adding vector or graph storage.
 - Make every optimizer return an explanation.
-

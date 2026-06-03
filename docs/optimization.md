@@ -63,3 +63,25 @@ classical/quantum-inspired planning.
 - Future multi-agent task allocation.
 - Future skill promotion.
 
+## Run History
+
+`heph optimize <scenario.json>` now saves each optimization run to local SQLite
+at `.hephaestus/hephaestus.db`. A run captures:
+
+- scheduled tasks and selected order,
+- greedy and simulated annealing scheduler results,
+- model routing decisions and rejected options,
+- context packing selections and exclusions,
+- token budget evaluation,
+- pending approvals for approval-gated tasks.
+
+The CLI prints the saved run ID:
+
+```text
+Saved run: run_...
+View with: heph run show run_...
+```
+
+Durable run history is intentionally in place before always-on mode so future
+daemon, dashboard, and benchmark features can inspect what happened across
+processes.
