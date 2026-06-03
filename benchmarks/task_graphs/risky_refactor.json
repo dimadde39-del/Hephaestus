@@ -1,0 +1,115 @@
+{
+  "id": "risky_refactor",
+  "title": "Risky Refactor",
+  "description": "A refactor benchmark with high-risk operations, validation tasks, and approval pressure.",
+  "goal": "Show that risk and approval metadata survive optimizer reporting and persistence.",
+  "tags": ["risk", "approval", "refactor"],
+  "expected_constraints": [
+    "High-risk mutation tasks require approval.",
+    "Validation and rollback planning appear before risky changes when dependencies allow.",
+    "Risk is reported without claiming the task is automatically safe."
+  ],
+  "notes": [
+    "Risk changes total utility and approval records even when dependency order is straightforward."
+  ],
+  "quality_threshold": 0.78,
+  "context_token_budget": 1400,
+  "token_budget": {
+    "max_input_tokens": 9000,
+    "max_output_tokens": 4500,
+    "max_cost": 0.1,
+    "quality_threshold": 0.78
+  },
+  "tasks": [
+    {
+      "id": "map-refactor-surface",
+      "title": "Map refactor surface",
+      "description": "Identify modules, tests, and rollback points before editing.",
+      "priority": 9,
+      "dependencies": [],
+      "risk": 0.12,
+      "expected_value": 8.8,
+      "uncertainty": 0.32,
+      "required_capabilities": ["repository-inspection", "analysis"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1200,
+      "estimated_output_tokens": 500,
+      "allowed_tools": ["filesystem"],
+      "requires_approval": false
+    },
+    {
+      "id": "design-rollback-plan",
+      "title": "Design rollback plan",
+      "description": "Prepare a rollback strategy for a shared runtime refactor.",
+      "priority": 8,
+      "dependencies": ["map-refactor-surface"],
+      "risk": 0.18,
+      "expected_value": 8.0,
+      "uncertainty": 0.25,
+      "required_capabilities": ["planning", "safety"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 550,
+      "allowed_tools": [],
+      "requires_approval": false
+    },
+    {
+      "id": "change-runtime-boundary",
+      "title": "Change runtime boundary",
+      "description": "Apply a shared runtime refactor that could break multiple commands.",
+      "priority": 9,
+      "dependencies": ["design-rollback-plan"],
+      "risk": 0.78,
+      "expected_value": 9.0,
+      "uncertainty": 0.38,
+      "required_capabilities": ["coding", "testing"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1600,
+      "estimated_output_tokens": 800,
+      "allowed_tools": ["filesystem"],
+      "requires_approval": true
+    },
+    {
+      "id": "run-regression-suite",
+      "title": "Run regression suite",
+      "description": "Run validation after the high-risk refactor.",
+      "priority": 9,
+      "dependencies": ["change-runtime-boundary"],
+      "risk": 0.22,
+      "expected_value": 9.5,
+      "uncertainty": 0.28,
+      "required_capabilities": ["shell", "testing"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1300,
+      "estimated_output_tokens": 700,
+      "allowed_tools": ["shell"],
+      "requires_approval": false
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "rollback-policy",
+      "content": "High-risk refactors need rollback notes before edits.",
+      "relevance": 0.95,
+      "importance": 0.95,
+      "token_cost": 240,
+      "critical": true
+    },
+    {
+      "id": "shared-runtime-map",
+      "content": "The runtime boundary is used by CLI and persistence flows.",
+      "relevance": 0.88,
+      "importance": 0.86,
+      "token_cost": 360,
+      "critical": true
+    },
+    {
+      "id": "old-refactor-thread",
+      "content": "An old brainstorming thread with marginally relevant notes.",
+      "relevance": 0.38,
+      "importance": 0.3,
+      "token_cost": 1000,
+      "critical": false
+    }
+  ]
+}

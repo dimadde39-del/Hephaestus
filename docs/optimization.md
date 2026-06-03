@@ -28,6 +28,9 @@ The greedy scheduler repeatedly chooses the highest-scoring task whose
 dependencies are already complete. This gives a stable, explainable baseline and
 keeps dependency handling clear.
 
+Greedy remains in benchmark reports even when simulated annealing wins because
+it is the honest baseline: simple, explainable, and easy to reason about.
+
 ## Simulated Annealing
 
 The annealing scheduler starts from the greedy order, explores swaps, and accepts
@@ -37,6 +40,11 @@ win.
 
 This is quantum-inspired in the practical sense: the runtime treats planning as
 an energy landscape and searches for lower-cost/higher-utility configurations.
+
+Annealing is not treated as automatically better. Benchmarks report the greedy
+score, annealing score, absolute delta, percentage delta, dependency violations,
+and the selected schedule. If annealing does not improve the objective, that is
+shown directly.
 
 ## Future QUBO / Ising Direction
 
@@ -85,3 +93,21 @@ View with: heph run show run_...
 Durable run history is intentionally in place before always-on mode so future
 daemon, dashboard, and benchmark features can inspect what happened across
 processes.
+
+## Benchmark Reports
+
+`heph benchmark run` executes each fixture through the same optimizer pieces used
+by `heph optimize`:
+
+- greedy and simulated annealing scheduling,
+- model routing with rejection reasons,
+- context packing with before/after token counts,
+- aggregate token and cost budget checks,
+- approval counting for risky actions.
+
+Benchmark runs are saved with `mode=benchmark`, and the resulting `heph run show`
+output includes scheduler decisions, model route decisions, rejected options,
+context packing, quality guard, token budget decisions, and pending approvals.
+
+The benchmark suite is designed to test optimizer behavior, not to claim
+real-world AGI performance.

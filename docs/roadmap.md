@@ -22,6 +22,7 @@
 
 - Benchmark suites for task order and model/context decisions.
 - Reporting over `benchmarks/task_graphs/` fixtures.
+- Persisted benchmark runs in SQLite run history.
 - QUBO/Ising formulations.
 - Simulated annealing tuning.
 - Comparison against greedy and naive baselines.

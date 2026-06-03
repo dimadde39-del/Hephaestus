@@ -16,6 +16,13 @@ from rich.panel import Panel
 from rich.table import Table
 
 from hephaestus import __version__
+from hephaestus.benchmarks import load_all_benchmarks, load_benchmark, run_benchmark
+from hephaestus.benchmarks.reporter import (
+    print_benchmark_list,
+    print_benchmark_result,
+    print_benchmark_show,
+    results_to_json,
+)
 from hephaestus.core.config import DEFAULT_CONFIG, PrivacyLevel, RiskLevel
 from hephaestus.memory import MemoryItem, MemoryType
 from hephaestus.models import DeepSeekProvider, ModelProfile, fake_model_profiles
@@ -47,10 +54,12 @@ memory_app = typer.Typer(help="Persistent local memory commands.", no_args_is_he
 budget_app = typer.Typer(help="Token and cost budget commands.", no_args_is_help=True)
 db_app = typer.Typer(help="Local SQLite database commands.", no_args_is_help=True)
 run_app = typer.Typer(help="Run history commands.", no_args_is_help=True)
+benchmark_app = typer.Typer(help="Optimizer benchmark commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
 app.add_typer(run_app, name="run")
+app.add_typer(benchmark_app, name="benchmark")
 
 
 class DemoScenario(BaseModel):
@@ -402,6 +411,56 @@ def list_models() -> None:
     console.print(table)
 
 
+@benchmark_app.command("list")
+def benchmark_list() -> None:
+    """List available benchmark fixtures."""
+
+    cases = load_all_benchmarks()
+    print_benchmark_list(console, cases)
+
+
+@benchmark_app.command("show")
+def benchmark_show(
+    benchmark_id: Annotated[str, typer.Argument(help="Benchmark id, file stem, or path.")],
+) -> None:
+    """Show benchmark fixture metadata without running it."""
+
+    try:
+        case = load_benchmark(benchmark_id)
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    print_benchmark_show(console, case)
+
+
+@benchmark_app.command("run")
+def benchmark_run(
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Optional benchmark id, file stem, filename, or JSON path."),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print machine-readable JSON instead of Rich tables."),
+    ] = False,
+) -> None:
+    """Run one benchmark fixture, or all fixtures when no target is supplied."""
+
+    try:
+        cases = [load_benchmark(target)] if target is not None else load_all_benchmarks()
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+
+    results = [run_benchmark(case) for case in cases]
+    if json_output:
+        typer.echo(results_to_json(results))
+        return
+
+    for result in results:
+        print_benchmark_result(console, result)
+
+
 @memory_app.command("add")
 def memory_add(
     type_: Annotated[MemoryType, typer.Option("--type", help="Memory type.")],
@@ -472,6 +531,7 @@ def list_runs(
     runs = repository.list_recent_runs(limit=limit)
     table = Table(title="Recent Runs")
     table.add_column("ID", no_wrap=True)
+    table.add_column("Mode")
     table.add_column("Status")
     table.add_column("Started")
     table.add_column("Goal", overflow="fold")
@@ -480,6 +540,7 @@ def list_runs(
     for run in runs:
         table.add_row(
             run.id,
+            run.mode,
             run.status,
             _format_datetime(run.started_at),
             run.goal,

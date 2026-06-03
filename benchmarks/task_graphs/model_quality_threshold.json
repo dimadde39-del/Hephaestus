@@ -1,0 +1,97 @@
+{
+  "id": "model_quality_threshold",
+  "title": "Model Quality Threshold",
+  "description": "A routing benchmark where the cheap model is rejected because its quality is below the required threshold.",
+  "goal": "Prove that Hephaestus does not blindly minimize model cost.",
+  "tags": ["models", "quality", "cost"],
+  "expected_constraints": [
+    "Reject local/fake-cheap-small for quality.",
+    "Select local/fake-quality-strong even though it costs more.",
+    "Preserve the benchmark quality threshold."
+  ],
+  "notes": [
+    "The model catalog is fixture-local and deterministic; no paid API is used."
+  ],
+  "quality_threshold": 0.86,
+  "context_token_budget": 1200,
+  "token_budget": {
+    "max_input_tokens": 8000,
+    "max_output_tokens": 3500,
+    "max_cost": 0.01,
+    "quality_threshold": 0.86
+  },
+  "tasks": [
+    {
+      "id": "write-architecture-proof",
+      "title": "Write architecture proof",
+      "description": "Explain why optimizer reports preserve quality before minimizing cost.",
+      "priority": 9,
+      "dependencies": [],
+      "risk": 0.08,
+      "expected_value": 9.0,
+      "uncertainty": 0.25,
+      "required_capabilities": ["analysis", "writing"],
+      "privacy_level": "internal",
+      "estimated_input_tokens": 1600,
+      "estimated_output_tokens": 900,
+      "allowed_tools": [],
+      "requires_approval": false
+    }
+  ],
+  "model_profiles": [
+    {
+      "provider": "local",
+      "model": "fake-cheap-small",
+      "capabilities": ["analysis", "writing", "planning"],
+      "context_window": 16000,
+      "input_cost_per_million": 0.01,
+      "output_cost_per_million": 0.02,
+      "latency_score": 0.9,
+      "quality_scores": {
+        "analysis": 0.72,
+        "writing": 0.73,
+        "planning": 0.74,
+        "general": 0.72
+      },
+      "privacy_level": "internal",
+      "supports_tools": false,
+      "supports_json": true
+    },
+    {
+      "provider": "local",
+      "model": "fake-quality-strong",
+      "capabilities": ["analysis", "writing", "planning"],
+      "context_window": 64000,
+      "input_cost_per_million": 0.3,
+      "output_cost_per_million": 0.6,
+      "latency_score": 0.55,
+      "quality_scores": {
+        "analysis": 0.89,
+        "writing": 0.9,
+        "planning": 0.9,
+        "general": 0.89
+      },
+      "privacy_level": "internal",
+      "supports_tools": false,
+      "supports_json": true
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "quality-principle",
+      "content": "Reject cheap models when quality falls below the threshold.",
+      "relevance": 0.95,
+      "importance": 0.95,
+      "token_cost": 260,
+      "critical": true
+    },
+    {
+      "id": "cost-note",
+      "content": "Cost optimization happens after quality, capability, and privacy filters.",
+      "relevance": 0.85,
+      "importance": 0.82,
+      "token_cost": 240,
+      "critical": false
+    }
+  ]
+}

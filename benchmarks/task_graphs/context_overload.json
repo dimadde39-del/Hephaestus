@@ -1,0 +1,123 @@
+{
+  "id": "context_overload",
+  "title": "Context Overload",
+  "description": "A context packing benchmark with many candidates where critical context must survive and low-value context should be dropped.",
+  "goal": "Show quality-preserving token reduction through context selection.",
+  "tags": ["context", "tokens", "quality"],
+  "expected_constraints": [
+    "Include all critical context items.",
+    "Exclude low-value or oversized context.",
+    "Report before/after context tokens and savings percentage."
+  ],
+  "notes": [
+    "The total candidate context is intentionally much larger than the context budget."
+  ],
+  "quality_threshold": 0.76,
+  "context_token_budget": 1500,
+  "token_budget": {
+    "max_input_tokens": 9000,
+    "max_output_tokens": 4000,
+    "max_cost": 0.1,
+    "quality_threshold": 0.76
+  },
+  "tasks": [
+    {
+      "id": "pack-context",
+      "title": "Pack context",
+      "description": "Choose the evidence needed for a benchmark proof report.",
+      "priority": 8,
+      "dependencies": [],
+      "risk": 0.06,
+      "expected_value": 8.4,
+      "uncertainty": 0.2,
+      "required_capabilities": ["analysis", "writing"],
+      "privacy_level": "internal",
+      "estimated_input_tokens": 1200,
+      "estimated_output_tokens": 800,
+      "allowed_tools": [],
+      "requires_approval": false
+    },
+    {
+      "id": "summarize-context-proof",
+      "title": "Summarize context proof",
+      "description": "Explain what context was included and excluded.",
+      "priority": 7,
+      "dependencies": ["pack-context"],
+      "risk": 0.04,
+      "expected_value": 7.5,
+      "uncertainty": 0.18,
+      "required_capabilities": ["writing"],
+      "privacy_level": "internal",
+      "estimated_input_tokens": 800,
+      "estimated_output_tokens": 650,
+      "allowed_tools": [],
+      "requires_approval": false
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "benchmark-principle",
+      "content": "Benchmarks test optimizer behavior and not AGI performance.",
+      "relevance": 0.98,
+      "importance": 0.98,
+      "token_cost": 300,
+      "critical": true
+    },
+    {
+      "id": "quality-rule",
+      "content": "Quality threshold must be preserved before cost is minimized.",
+      "relevance": 0.95,
+      "importance": 0.92,
+      "token_cost": 280,
+      "critical": true
+    },
+    {
+      "id": "persistence-rule",
+      "content": "Benchmark decisions are saved to the same run history tables.",
+      "relevance": 0.86,
+      "importance": 0.86,
+      "token_cost": 260,
+      "critical": false
+    },
+    {
+      "id": "router-note",
+      "content": "The router filters by capability, privacy, JSON support, tools, and quality.",
+      "relevance": 0.8,
+      "importance": 0.82,
+      "token_cost": 240,
+      "critical": false
+    },
+    {
+      "id": "scheduler-note",
+      "content": "The scheduler compares greedy and simulated annealing plans.",
+      "relevance": 0.78,
+      "importance": 0.78,
+      "token_cost": 220,
+      "critical": false
+    },
+    {
+      "id": "old-chat-log",
+      "content": "A very long chat log with repeated speculation and little benchmark signal.",
+      "relevance": 0.22,
+      "importance": 0.2,
+      "token_cost": 2200,
+      "critical": false
+    },
+    {
+      "id": "marketing-draft",
+      "content": "Hype language that should not be included in an honest proof report.",
+      "relevance": 0.18,
+      "importance": 0.1,
+      "token_cost": 900,
+      "critical": false
+    },
+    {
+      "id": "duplicate-background",
+      "content": "Background already covered by more relevant context.",
+      "relevance": 0.3,
+      "importance": 0.25,
+      "token_cost": 760,
+      "critical": false
+    }
+  ]
+}

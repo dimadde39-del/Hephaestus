@@ -6,11 +6,11 @@ Hephaestus explores optimization-first agent execution: what to do next, which
 model to use, what context to include, which tools to call, and when to ask for
 approval.
 
-This repository is an early Phase 0 / Phase 1 foundation. It is not a production
-agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a typed,
-testable Python core for spec-driven planning, persistent local memory, model
-routing, context packing, token budgeting, safe tool gating, and a working CLI
-demo.
+This repository is an early optimization-first agent runtime. It is not a
+production agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a
+typed, testable Python core for spec-driven planning, persistent local memory,
+model routing, context packing, token budgeting, safe tool gating, benchmark
+proof reports, and a working CLI demo.
 
 ## Core Loop
 
@@ -32,6 +32,7 @@ CLI
  |    |-- model router
  |    |-- context packer
  |    `-- token firewall
+ |-- Benchmark layer: fixtures, runner, reports, persisted proof runs
  |-- Model layer: provider interface, fake local provider, optional DeepSeek
  |-- Tool layer: typed tool definitions
  `-- Safety layer: approval gates, risky command policy, audit schemas
@@ -60,6 +61,28 @@ The model router minimizes estimated cost only after filtering for capabilities,
 privacy, context window, tool/JSON support, and quality threshold. A cheap model
 that cannot meet the threshold is rejected.
 
+## Benchmark Proof Reports
+
+Phase 2B adds benchmark commands that exercise the optimizer on designed task
+graphs:
+
+```bash
+uv run heph benchmark list
+uv run heph benchmark show model_quality_threshold
+uv run heph benchmark run benchmarks/task_graphs/simple_release.json
+uv run heph benchmark run
+uv run heph benchmark run --json
+```
+
+Each benchmark compares greedy scheduling with simulated annealing, routes
+models under quality thresholds, packs context under token pressure, checks
+aggregate token/cost budgets, counts approval-gated tasks, and saves a
+`mode=benchmark` run. Use `heph run show <run_id>` to inspect persisted tasks,
+decisions, rejected models, context packing, budget decisions, and approvals.
+
+The benchmark suite is designed to test optimizer behavior, not to claim
+real-world AGI performance.
+
 ## Quickstart
 
 ```bash
@@ -70,6 +93,8 @@ uv run heph db init
 uv run heph db path
 uv run heph plan "prepare this repo for release"
 uv run heph optimize examples/repo_release_demo.json
+uv run heph benchmark list
+uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph runs
 uv run heph models
 uv run heph memory add --type failure --content "Validation failed because tests were missing"
@@ -88,7 +113,8 @@ The path is relative to the current working directory. Memory commands
 auto-initialize the database, and `heph optimize ...` saves a run record with
 tasks, scheduler decisions, model routing decisions, context packing, budget
 evaluation, and pending approval markers. Use `heph run show <run_id>` to inspect
-a saved run.
+a saved run. Benchmark commands use the same durable run history with
+`mode=benchmark`.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -114,6 +140,7 @@ uv run mypy
 uv run heph doctor
 uv run heph db init
 uv run heph optimize examples/repo_release_demo.json
+uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 ```
 
 ## Current Status
@@ -130,6 +157,7 @@ Built:
 - Context packing optimizer.
 - Token firewall.
 - Safety policy for risky tools and shell commands.
+- Benchmark runner and optimizer proof reports.
 - Typer/Rich CLI.
 
 Not built yet:
@@ -138,4 +166,3 @@ Not built yet:
 - Browser/desktop/voice/Telegram automation.
 - Full self-improving skill promotion.
 - Production sandbox execution.
-- Full optimization benchmark reporting.

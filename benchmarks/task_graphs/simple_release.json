@@ -1,11 +1,24 @@
 {
-  "quality_threshold": 0.76,
+  "id": "simple_release",
+  "title": "Simple Release",
+  "description": "A healthy release-readiness benchmark with a straightforward dependency chain.",
+  "goal": "Show a low-drama optimization pass where quality and budgets are preserved.",
+  "tags": ["scheduler", "baseline", "release"],
+  "expected_constraints": [
+    "Run inspection before validation.",
+    "Keep all critical release context under budget.",
+    "Use the cheapest model that still meets the quality threshold."
+  ],
+  "notes": [
+    "This fixture is intentionally not dramatic; it is the sanity check for the benchmark runner."
+  ],
+  "quality_threshold": 0.74,
   "context_token_budget": 1200,
   "token_budget": {
     "max_input_tokens": 8000,
     "max_output_tokens": 3000,
     "max_cost": 0.1,
-    "quality_threshold": 0.76
+    "quality_threshold": 0.74
   },
   "tasks": [
     {
@@ -72,6 +85,14 @@
       "relevance": 0.72,
       "importance": 0.7,
       "token_cost": 180,
+      "critical": false
+    },
+    {
+      "id": "verbose-release-log",
+      "content": "A long release log that is useful but not necessary for this small case.",
+      "relevance": 0.35,
+      "importance": 0.3,
+      "token_cost": 1100,
       "critical": false
     }
   ]

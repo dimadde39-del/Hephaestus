@@ -1,4 +1,17 @@
 {
+  "id": "token_budget_pressure",
+  "title": "Token Budget Pressure",
+  "description": "A tight-budget benchmark where selected work exceeds the aggregate input-token budget.",
+  "goal": "Show token budget blocking while preserving the quality threshold for routed tasks.",
+  "tags": ["tokens", "budget", "context"],
+  "expected_constraints": [
+    "Critical context should fit and be preserved.",
+    "Low-value large context should be excluded.",
+    "Aggregate token budget should be reported as blocked."
+  ],
+  "notes": [
+    "This fixture keeps model quality intact while deliberately exceeding aggregate input tokens."
+  ],
   "quality_threshold": 0.82,
   "context_token_budget": 700,
   "token_budget": {
@@ -67,19 +80,19 @@
       "critical": true
     },
     {
-      "id": "historical-release-log",
-      "content": "A long historical release log with many details that may not fit.",
-      "relevance": 0.45,
-      "importance": 0.45,
-      "token_cost": 1200,
-      "critical": false
-    },
-    {
       "id": "recent-failure",
       "content": "Recent failures came from skipping the fastest smoke tests.",
       "relevance": 0.8,
       "importance": 0.85,
       "token_cost": 220,
+      "critical": false
+    },
+    {
+      "id": "historical-release-log",
+      "content": "A long historical release log with many details that may not fit.",
+      "relevance": 0.45,
+      "importance": 0.45,
+      "token_cost": 1200,
       "critical": false
     }
   ]

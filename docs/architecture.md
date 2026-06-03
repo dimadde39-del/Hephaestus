@@ -10,6 +10,8 @@ always-on runtime without forcing paid APIs or a single model provider.
   and `ExecutionPlan`.
 - `storage`: SQLite initialization, migrations, persistent memories, run history,
   decisions, and approval records.
+- `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
+  and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
 - `optimize`: task ordering, model routing, context packing, and token budgets.
 - `models`: provider-agnostic model profiles, fake provider, optional DeepSeek.
@@ -31,6 +33,7 @@ User goal
   -> Model routing
   -> Token firewall
   -> Safety policy
+  -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
 
@@ -48,3 +51,15 @@ history before any always-on process exists.
 - Keep state simple now; introduce SQLite/vector/graph storage later.
 - Keep SQLite local and migration-friendly before adding vector or graph storage.
 - Make every optimizer return an explanation.
+- Treat benchmark reports as designed optimizer probes, not real-world AGI
+  performance claims.
+
+## Benchmark Persistence
+
+The benchmark layer deliberately reuses the generic run history schema. A
+benchmark creates a run with `mode=benchmark`, stores scheduled tasks in
+`run_tasks`, stores scheduler/router/context/budget/quality decisions in
+`run_decisions`, and stores approval-required actions in `approvals`.
+
+This keeps the storage boundary simple while making benchmark runs visible in
+the same `heph runs` and `heph run show <id>` views used by optimization demos.
