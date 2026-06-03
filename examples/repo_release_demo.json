@@ -1,0 +1,207 @@
+{
+  "quality_threshold": 0.82,
+  "context_token_budget": 1600,
+  "token_budget": {
+    "max_input_tokens": 10000,
+    "max_output_tokens": 4000,
+    "max_cost": 0.25,
+    "quality_threshold": 0.82
+  },
+  "tasks": [
+    {
+      "id": "inspect-repository",
+      "title": "Inspect repository",
+      "description": "Map files, git status, project metadata, and branch state.",
+      "priority": 9,
+      "dependencies": [],
+      "risk": 0.05,
+      "expected_value": 8.0,
+      "uncertainty": 0.2,
+      "required_capabilities": ["repository-inspection"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 800,
+      "estimated_output_tokens": 300,
+      "allowed_tools": ["filesystem", "git"],
+      "requires_approval": false
+    },
+    {
+      "id": "detect-package-manager",
+      "title": "Detect package manager",
+      "description": "Identify Python, Node, or other package managers and scripts.",
+      "priority": 8,
+      "dependencies": ["inspect-repository"],
+      "risk": 0.05,
+      "expected_value": 7.0,
+      "uncertainty": 0.2,
+      "required_capabilities": ["repository-inspection"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 650,
+      "estimated_output_tokens": 250,
+      "allowed_tools": ["filesystem"],
+      "requires_approval": false
+    },
+    {
+      "id": "inspect-scripts",
+      "title": "Inspect validation scripts",
+      "description": "Locate test, lint, format, build, and release commands.",
+      "priority": 8,
+      "dependencies": ["detect-package-manager"],
+      "risk": 0.08,
+      "expected_value": 7.5,
+      "uncertainty": 0.25,
+      "required_capabilities": ["repository-inspection", "planning"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 350,
+      "allowed_tools": ["filesystem"],
+      "requires_approval": false
+    },
+    {
+      "id": "run-validation",
+      "title": "Run validation",
+      "description": "Run the safest available validation commands and capture results.",
+      "priority": 9,
+      "dependencies": ["inspect-scripts"],
+      "risk": 0.18,
+      "expected_value": 9.0,
+      "uncertainty": 0.35,
+      "required_capabilities": ["shell", "testing"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1200,
+      "estimated_output_tokens": 700,
+      "allowed_tools": ["shell"],
+      "requires_approval": false
+    },
+    {
+      "id": "summarize-release-readiness",
+      "title": "Summarize release readiness",
+      "description": "Explain validation results, open risks, and recommended release actions.",
+      "priority": 7,
+      "dependencies": ["run-validation"],
+      "risk": 0.08,
+      "expected_value": 8.5,
+      "uncertainty": 0.2,
+      "required_capabilities": ["analysis", "writing"],
+      "privacy_level": "internal",
+      "estimated_input_tokens": 1000,
+      "estimated_output_tokens": 800,
+      "allowed_tools": [],
+      "requires_approval": false
+    },
+    {
+      "id": "approval-before-commit",
+      "title": "Ask approval before commit",
+      "description": "Gate any commit, push, or publish action behind explicit approval.",
+      "priority": 10,
+      "dependencies": ["summarize-release-readiness"],
+      "risk": 0.65,
+      "expected_value": 6.0,
+      "uncertainty": 0.15,
+      "required_capabilities": ["git", "safety"],
+      "privacy_level": "private",
+      "estimated_input_tokens": 300,
+      "estimated_output_tokens": 200,
+      "allowed_tools": ["git"],
+      "requires_approval": true
+    }
+  ],
+  "model_profiles": [
+    {
+      "provider": "local",
+      "model": "repo-safe",
+      "capabilities": ["git", "planning", "repository-inspection", "safety", "shell", "testing"],
+      "context_window": 32768,
+      "input_cost_per_million": 0,
+      "output_cost_per_million": 0,
+      "latency_score": 0.8,
+      "quality_scores": {
+        "git": 0.84,
+        "planning": 0.83,
+        "repository-inspection": 0.86,
+        "safety": 0.88,
+        "shell": 0.84,
+        "testing": 0.84
+      },
+      "privacy_level": "secret",
+      "supports_tools": true,
+      "supports_json": true
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "capabilities": ["analysis", "coding", "general", "planning", "reasoning", "repository-inspection", "writing"],
+      "context_window": 1000000,
+      "input_cost_per_million": 0.14,
+      "output_cost_per_million": 0.28,
+      "latency_score": 0.7,
+      "quality_scores": {
+        "analysis": 0.86,
+        "coding": 0.84,
+        "general": 0.84,
+        "planning": 0.85,
+        "reasoning": 0.86,
+        "repository-inspection": 0.84,
+        "writing": 0.84
+      },
+      "privacy_level": "internal",
+      "supports_tools": true,
+      "supports_json": true
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "capabilities": ["analysis", "coding", "general", "planning", "reasoning", "repository-inspection", "writing"],
+      "context_window": 1000000,
+      "input_cost_per_million": 0.435,
+      "output_cost_per_million": 0.87,
+      "latency_score": 0.55,
+      "quality_scores": {
+        "analysis": 0.9,
+        "coding": 0.88,
+        "general": 0.88,
+        "planning": 0.9,
+        "reasoning": 0.9,
+        "repository-inspection": 0.88,
+        "writing": 0.88
+      },
+      "privacy_level": "internal",
+      "supports_tools": true,
+      "supports_json": true
+    }
+  ],
+  "context_candidates": [
+    {
+      "id": "project-constitution",
+      "content": "Local-first, quality-preserving cost, approval for risk, model-agnostic.",
+      "relevance": 0.95,
+      "importance": 0.95,
+      "token_cost": 280,
+      "critical": true
+    },
+    {
+      "id": "release-checklist",
+      "content": "Inspect repo, detect scripts, run validation, summarize readiness, ask approval before commit.",
+      "relevance": 0.9,
+      "importance": 0.85,
+      "token_cost": 360,
+      "critical": true
+    },
+    {
+      "id": "failure-memory",
+      "content": "Never require paid APIs for tests.",
+      "relevance": 0.8,
+      "importance": 0.8,
+      "token_cost": 180,
+      "critical": false
+    },
+    {
+      "id": "full-validation-log",
+      "content": "Verbose historical logs that may be useful but are not required.",
+      "relevance": 0.45,
+      "importance": 0.35,
+      "token_cost": 2200,
+      "critical": false
+    }
+  ]
+}
+

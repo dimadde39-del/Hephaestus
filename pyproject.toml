@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hephaestus-agent"
+version = "0.1.0"
+description = "An open-source forge for always-on, self-improving AI agents."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Hephaestus contributors" }]
+keywords = ["ai-agents", "optimization", "agent-runtime", "memory", "cli"]
+dependencies = [
+    "pydantic>=2.8,<3",
+    "rich>=13.7,<15",
+    "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.10,<2",
+    "pytest>=8.2,<9",
+    "ruff>=0.5,<1",
+]
+
+[project.scripts]
+heph = "hephaestus.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hephaestus"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["hephaestus"]
+plugins = ["pydantic.mypy"]
+
