@@ -1,10 +1,13 @@
 # Explainable Decision Engine
 
 Phase 3A makes important Hephaestus decisions inspectable, traceable, and
-auditable. The goal is not better UI. The goal is optimizer transparency.
+auditable. Phase 3B attaches outcomes and reflections to those decisions. The
+goal is not better UI. The goal is optimizer transparency and decision-quality
+learning.
 
-Hephaestus does not only optimize decisions.
-It records why each decision was made so future versions can learn from outcomes.
+Hephaestus does not only optimize or explain decisions.
+It records why each decision was made, whether it worked, and what should be
+learned from the result.
 
 Users and future runtime systems should be able to answer:
 
@@ -13,6 +16,8 @@ Users and future runtime systems should be able to answer:
 - Why was context included or removed?
 - Why did the token firewall approve, block, or intervene?
 - Why did a safety gate require approval?
+- Did the decision succeed, fail, partially succeed, or remain unknown?
+- What learning signal or failure draft came from the outcome?
 
 ## Decision Types
 
@@ -72,14 +77,41 @@ Supported operations:
 uv run heph explain <run_id>
 uv run heph explain <run_id> --summary
 uv run heph explain stats
+uv run heph outcome add <decision_trace_id> --status failure --summary "..."
+uv run heph reflect <run_id>
+uv run heph learn signals
 ```
 
 `heph explain <run_id>` groups traces into task, model, context, budget, safety,
 and optimization sections. `--summary` reports total decisions, decisions by
 type, top rejection reasons, top constraints, average confidence, average
-objective score, token savings, and approvals required. `stats` aggregates
+objective score, token savings, and approvals required. When outcomes are
+present, `explain` also shows linked outcomes and reflections, and `--summary`
+includes outcome and learning artifact counts. `stats` aggregates
 trace counts, model selections, rejected models, rejection reasons, approval
 triggers, token savings, confidence, and objective score across all saved runs.
+
+## Outcome Attachments
+
+Phase 3B adds the companion record types in `hephaestus.outcomes.schemas`:
+
+- `OutcomeRecord`
+- `OutcomeMetric`
+- `OutcomeEvidence`
+- `ReflectionRecord`
+- `LearningSignal`
+- `FailureMemoryDraft`
+- `PolicyUpdateSuggestion`
+
+The stable loop is:
+
+```text
+Decision -> Outcome -> Reflection -> Memory Draft -> Learning Signal
+```
+
+Outcomes can be manually attached with `heph outcome add`, or generated
+deterministically for benchmark traces with `heph benchmark run --evaluate` and
+`heph reflect <run_id>`.
 
 ## Why Explainability Matters
 
@@ -110,14 +142,24 @@ Benchmark runs automatically generate decision traces. Reports include:
 Persisted benchmark runs can be inspected with both `heph run show <run_id>` and
 `heph explain <run_id>`.
 
+With `--evaluate`, benchmark runs also persist simulated outcomes:
+
+- model-quality decisions succeed when selected quality meets the required
+  threshold and fail when it does not,
+- context decisions fail if critical context is missing,
+- budget decisions fail when quality is violated and partially succeed under
+  unresolved token/cost pressure,
+- safety decisions fail when high-risk actions are allowed without approval.
+
 ## Future Connection
 
 The decision engine is infrastructure for later phases:
 
-- Outcome tracking can attach real outcomes directly to `decision_traces.id`.
-- Failure learning can create memories and attach them through
-  `failure_memory_id`.
-- Policy changes can point back to the decisions that motivated them through
+- Repeated outcomes can tune model routing thresholds and context strategy
+  profiles.
+- Failure memory drafts can be explicitly promoted to durable `failure`
+  memories.
+- Policy suggestions can point back to the decisions that motivated them through
   `policy_update_id`.
 - QUBO/Ising optimization can emit comparable traces for binary-variable
   choices and constraint penalties.
@@ -128,4 +170,5 @@ The decision engine is infrastructure for later phases:
   models, human approval, or a different strategy.
 
 The important principle is stable: Hephaestus should not only optimize. It
-should be able to explain what it optimized for and what it gave up.
+should be able to explain what it optimized for, observe whether that decision
+worked, and learn from the result without unsafe automatic self-modification.

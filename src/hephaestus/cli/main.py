@@ -45,6 +45,22 @@ from hephaestus.optimize.context_packer import ContextCandidate, pack_context
 from hephaestus.optimize.model_router import ModelRouteRequest, ModelRoutingError, route_model
 from hephaestus.optimize.task_scheduler import compare_schedulers
 from hephaestus.optimize.token_firewall import BudgetDecision, TokenBudget, evaluate_budget
+from hephaestus.outcomes import (
+    OutcomeLearningSummary,
+    OutcomeRecord,
+    OutcomeRepository,
+    OutcomeStatus,
+    build_failure_memory_table,
+    build_learning_signal_table,
+    build_outcome_list_renderable,
+    build_outcome_show_renderable,
+    build_outcome_summary_renderable,
+    build_policy_update_table,
+    build_reflection_report_renderable,
+    reflect_on_outcome,
+    reflect_run_outcomes,
+    summarize_outcome_learning,
+)
 from hephaestus.spec.goal import build_goal_spec
 from hephaestus.spec.tasks import Task, generate_initial_tasks
 from hephaestus.storage import (
@@ -70,11 +86,15 @@ budget_app = typer.Typer(help="Token and cost budget commands.", no_args_is_help
 db_app = typer.Typer(help="Local SQLite database commands.", no_args_is_help=True)
 run_app = typer.Typer(help="Run history commands.", no_args_is_help=True)
 benchmark_app = typer.Typer(help="Optimizer benchmark commands.", no_args_is_help=True)
+outcome_app = typer.Typer(help="Decision outcome commands.", no_args_is_help=True)
+learn_app = typer.Typer(help="Outcome-derived learning artifact commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
 app.add_typer(run_app, name="run")
 app.add_typer(benchmark_app, name="benchmark")
+app.add_typer(outcome_app, name="outcome")
+app.add_typer(learn_app, name="learn")
 
 
 class DemoScenario(BaseModel):
@@ -512,6 +532,10 @@ def benchmark_run(
         bool,
         typer.Option("--json", help="Print machine-readable JSON instead of Rich tables."),
     ] = False,
+    evaluate: Annotated[
+        bool,
+        typer.Option("--evaluate", help="Generate simulated outcomes and learning artifacts."),
+    ] = False,
 ) -> None:
     """Run one benchmark fixture, or all fixtures when no target is supplied."""
 
@@ -522,12 +546,36 @@ def benchmark_run(
         raise typer.Exit(1) from error
 
     results = [run_benchmark(case) for case in cases]
+    if evaluate:
+        for result in results:
+            if result.run_id is not None:
+                reflect_run_outcomes(result.run_id)
     if json_output:
         typer.echo(results_to_json(results))
         return
 
     for result in results:
         print_benchmark_result(console, result)
+        if evaluate and result.run_id is not None:
+            batch = reflect_run_outcomes(result.run_id)
+            summary = summarize_outcome_learning(
+                batch.outcomes,
+                batch.reflections,
+                batch.learning_signals,
+                batch.failure_memory_drafts,
+                batch.policy_update_suggestions,
+            )
+            console.print(
+                build_reflection_report_renderable(
+                    f"Benchmark {result.case.id}: {result.run_id}",
+                    batch.outcomes,
+                    batch.reflections,
+                    batch.learning_signals,
+                    batch.failure_memory_drafts,
+                    batch.policy_update_suggestions,
+                    summary,
+                )
+            )
 
 
 @memory_app.command("add")
@@ -645,11 +693,199 @@ def explain_run(
         raise typer.Exit(1)
 
     traces = trace_repository.list_traces(run_id=run_id)
+    outcome_repository = OutcomeRepository(trace_repository.database_path)
     if summary:
         console.print(build_decision_summary_renderable(run_id, summarize_decisions(traces)))
+        outcome_summary = _outcome_learning_summary(outcome_repository, run_id)
+        if outcome_summary.total_outcomes:
+            console.print(build_outcome_summary_renderable(outcome_summary))
         return
 
-    console.print(build_run_explanation_renderable(run_id, traces))
+    outcomes_by_trace = {
+        trace.id: outcome_repository.list_outcomes_by_decision_trace(trace.id)
+        for trace in traces
+    }
+    reflections_by_trace = {
+        trace.id: outcome_repository.list_reflections(decision_trace_id=trace.id)
+        for trace in traces
+    }
+    console.print(
+        build_run_explanation_renderable(
+            run_id,
+            traces,
+            outcomes_by_trace,
+            reflections_by_trace,
+        )
+    )
+
+
+@outcome_app.command("add")
+def outcome_add(
+    decision_trace_id: Annotated[str, typer.Argument(help="Decision trace ID to attach to.")],
+    status: Annotated[OutcomeStatus, typer.Option("--status", help="Observed outcome status.")],
+    summary: Annotated[str, typer.Option("--summary", help="Human outcome summary.")],
+    severity: Annotated[
+        float,
+        typer.Option("--severity", min=0.0, max=1.0, help="Outcome severity."),
+    ] = 0.0,
+    confidence: Annotated[
+        float,
+        typer.Option("--confidence", min=0.0, max=1.0, help="Outcome confidence."),
+    ] = 0.7,
+    tag: Annotated[list[str] | None, typer.Option("--tag", help="Repeatable tag.")] = None,
+) -> None:
+    """Manually attach an outcome to a decision trace."""
+
+    trace_repository = DecisionTraceRepository()
+    trace = trace_repository.get_trace(decision_trace_id)
+    if trace is None:
+        console.print(f"[red]Decision trace not found: {decision_trace_id}[/red]")
+        raise typer.Exit(1)
+    outcome_repository = OutcomeRepository(trace_repository.database_path)
+    outcome = outcome_repository.save_outcome(
+        OutcomeRecord(
+            run_id=trace.run_id,
+            decision_trace_id=trace.id,
+            status=status,
+            summary=summary,
+            severity=severity,
+            confidence=confidence,
+            tags=[*(tag or []), "manual-outcome"],
+        )
+    )
+    reflection = outcome_repository.save_reflection(reflect_on_outcome(trace, outcome))
+    console.print(f"Added outcome {outcome.id} to trace {trace.id}")
+    console.print(f"Created reflection {reflection.id}")
+
+
+@outcome_app.command("list")
+def outcome_list(
+    run_id: Annotated[str | None, typer.Option("--run", help="Filter by run ID.")] = None,
+) -> None:
+    """List recorded outcomes."""
+
+    repository = OutcomeRepository()
+    console.print(build_outcome_list_renderable(repository.list_outcomes(run_id=run_id)))
+
+
+@outcome_app.command("show")
+def outcome_show(
+    outcome_id: Annotated[str, typer.Argument(help="Outcome ID to inspect.")],
+) -> None:
+    """Show one outcome with linked learning artifacts."""
+
+    repository = OutcomeRepository()
+    outcome = repository.get_outcome(outcome_id)
+    if outcome is None:
+        console.print(f"[red]Outcome not found: {outcome_id}[/red]")
+        raise typer.Exit(1)
+    console.print(
+        build_outcome_show_renderable(
+            outcome,
+            repository.list_reflections(outcome_id=outcome.id),
+            repository.list_learning_signals(outcome_id=outcome.id),
+            repository.list_failure_memory_drafts(outcome_id=outcome.id),
+            repository.list_policy_update_suggestions(outcome_id=outcome.id),
+        )
+    )
+
+
+@app.command("reflect")
+def reflect_run(
+    run_id: Annotated[str, typer.Argument(help="Run ID to reflect on.")],
+) -> None:
+    """Generate deterministic reflections and learning artifacts for a run."""
+
+    outcome_repository = OutcomeRepository()
+    run_repository = RunRepository(outcome_repository.database_path)
+    if run_repository.get_run(run_id) is None:
+        console.print(f"[red]Run not found: {run_id}[/red]")
+        raise typer.Exit(1)
+    batch = reflect_run_outcomes(
+        run_id,
+        repository=outcome_repository,
+        trace_repository=DecisionTraceRepository(outcome_repository.database_path),
+    )
+    summary = summarize_outcome_learning(
+        batch.outcomes,
+        batch.reflections,
+        batch.learning_signals,
+        batch.failure_memory_drafts,
+        batch.policy_update_suggestions,
+    )
+    console.print(
+        build_reflection_report_renderable(
+            f"Run {run_id}",
+            batch.outcomes,
+            batch.reflections,
+            batch.learning_signals,
+            batch.failure_memory_drafts,
+            batch.policy_update_suggestions,
+            summary,
+        )
+    )
+
+
+@learn_app.command("signals")
+def learn_signals(
+    run_id: Annotated[str | None, typer.Option("--run", help="Filter by run ID.")] = None,
+) -> None:
+    """List draft and reviewed learning signals."""
+
+    repository = OutcomeRepository()
+    console.print(build_learning_signal_table(repository.list_learning_signals(run_id=run_id)))
+
+
+@learn_app.command("failures")
+def learn_failures(
+    run_id: Annotated[str | None, typer.Option("--run", help="Filter by run ID.")] = None,
+) -> None:
+    """List failure memory drafts."""
+
+    repository = OutcomeRepository()
+    console.print(build_failure_memory_table(repository.list_failure_memory_drafts(run_id=run_id)))
+
+
+@learn_app.command("policies")
+def learn_policies(
+    run_id: Annotated[str | None, typer.Option("--run", help="Filter by run ID.")] = None,
+) -> None:
+    """List policy update suggestions."""
+
+    repository = OutcomeRepository()
+    console.print(
+        build_policy_update_table(repository.list_policy_update_suggestions(run_id=run_id))
+    )
+
+
+@learn_app.command("promote-failure")
+def learn_promote_failure(
+    failure_draft_id: Annotated[
+        str,
+        typer.Argument(help="Failure memory draft ID to promote."),
+    ],
+    project: Annotated[str, typer.Option("--project", help="Memory project namespace.")] = "default",
+) -> None:
+    """Promote a failure memory draft into persistent memory."""
+
+    outcome_repository = OutcomeRepository()
+    draft = outcome_repository.get_failure_memory_draft(failure_draft_id)
+    if draft is None:
+        console.print(f"[red]Failure memory draft not found: {failure_draft_id}[/red]")
+        raise typer.Exit(1)
+    memory = MemoryItem(
+        type=MemoryType.FAILURE,
+        content=draft.content,
+        summary=draft.summary,
+        tags=draft.tags,
+        project=project,
+        confidence=draft.confidence,
+        importance=draft.suggested_memory_importance,
+        source="outcome-learning",
+    )
+    SqliteMemoryRepository(outcome_repository.database_path).add(memory)
+    outcome_repository.link_decision_trace(draft.decision_trace_id, failure_memory_id=memory.id)
+    console.print(f"Promoted failure draft {draft.id} to memory {memory.id}")
 
 
 @run_app.command("show")
@@ -738,6 +974,7 @@ def run_show(
     if trace_count:
         console.print(f"Decision traces: {trace_count}")
         console.print(f"View decision trace: heph explain {run.id}")
+        console.print("Attach outcome: heph outcome add <trace_id> --status success --summary ...")
     else:
         console.print("Decision traces: none")
 
@@ -820,6 +1057,19 @@ def _budget_rejections(decision: BudgetDecision) -> list[str]:
     if not decision.meets_quality_threshold:
         rejected.append("quality threshold missed")
     return rejected
+
+
+def _outcome_learning_summary(
+    repository: OutcomeRepository,
+    run_id: str,
+) -> OutcomeLearningSummary:
+    return summarize_outcome_learning(
+        repository.list_outcomes_by_run(run_id),
+        repository.list_reflections(run_id=run_id),
+        repository.list_learning_signals(run_id=run_id),
+        repository.list_failure_memory_drafts(run_id=run_id),
+        repository.list_policy_update_suggestions(run_id=run_id),
+    )
 
 
 def _format_datetime(value: datetime | None) -> str:

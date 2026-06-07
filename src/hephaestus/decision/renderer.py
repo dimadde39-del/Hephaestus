@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -17,6 +17,8 @@ from hephaestus.decision.schemas import (
     DecisionType,
     MetricValue,
 )
+from hephaestus.outcomes.renderer import build_trace_outcome_table
+from hephaestus.outcomes.schemas import OutcomeRecord, ReflectionRecord
 
 _SECTION_ORDER = [
     DecisionType.OPTIMIZATION,
@@ -40,6 +42,8 @@ _SECTION_TITLES = {
 def build_run_explanation_renderable(
     run_id: str,
     traces: Sequence[DecisionTraceVariant],
+    outcomes_by_trace: Mapping[str, Sequence[OutcomeRecord]] | None = None,
+    reflections_by_trace: Mapping[str, Sequence[ReflectionRecord]] | None = None,
 ) -> Group:
     """Build a Rich grouped explanation for one run."""
 
@@ -64,6 +68,13 @@ def build_run_explanation_renderable(
         section = grouped.get(decision_type, [])
         if section:
             renderables.append(_trace_table(_SECTION_TITLES[decision_type], section))
+    if outcomes_by_trace and any(outcomes_by_trace.values()):
+        renderables.append(
+            build_trace_outcome_table(
+                outcomes_by_trace,
+                reflections_by_trace or {},
+            )
+        )
     return Group(*renderables)
 
 

@@ -12,6 +12,9 @@ always-on runtime without forcing paid APIs or a single model provider.
   legacy decisions, rich decision traces, and approval records.
 - `decision`: typed trace schemas, builders, SQLite trace repository, rendering,
   and aggregate analysis for explainable optimizer behavior.
+- `outcomes`: typed outcome records, deterministic reflections, learning
+  signals, failure memory drafts, policy update suggestions, SQLite repository,
+  and Rich renderers.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -37,6 +40,9 @@ User goal
   -> Token firewall
   -> Safety policy
   -> Decision trace
+  -> Outcome
+  -> Reflection
+  -> Learning signal / failure draft
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -44,7 +50,7 @@ User goal
 At the product level this is the same loop expressed as:
 
 ```text
-Observe -> Remember -> Specify -> Optimize -> Act -> Explain -> Learn
+Observe -> Remember -> Specify -> Optimize -> Act -> Explain -> Outcome -> Reflect -> Learn
 ```
 
 Phase 1 intentionally avoids a long-running daemon. The CLI proves the module
@@ -61,6 +67,8 @@ history before any always-on process exists.
 - Keep state simple now; introduce SQLite/vector/graph storage later.
 - Keep SQLite local and migration-friendly before adding vector or graph storage.
 - Make every optimizer return an explanation and a structured decision trace.
+- Attach outcomes to decisions before applying any learning behavior.
+- Store policy updates as suggestions until reviewed.
 - Treat benchmark reports as designed optimizer probes, not real-world AGI
   performance claims.
 
@@ -87,6 +95,23 @@ records through `heph explain <run_id>`, `heph explain <run_id> --summary`, and
 Hephaestus does not only optimize decisions. It records why each decision was
 made so future versions can learn from outcomes.
 
+## Outcome Learning Architecture
+
+Phase 3B adds `outcomes`, `reflections`, `learning_signals`,
+`failure_memory_drafts`, and `policy_update_suggestions` tables. Each outcome
+links to a `decision_traces.id`, then updates the trace's nullable
+`outcome_id`. Failure drafts and policy suggestions can also link back through
+`failure_memory_id` and `policy_update_id`.
+
+The evaluator is deterministic for current benchmark and optimize-style traces:
+model routing checks selected quality against the required threshold, context
+selection checks critical context preservation and token budget, budget decisions
+check quality/token/cost constraints, and safety decisions check approval gates
+for risky actions.
+
+Learning signals and policy suggestions are draft artifacts. They are evidence
+for future tuning, not automatic self-modification.
+
 ## Benchmark Persistence
 
 The benchmark layer deliberately reuses the generic run history schema. A
@@ -98,3 +123,5 @@ approval-required actions in `approvals`.
 This keeps the storage boundary simple while making benchmark runs visible in
 the same `heph runs` and `heph run show <id>` views used by optimization demos.
 Use `heph explain <id>` for the trace tree and rejection analysis.
+Use `heph benchmark run --evaluate` or `heph reflect <id>` to attach simulated
+outcomes and learning artifacts to benchmark traces.

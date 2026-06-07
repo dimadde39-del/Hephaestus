@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -126,6 +126,113 @@ CREATE INDEX IF NOT EXISTS idx_decision_traces_type
 ON decision_traces(decision_type);
 """
 
+MIGRATION_4 = """
+CREATE TABLE IF NOT EXISTS outcomes (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    decision_trace_id TEXT NOT NULL REFERENCES decision_traces(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    metrics_json TEXT NOT NULL DEFAULT '[]',
+    evidence_json TEXT NOT NULL DEFAULT '[]',
+    severity REAL NOT NULL DEFAULT 0,
+    confidence REAL NOT NULL DEFAULT 0.7,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_outcomes_run_id
+ON outcomes(run_id, observed_at);
+
+CREATE INDEX IF NOT EXISTS idx_outcomes_decision_trace_id
+ON outcomes(decision_trace_id, observed_at);
+
+CREATE TABLE IF NOT EXISTS reflections (
+    id TEXT PRIMARY KEY,
+    outcome_id TEXT NOT NULL REFERENCES outcomes(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    decision_trace_id TEXT NOT NULL REFERENCES decision_traces(id) ON DELETE CASCADE,
+    what_worked TEXT NOT NULL DEFAULT '',
+    what_failed TEXT NOT NULL DEFAULT '',
+    likely_cause TEXT NOT NULL DEFAULT '',
+    recommended_change TEXT NOT NULL DEFAULT '',
+    confidence REAL NOT NULL DEFAULT 0.7,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_reflections_run_id
+ON reflections(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_reflections_outcome_id
+ON reflections(outcome_id);
+
+CREATE TABLE IF NOT EXISTS learning_signals (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    decision_trace_id TEXT NOT NULL REFERENCES decision_traces(id) ON DELETE CASCADE,
+    outcome_id TEXT NOT NULL REFERENCES outcomes(id) ON DELETE CASCADE,
+    signal_type TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    target TEXT NOT NULL,
+    rationale TEXT NOT NULL DEFAULT '',
+    strength REAL NOT NULL DEFAULT 0.5,
+    confidence REAL NOT NULL DEFAULT 0.7,
+    status TEXT NOT NULL DEFAULT 'draft',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_learning_signals_run_id
+ON learning_signals(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_learning_signals_type_status
+ON learning_signals(signal_type, status);
+
+CREATE TABLE IF NOT EXISTS failure_memory_drafts (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    decision_trace_id TEXT NOT NULL REFERENCES decision_traces(id) ON DELETE CASCADE,
+    outcome_id TEXT NOT NULL REFERENCES outcomes(id) ON DELETE CASCADE,
+    memory_type TEXT NOT NULL DEFAULT 'failure',
+    summary TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL NOT NULL DEFAULT 0.7,
+    severity REAL NOT NULL DEFAULT 0.5,
+    suggested_memory_importance REAL NOT NULL DEFAULT 0.6,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_failure_memory_drafts_run_id
+ON failure_memory_drafts(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_failure_memory_drafts_outcome_id
+ON failure_memory_drafts(outcome_id);
+
+CREATE TABLE IF NOT EXISTS policy_update_suggestions (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    decision_trace_id TEXT NOT NULL REFERENCES decision_traces(id) ON DELETE CASCADE,
+    outcome_id TEXT NOT NULL REFERENCES outcomes(id) ON DELETE CASCADE,
+    policy_area TEXT NOT NULL,
+    current_rule TEXT NOT NULL DEFAULT '',
+    suggested_rule TEXT NOT NULL DEFAULT '',
+    rationale TEXT NOT NULL DEFAULT '',
+    confidence REAL NOT NULL DEFAULT 0.7,
+    status TEXT NOT NULL DEFAULT 'draft',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_policy_update_suggestions_run_id
+ON policy_update_suggestions(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_policy_update_suggestions_area_status
+ON policy_update_suggestions(policy_area, status);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -174,6 +281,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (3, datetime.now(UTC).isoformat()),
+        )
+    if 4 not in applied_versions:
+        connection.executescript(MIGRATION_4)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (4, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

@@ -14,6 +14,7 @@ uv run heph benchmark list
 uv run heph benchmark show <benchmark_id>
 uv run heph benchmark run
 uv run heph benchmark run benchmarks/task_graphs/dependency_trap.json
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run --json
 ```
 
@@ -32,6 +33,8 @@ Passing an id, stem, filename, or path runs one fixture.
   preservation, approvals required, and estimated cost.
 - Decision trace summary: trace count, top decision type, top rationale, most
   common rejection reason, and token savings summary.
+- Outcome learning with `--evaluate`: outcome counts, deterministic reflections,
+  learning signals, failure memory drafts, and policy update suggestions.
 
 Greedy is included because it is a clear baseline. Simulated annealing explores
 more schedules, but it is not automatically better; reports show cases where it
@@ -55,6 +58,11 @@ in `run_tasks`, optimizer/router/context/budget decisions are stored in
 `run_decisions`, rich explainable traces are stored in `decision_traces`, and
 approval-required actions are stored in `approvals`.
 
+When `--evaluate` is passed, benchmark traces also create rows in `outcomes`,
+`reflections`, `learning_signals`, `failure_memory_drafts`, and
+`policy_update_suggestions`. The records remain local SQLite data and do not
+auto-apply policy changes.
+
 Inspect recent runs with:
 
 ```bash
@@ -62,12 +70,33 @@ uv run heph runs
 uv run heph run show <run_id>
 uv run heph explain <run_id>
 uv run heph explain <run_id> --summary
+uv run heph reflect <run_id>
+uv run heph learn signals
+uv run heph learn failures
+uv run heph learn policies
 ```
 
 Benchmark traces use the same decision engine as optimization demos. That means
 model-quality threshold fixtures preserve the rejected-model rationale, context
 overload fixtures preserve token savings and excluded context reasons, and
 approval-gate fixtures preserve safety decisions.
+
+## Deterministic Outcome Evaluation
+
+Benchmark outcome evaluation is intentionally simple and reproducible:
+
+- model quality succeeds when the selected model quality is greater than or
+  equal to the required threshold,
+- context packing succeeds when critical context is preserved and the token
+  budget is respected,
+- budget checks succeed when token, cost, and quality constraints are all met,
+  fail when quality is violated, and partially succeed when quality is preserved
+  but token or cost pressure remains,
+- safety checks succeed when risky actions require approval and fail when a
+  high-risk action is allowed without approval.
+
+This makes the benchmark suite a small learning laboratory: it can show that a
+decision was explainable and then record whether that decision worked.
 
 ## Limitations
 

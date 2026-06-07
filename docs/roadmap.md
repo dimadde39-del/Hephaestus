@@ -25,20 +25,23 @@
 - Persisted benchmark runs in SQLite run history.
 - Explainable decision traces for task selection, model routing, context
   selection, token budgets, safety gates, and optimizer comparisons.
+- Outcome tracking and failure-learning foundations.
+- Deterministic benchmark outcome evaluation with draft learning artifacts.
 - QUBO/Ising formulations.
 - Simulated annealing tuning.
 - Comparison against greedy and naive baselines.
 
-## v0.4 Outcome Tracking + Failure Learning
+## v0.4 Policy Learning + Decision Quality Profiles
 
-- Attach outcomes to `decision_traces.id`.
-- Create failure memories when decisions lead to bad results.
-- Compare decision rationale against observed outcome.
-- Feed repeated failures into policy updates.
+- Use accumulated outcomes and learning signals to tune decision profiles.
+- Track model-routing quality profiles by task type and threshold.
+- Tune context strategy profiles for critical-context preservation.
+- Suggest scheduler weight adjustments from repeated task-order outcomes.
+- Keep policy updates reviewed and non-automatic by default.
 - Preserve the loop:
 
 ```text
-Decision -> Action -> Outcome -> Reflection -> Memory -> Policy Update -> Better Decision
+Decision -> Outcome -> Reflection -> Memory Draft -> Learning Signal -> Reviewed Policy Update
 ```
 
 ## v0.5 Token Firewall

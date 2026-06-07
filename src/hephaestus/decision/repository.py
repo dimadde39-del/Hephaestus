@@ -162,6 +162,9 @@ def _trace_from_row(row: sqlite3.Row) -> DecisionTraceVariant:
     if raw_json and raw_json != "{}":
         raw = json.loads(raw_json)
         if isinstance(raw, dict) and raw:
+            raw["outcome_id"] = _row_optional_str(row, "outcome_id")
+            raw["failure_memory_id"] = _row_optional_str(row, "failure_memory_id")
+            raw["policy_update_id"] = _row_optional_str(row, "policy_update_id")
             return parse_decision_trace(cast(dict[str, object], raw))
     return parse_decision_trace(
         {

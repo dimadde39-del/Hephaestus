@@ -32,10 +32,35 @@ uv run heph db path
 uv run heph memory add --type failure --content "Validation failed because tests were missing"
 uv run heph memory search tests
 uv run heph memory list
+uv run heph learn failures
+uv run heph learn promote-failure <failure_draft_id>
 ```
 
 Memory records persist across separate CLI invocations because they are written
 to SQLite instead of a process-local store.
+
+## Failure Memory Drafts
+
+Phase 3B does not automatically promote every failure into durable memory.
+Instead, outcome evaluation can create `FailureMemoryDraft` records that contain
+the run, decision trace, outcome, summary, content, tags, confidence, severity,
+and suggested importance.
+
+Drafts are listed with:
+
+```bash
+uv run heph learn failures
+```
+
+Promotion is explicit:
+
+```bash
+uv run heph learn promote-failure <failure_draft_id>
+```
+
+Promotion creates a normal persistent `MemoryItem` with `type=failure` and
+links the decision trace to the promoted memory ID. This keeps the learning
+path auditable and avoids automatic self-modification.
 
 ## Roadmap
 
@@ -43,3 +68,4 @@ to SQLite instead of a process-local store.
 - Memory decay and verification timestamps.
 - Graph links between decisions, failures, tasks, and skills.
 - Promotion from repeated successful memories into procedural skills.
+- Repeated outcome signals that adjust retrieval strategy after review.

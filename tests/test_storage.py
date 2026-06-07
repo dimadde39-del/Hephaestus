@@ -30,7 +30,7 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_traces'"
         ).fetchone()
 
-    assert migration_count[0] == 3
+    assert migration_count[0] == 4
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
 
