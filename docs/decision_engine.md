@@ -18,6 +18,7 @@ Users and future runtime systems should be able to answer:
 - Why did a safety gate require approval?
 - Did the decision succeed, fail, partially succeed, or remain unknown?
 - What learning signal or failure draft came from the outcome?
+- Did an active decision quality profile influence the decision?
 
 ## Decision Types
 
@@ -80,6 +81,7 @@ uv run heph explain stats
 uv run heph outcome add <decision_trace_id> --status failure --summary "..."
 uv run heph reflect <run_id>
 uv run heph learn signals
+uv run heph profile active
 ```
 
 `heph explain <run_id>` groups traces into task, model, context, budget, safety,
@@ -90,6 +92,9 @@ present, `explain` also shows linked outcomes and reflections, and `--summary`
 includes outcome and learning artifact counts. `stats` aggregates
 trace counts, model selections, rejected models, rejection reasons, approval
 triggers, token savings, confidence, and objective score across all saved runs.
+When profile applications exist, `explain` shows which profile applied, which
+decision area it affected, the before/after effect, and the profile rationale.
+`--summary` includes a profile application count.
 
 ## Outcome Attachments
 
@@ -112,6 +117,27 @@ Decision -> Outcome -> Reflection -> Memory Draft -> Learning Signal
 Outcomes can be manually attached with `heph outcome add`, or generated
 deterministically for benchmark traces with `heph benchmark run --evaluate` and
 `heph reflect <run_id>`.
+
+## Profile Applications
+
+Phase 3C adds profile application records. These are not decision traces
+themselves; they are audit records showing that a reviewed, active profile
+changed an input to a future decision. For example:
+
+```text
+Profile Applied:
+profile_model_router_quality_guard
+
+Effect:
+required_quality_threshold increased from 0.86 to 0.90
+
+Reason:
+past failures from cheap models on code-review tasks
+```
+
+Applications are recorded for model routing, context packing, token firewall,
+and scheduler decisions when active profiles exist. Explain output reads those
+records so profile-driven behavior stays visible.
 
 ## Why Explainability Matters
 
@@ -157,6 +183,8 @@ The decision engine is infrastructure for later phases:
 
 - Repeated outcomes can tune model routing thresholds and context strategy
   profiles.
+- Active decision quality profiles can bias future routing, context, budget,
+  scheduler, and safety decisions while preserving explainability.
 - Failure memory drafts can be explicitly promoted to durable `failure`
   memories.
 - Policy suggestions can point back to the decisions that motivated them through

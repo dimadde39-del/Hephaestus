@@ -15,8 +15,8 @@ This repository is an early optimization-first agent runtime. It is not a
 production agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a
 typed, testable Python core for spec-driven planning, persistent local memory,
 model routing, context packing, token budgeting, safe tool gating, benchmark
-proof reports, explainable decision traces, outcome learning, and a working CLI
-demo.
+proof reports, explainable decision traces, outcome learning, decision quality
+profiles, and a working CLI demo.
 
 ## Core Loop
 
@@ -32,6 +32,7 @@ CLI
  |-- Storage layer: SQLite memory, run history, decisions, traces, approvals
  |-- Decision layer: typed traces, persistence, rendering, aggregate analysis
  |-- Outcome layer: outcomes, reflections, learning signals, failure drafts
+ |-- Policy learning layer: draft/active profiles and profile applications
  |-- Memory layer: episodic, semantic, project, failure, decision records
  |-- Optimization core
  |    |-- central objective function
@@ -156,6 +157,38 @@ Outcome records link back to `decision_traces.id` through `outcome_id`.
 Failures can create `failure_memory_drafts`, and explicit promotion converts a
 draft into a normal persistent `failure` memory.
 
+## Policy Learning + Decision Quality Profiles
+
+Phase 3C turns passive learning artifacts into explicit, reversible decision
+quality profiles:
+
+```text
+Learning Signal -> Profile Suggestion -> Decision Quality Profile -> Future Decision Bias
+```
+
+Hephaestus does not silently rewrite itself.
+It converts outcomes into inspectable decision quality profiles that can be reviewed, activated, and measured.
+
+Profiles can target model routing, context packing, token firewall behavior,
+scheduler weights, safety gates, memory retrieval, and optimizer bias. Suggested
+profiles are drafts until activated:
+
+```bash
+uv run heph profile suggest
+uv run heph profile list
+uv run heph profile show <profile_id>
+uv run heph profile activate <profile_id>
+uv run heph profile active
+uv run heph profile apply-demo <profile_id>
+uv run heph profile archive <profile_id>
+```
+
+Active profiles can increase model quality thresholds, boost failure memories
+inside context packing, reduce aggressive token compression, increase scheduler
+dependency/risk penalties, and make safety approval gates more conservative.
+Each application is recorded in SQLite and appears in benchmark reports and
+`heph explain <run_id>`.
+
 ## Quickstart
 
 ```bash
@@ -169,6 +202,8 @@ uv run heph optimize examples/repo_release_demo.json
 uv run heph benchmark list
 uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
+uv run heph profile suggest
+uv run heph profile list
 uv run heph runs
 uv run heph explain stats
 uv run heph learn signals
@@ -192,7 +227,9 @@ evaluation, rich decision traces, and pending approval markers. Use
 `heph run show <run_id>` for the compact history view and `heph explain <run_id>`
 for the trace-level explanation. Benchmark commands use the same durable run
 history with `mode=benchmark`. Outcome learning commands use the same database
-and never require paid APIs.
+and never require paid APIs. Active decision quality profiles in the same
+database are applied to benchmark and optimize runs, with application records
+shown in reports and explanations.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -220,6 +257,8 @@ uv run heph db init
 uv run heph optimize examples/repo_release_demo.json
 uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
+uv run heph profile suggest
+uv run heph profile active
 uv run heph explain stats
 uv run heph learn signals
 ```
@@ -242,6 +281,8 @@ Built:
 - Explainable decision traces, summaries, and aggregate stats.
 - Outcome records, deterministic reflections, learning signals, failure memory
   drafts, and policy update suggestions.
+- Decision quality profiles, profile persistence, explicit activation/archive,
+  profile application records, and profile-aware benchmark/explain integration.
 - Typer/Rich CLI.
 
 Not built yet:
@@ -249,4 +290,5 @@ Not built yet:
 - Live always-on daemon.
 - Browser/desktop/voice/Telegram automation.
 - Full self-improving skill promotion.
+- Unsafe automatic self-modification.
 - Production sandbox execution.

@@ -61,6 +61,25 @@ from hephaestus.outcomes import (
     reflect_run_outcomes,
     summarize_outcome_learning,
 )
+from hephaestus.policy_learning import (
+    DecisionArea,
+    DecisionQualityProfile,
+    ProfileApplicationResult,
+    ProfileStore,
+    apply_context_packer_profiles,
+    apply_failure_memory_context_boost,
+    apply_model_router_profiles,
+    apply_safety_profiles,
+    apply_scheduler_profiles,
+    apply_token_firewall_profiles,
+    build_profile_application_summary_renderable,
+    build_profile_application_table,
+    build_profile_list_renderable,
+    build_profile_show_renderable,
+    build_profile_suggest_renderable,
+    build_profile_summary_renderable,
+    suggest_profiles,
+)
 from hephaestus.spec.goal import build_goal_spec
 from hephaestus.spec.tasks import Task, generate_initial_tasks
 from hephaestus.storage import (
@@ -88,6 +107,7 @@ run_app = typer.Typer(help="Run history commands.", no_args_is_help=True)
 benchmark_app = typer.Typer(help="Optimizer benchmark commands.", no_args_is_help=True)
 outcome_app = typer.Typer(help="Decision outcome commands.", no_args_is_help=True)
 learn_app = typer.Typer(help="Outcome-derived learning artifact commands.", no_args_is_help=True)
+profile_app = typer.Typer(help="Decision quality profile commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -95,6 +115,7 @@ app.add_typer(run_app, name="run")
 app.add_typer(benchmark_app, name="benchmark")
 app.add_typer(outcome_app, name="outcome")
 app.add_typer(learn_app, name="learn")
+app.add_typer(profile_app, name="profile")
 
 
 class DemoScenario(BaseModel):
@@ -219,8 +240,34 @@ def optimize(
     run_repository = RunRepository()
     trace_repository = DecisionTraceRepository(run_repository.database_path)
     run = run_repository.save_run(RunRecord(goal=f"Optimize {path}", mode="optimize"))
-    comparison = compare_schedulers(scenario.tasks, DEFAULT_CONFIG.objective_weights)
-    context = pack_context(scenario.context_candidates, scenario.context_token_budget)
+    profile_store = ProfileStore(run_repository.database_path)
+    active_profiles = profile_store.list_active_profiles()
+    profile_applications: list[ProfileApplicationResult] = []
+    scheduler_weights, scheduler_apps = apply_scheduler_profiles(
+        DEFAULT_CONFIG.objective_weights,
+        active_profiles,
+        run_id=run.id,
+        store=profile_store,
+    )
+    profile_applications.extend(scheduler_apps)
+    comparison = compare_schedulers(scenario.tasks, scheduler_weights)
+    context_settings, context_apps = apply_context_packer_profiles(
+        active_profiles,
+        run_id=run.id,
+        store=profile_store,
+    )
+    profile_applications.extend(context_apps)
+    context_candidates = apply_failure_memory_context_boost(
+        scenario.context_candidates,
+        context_settings,
+    )
+    context = pack_context(
+        context_candidates,
+        scenario.context_token_budget,
+        preserve_critical_context=context_settings.preserve_critical_context,
+        failure_memory_importance_boost=context_settings.failure_memory_importance_boost,
+        compression_aggressiveness=context_settings.compression_aggressiveness,
+    )
     optimization_trace = build_optimization_decision(run.id, comparison)
     task_trace = build_task_selection_decision(
         run.id,
@@ -233,7 +280,7 @@ def optimize(
             task_trace,
             build_context_selection_decision(
                 run.id,
-                scenario.context_candidates,
+                context_candidates,
                 context,
                 scenario.context_token_budget,
             ),
@@ -347,6 +394,13 @@ def optimize(
             needs_json=True,
             profiles=profiles,
         )
+        route_request, route_apps = apply_model_router_profiles(
+            route_request,
+            active_profiles,
+            run_id=run.id,
+            store=profile_store,
+        )
+        profile_applications.extend(route_apps)
         try:
             route = route_model(route_request)
         except ModelRoutingError as error:
@@ -416,12 +470,19 @@ def optimize(
     budget_decision = None
     if selected_routes:
         task, profile, quality = selected_routes[0]
+        token_budget, token_apps = apply_token_firewall_profiles(
+            scenario.token_budget,
+            active_profiles,
+            run_id=run.id,
+            store=profile_store,
+        )
+        profile_applications.extend(token_apps)
         budget_decision = evaluate_budget(
             input_tokens=task.estimated_input_tokens,
             output_tokens=task.estimated_output_tokens,
             selected_model=profile,
             selected_quality=quality,
-            budget=scenario.token_budget,
+            budget=token_budget,
         )
         run_repository.save_decision(
             RunDecisionRecord(
@@ -437,7 +498,7 @@ def optimize(
             build_budget_decision(
                 run.id,
                 budget_decision,
-                scenario.token_budget,
+                token_budget,
             )
         )
 
@@ -447,6 +508,8 @@ def optimize(
         f"Estimated tokens: {total_input} input + {total_output} output",
         f"Estimated routed cost: ${total_cost:.6f}",
         "Approval-needed tasks: " + (", ".join(approval_tasks) or "none"),
+        "Active profiles: " + (", ".join(profile.id for profile in active_profiles) or "none"),
+        f"Profile applications: {len(profile_applications)}",
         budget_decision.explanation if budget_decision else "No routed model for budget check.",
     ]
     run_repository.complete_run(
@@ -536,6 +599,10 @@ def benchmark_run(
         bool,
         typer.Option("--evaluate", help="Generate simulated outcomes and learning artifacts."),
     ] = False,
+    profile: Annotated[
+        list[str] | None,
+        typer.Option("--profile", help="Profile ID to apply for this benchmark run."),
+    ] = None,
 ) -> None:
     """Run one benchmark fixture, or all fixtures when no target is supplied."""
 
@@ -545,7 +612,7 @@ def benchmark_run(
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(1) from error
 
-    results = [run_benchmark(case) for case in cases]
+    results = [run_benchmark(case, profile_ids=profile) for case in cases]
     if evaluate:
         for result in results:
             if result.run_id is not None:
@@ -694,8 +761,11 @@ def explain_run(
 
     traces = trace_repository.list_traces(run_id=run_id)
     outcome_repository = OutcomeRepository(trace_repository.database_path)
+    profile_store = ProfileStore(trace_repository.database_path)
+    profile_applications = profile_store.list_profile_applications(run_id=run_id)
     if summary:
         console.print(build_decision_summary_renderable(run_id, summarize_decisions(traces)))
+        console.print(build_profile_application_summary_renderable(profile_applications))
         outcome_summary = _outcome_learning_summary(outcome_repository, run_id)
         if outcome_summary.total_outcomes:
             console.print(build_outcome_summary_renderable(outcome_summary))
@@ -715,6 +785,7 @@ def explain_run(
             traces,
             outcomes_by_trace,
             reflections_by_trace,
+            profile_applications,
         )
     )
 
@@ -888,6 +959,86 @@ def learn_promote_failure(
     console.print(f"Promoted failure draft {draft.id} to memory {memory.id}")
 
 
+@profile_app.command("suggest")
+def profile_suggest() -> None:
+    """Generate draft decision quality profiles from learning artifacts."""
+
+    evaluation = suggest_profiles()
+    console.print(build_profile_suggest_renderable(evaluation))
+
+
+@profile_app.command("list")
+def profile_list() -> None:
+    """List all decision quality profiles."""
+
+    store = ProfileStore()
+    console.print(build_profile_summary_renderable(store.list_profiles()))
+
+
+@profile_app.command("show")
+def profile_show(
+    profile_id: Annotated[str, typer.Argument(help="Profile ID to inspect.")],
+) -> None:
+    """Show one decision quality profile."""
+
+    store = ProfileStore()
+    profile = store.get_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_profile_show_renderable(profile))
+
+
+@profile_app.command("activate")
+def profile_activate(
+    profile_id: Annotated[str, typer.Argument(help="Profile ID to activate.")],
+) -> None:
+    """Activate a draft profile so it can influence future decisions."""
+
+    store = ProfileStore()
+    profile = store.activate_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    console.print(f"Activated profile {profile.id}: {profile.name}")
+
+
+@profile_app.command("archive")
+def profile_archive(
+    profile_id: Annotated[str, typer.Argument(help="Profile ID to archive.")],
+) -> None:
+    """Archive a profile so it no longer influences future decisions."""
+
+    store = ProfileStore()
+    profile = store.archive_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    console.print(f"Archived profile {profile.id}: {profile.name}")
+
+
+@profile_app.command("active")
+def profile_active() -> None:
+    """List active decision quality profiles."""
+
+    store = ProfileStore()
+    console.print(build_profile_list_renderable(store.list_active_profiles(), title="Active Profiles"))
+
+
+@profile_app.command("apply-demo")
+def profile_apply_demo(
+    profile_id: Annotated[str, typer.Argument(help="Profile ID to apply in a safe demo.")],
+) -> None:
+    """Safely demonstrate how one profile would affect a synthetic decision."""
+
+    store = ProfileStore()
+    profile = store.get_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    _print_profile_apply_demo(profile, store)
+
+
 @run_app.command("show")
 def run_show(
     run_id: Annotated[str, typer.Argument(help="Run ID to inspect.")],
@@ -977,6 +1128,175 @@ def run_show(
         console.print("Attach outcome: heph outcome add <trace_id> --status success --summary ...")
     else:
         console.print("Decision traces: none")
+
+
+def _print_profile_apply_demo(
+    profile: DecisionQualityProfile,
+    store: ProfileStore,
+) -> None:
+    if profile.decision_area == DecisionArea.MODEL_ROUTER:
+        request = ModelRouteRequest(
+            required_capabilities={"analysis"},
+            input_tokens=1_600,
+            output_tokens=900,
+            quality_threshold=0.86,
+            needs_json=True,
+            profiles=fake_model_profiles(),
+        )
+        adjusted, applications = apply_model_router_profiles(request, [profile], store=store)
+        try:
+            route = route_model(adjusted)
+            detail = (
+                f"Selected {route.profile.identifier} with quality {route.quality:.2f}; "
+                f"threshold {request.quality_threshold:.2f} -> {adjusted.quality_threshold:.2f}."
+            )
+        except ModelRoutingError as error:
+            detail = str(error)
+        console.print(build_profile_application_table(applications, title="Profile Applied"))
+        console.print(Panel(detail, title="Model Router Demo"))
+        return
+
+    if profile.decision_area in {DecisionArea.CONTEXT_PACKER, DecisionArea.MEMORY_RETRIEVAL}:
+        candidates = [
+            ContextCandidate(
+                id="critical-policy",
+                content="Quality guard policy.",
+                relevance=0.9,
+                importance=0.9,
+                token_cost=260,
+                critical=True,
+            ),
+            ContextCandidate(
+                id="failure-memory-context",
+                content="Past similar failure.",
+                relevance=0.82,
+                importance=0.62,
+                token_cost=260,
+                metadata={"memory_type": "failure", "tags": ["failure"]},
+            ),
+            ContextCandidate(
+                id="low-relevance-summary",
+                content="Nice-to-have summary.",
+                relevance=0.3,
+                importance=0.35,
+                token_cost=240,
+            ),
+        ]
+        settings, applications = apply_context_packer_profiles([profile], store=store)
+        adjusted_candidates = apply_failure_memory_context_boost(candidates, settings)
+        result = pack_context(
+            adjusted_candidates,
+            540,
+            preserve_critical_context=settings.preserve_critical_context,
+            failure_memory_importance_boost=settings.failure_memory_importance_boost,
+            compression_aggressiveness=settings.compression_aggressiveness,
+        )
+        console.print(build_profile_application_table(applications, title="Profile Applied"))
+        console.print(
+            Panel(
+                "\n".join(
+                    [
+                        "Selected context: "
+                        + (", ".join(item.id for item in result.selected) or "none"),
+                        result.explanation,
+                    ]
+                ),
+                title="Context Demo",
+            )
+        )
+        return
+
+    if profile.decision_area == DecisionArea.TOKEN_FIREWALL:
+        budget = TokenBudget(
+            max_input_tokens=5_000,
+            max_output_tokens=2_000,
+            max_cost=0.05,
+            quality_threshold=0.86,
+        )
+        adjusted_budget, applications = apply_token_firewall_profiles(
+            budget,
+            [profile],
+            store=store,
+        )
+        console.print(build_profile_application_table(applications, title="Profile Applied"))
+        console.print(
+            Panel(
+                f"Quality threshold {budget.quality_threshold:.2f} -> "
+                f"{adjusted_budget.quality_threshold:.2f}.",
+                title="Token Firewall Demo",
+            )
+        )
+        return
+
+    if profile.decision_area in {DecisionArea.SCHEDULER, DecisionArea.OPTIMIZER}:
+        weights, applications = apply_scheduler_profiles(
+            DEFAULT_CONFIG.objective_weights,
+            [profile],
+            store=store,
+        )
+        comparison = compare_schedulers(_profile_demo_tasks(), weights)
+        console.print(build_profile_application_table(applications, title="Profile Applied"))
+        console.print(
+            Panel(
+                "\n".join(
+                    [
+                        f"Dependency penalty: {weights.dependency_violation_penalty:.2f}",
+                        f"Risk penalty: {weights.risk_penalty:.2f}",
+                        f"Selected order: {_task_order_text(comparison.best_order)}",
+                    ]
+                ),
+                title="Scheduler Demo",
+            )
+        )
+        return
+
+    requires_approval, applications = apply_safety_profiles(
+        "git push origin main",
+        base_requires_approval=False,
+        risk_level=RiskLevel.HIGH,
+        profiles=[profile],
+        store=store,
+    )
+    console.print(build_profile_application_table(applications, title="Profile Applied"))
+    console.print(
+        Panel(
+            "git push origin main requires approval: "
+            + ("yes" if requires_approval else "no"),
+            title="Safety Demo",
+        )
+    )
+
+
+def _profile_demo_tasks() -> list[Task]:
+    return [
+        Task(
+            id="publish-release",
+            title="Publish release",
+            description="Publish release artifacts.",
+            priority=10,
+            dependencies=["validate-release"],
+            risk=0.75,
+            expected_value=8.5,
+            uncertainty=0.2,
+            required_capabilities={"git", "safety"},
+            estimated_input_tokens=500,
+            estimated_output_tokens=200,
+            requires_approval=True,
+        ),
+        Task(
+            id="validate-release",
+            title="Validate release",
+            description="Run validation before publish.",
+            priority=9,
+            dependencies=[],
+            risk=0.2,
+            expected_value=9.0,
+            uncertainty=0.2,
+            required_capabilities={"testing"},
+            estimated_input_tokens=900,
+            estimated_output_tokens=400,
+        ),
+    ]
 
 
 def _print_memory_table(title: str, memories: list[MemoryItem]) -> None:

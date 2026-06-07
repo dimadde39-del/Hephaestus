@@ -1,6 +1,7 @@
 # Outcome Learning
 
-Phase 3B adds outcome tracking and failure-learning foundations.
+Phase 3B adds outcome tracking and failure-learning foundations. Phase 3C uses
+those artifacts as evidence for decision quality profiles.
 
 ```text
 Hephaestus does not only explain decisions.
@@ -108,6 +109,29 @@ silently rewrite core behavior.
 That boundary matters because Hephaestus is optimizing decision quality, not
 performing unsafe self-modification.
 
+## From Artifacts To Profiles
+
+Learning artifacts are useful evidence, but they are passive until they can
+influence a future decision in a controlled way. Phase 3C adds this reviewed
+loop:
+
+```text
+Learning Signal -> Profile Suggestion -> Decision Quality Profile -> Future Decision Bias
+```
+
+`heph profile suggest` reads outcomes, reflections, learning signals, failure
+memory drafts, policy suggestions, and decision traces. It creates draft
+profiles for decision areas such as model routing, context packing, token
+firewall, scheduler, safety, memory retrieval, and optimizer bias.
+
+Draft profiles do not change behavior. A user must run
+`heph profile activate <profile_id>` before a profile can influence future
+benchmark or optimize runs. Profile applications are recorded and shown in
+`heph explain <run_id>`.
+
+Hephaestus does not silently rewrite itself.
+It converts outcomes into inspectable decision quality profiles that can be reviewed, activated, and measured.
+
 ## Future Use
 
 Phase 3B creates the data needed for:
@@ -123,9 +147,8 @@ Phase 3B creates the data needed for:
 The recommended next phase is:
 
 ```text
-Phase 3C: Policy Learning + Decision Quality Profiles
+Phase 3D: Pareto Optimization + Decision Tradeoff Frontier
 ```
 
-That phase should use accumulated outcomes and learning signals to tune model
-routing thresholds, context strategy profiles, scheduler weights, and safety
-policy suggestions without unsafe automatic self-modification.
+That phase should compare decision candidates across quality, cost, latency,
+risk, privacy, and token usage before collapsing tradeoffs into one score.

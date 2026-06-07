@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from hephaestus.benchmarks.schemas import BenchmarkCase, BenchmarkResult
+from hephaestus.policy_learning.renderer import build_profile_application_table
 
 
 def print_benchmark_list(console: Console, cases: list[BenchmarkCase]) -> None:
@@ -135,14 +136,18 @@ def print_benchmark_result(console: Console, result: BenchmarkResult) -> None:
     decision_table.add_column("Top Rationale")
     decision_table.add_column("Most Common Rejection")
     decision_table.add_column("Token Savings")
+    decision_table.add_column("Profiles", justify="right")
     decision_table.add_row(
         str(result.decision_count),
         result.top_decision_type or "-",
         result.top_decision_rationale or "-",
         result.most_common_rejection_reason or "-",
         result.token_savings_summary or "-",
+        str(len(result.profile_applications)),
     )
     console.print(decision_table)
+    if result.profile_applications:
+        console.print(build_profile_application_table(result.profile_applications))
     console.print(Panel(result.summary, title="Summary"))
     if result.run_id is not None:
         console.print(f"Saved run: {result.run_id}")

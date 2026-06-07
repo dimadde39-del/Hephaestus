@@ -15,6 +15,8 @@ always-on runtime without forcing paid APIs or a single model provider.
 - `outcomes`: typed outcome records, deterministic reflections, learning
   signals, failure memory drafts, policy update suggestions, SQLite repository,
   and Rich renderers.
+- `policy_learning`: decision quality profile schemas, SQLite profile store,
+  deterministic learner, profile appliers, renderers, and profile summaries.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -43,6 +45,7 @@ User goal
   -> Outcome
   -> Reflection
   -> Learning signal / failure draft
+  -> Profile suggestion / active profile bias
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -69,6 +72,10 @@ history before any always-on process exists.
 - Make every optimizer return an explanation and a structured decision trace.
 - Attach outcomes to decisions before applying any learning behavior.
 - Store policy updates as suggestions until reviewed.
+- Convert learning evidence into explicit decision quality profiles before it
+  can influence future decisions.
+- Require explicit activation; draft profiles do not silently change behavior.
+- Record profile applications so profile influence can be explained later.
 - Treat benchmark reports as designed optimizer probes, not real-world AGI
   performance claims.
 
@@ -112,6 +119,30 @@ for risky actions.
 Learning signals and policy suggestions are draft artifacts. They are evidence
 for future tuning, not automatic self-modification.
 
+## Policy Learning Architecture
+
+Phase 3C adds `decision_quality_profiles` and `profile_applications`. Profiles
+are scoped to one decision area: `model_router`, `context_packer`,
+`token_firewall`, `scheduler`, `safety`, `memory_retrieval`, or `optimizer`.
+Rules are structured Pydantic records with typed adjustments plus human
+rationale.
+
+The learner aggregates outcomes, reflections, learning signals, failure memory
+drafts, policy suggestions, and decision traces into draft profiles. Activation
+is explicit through `heph profile activate <profile_id>`, and archiving is
+available through `heph profile archive <profile_id>`.
+
+Active profiles can bias future optimizer inputs:
+
+- model router profiles raise quality thresholds and add prefer/avoid tags,
+- context profiles preserve critical context and boost failure memories,
+- token firewall profiles make quality preservation stricter,
+- scheduler profiles increase dependency and risk penalties,
+- safety profiles can require approval for external side effects.
+
+Hephaestus does not silently rewrite itself.
+It converts outcomes into inspectable decision quality profiles that can be reviewed, activated, and measured.
+
 ## Benchmark Persistence
 
 The benchmark layer deliberately reuses the generic run history schema. A
@@ -125,3 +156,5 @@ the same `heph runs` and `heph run show <id>` views used by optimization demos.
 Use `heph explain <id>` for the trace tree and rejection analysis.
 Use `heph benchmark run --evaluate` or `heph reflect <id>` to attach simulated
 outcomes and learning artifacts to benchmark traces.
+Active profiles are used by benchmark runs by default, and explicit profiles can
+be supplied with `heph benchmark run --profile <profile_id>`.

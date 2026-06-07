@@ -19,6 +19,8 @@ from hephaestus.decision.schemas import (
 )
 from hephaestus.outcomes.renderer import build_trace_outcome_table
 from hephaestus.outcomes.schemas import OutcomeRecord, ReflectionRecord
+from hephaestus.policy_learning.renderer import build_profile_application_table
+from hephaestus.policy_learning.schemas import ProfileApplicationResult
 
 _SECTION_ORDER = [
     DecisionType.OPTIMIZATION,
@@ -44,6 +46,7 @@ def build_run_explanation_renderable(
     traces: Sequence[DecisionTraceVariant],
     outcomes_by_trace: Mapping[str, Sequence[OutcomeRecord]] | None = None,
     reflections_by_trace: Mapping[str, Sequence[ReflectionRecord]] | None = None,
+    profile_applications: Sequence[ProfileApplicationResult] | None = None,
 ) -> Group:
     """Build a Rich grouped explanation for one run."""
 
@@ -75,6 +78,8 @@ def build_run_explanation_renderable(
                 reflections_by_trace or {},
             )
         )
+    if profile_applications:
+        renderables.append(build_profile_application_table(profile_applications))
     return Group(*renderables)
 
 

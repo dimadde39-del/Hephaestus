@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -233,6 +233,53 @@ CREATE INDEX IF NOT EXISTS idx_policy_update_suggestions_area_status
 ON policy_update_suggestions(policy_area, status);
 """
 
+MIGRATION_5 = """
+CREATE TABLE IF NOT EXISTS decision_quality_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    decision_area TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    rules_json TEXT NOT NULL DEFAULT '[]',
+    evidence_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL NOT NULL DEFAULT 0.5,
+    source_learning_signal_ids_json TEXT NOT NULL DEFAULT '[]',
+    source_outcome_ids_json TEXT NOT NULL DEFAULT '[]',
+    source_policy_suggestion_ids_json TEXT NOT NULL DEFAULT '[]',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_decision_quality_profiles_status_area
+ON decision_quality_profiles(status, decision_area);
+
+CREATE TABLE IF NOT EXISTS profile_applications (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES decision_quality_profiles(id) ON DELETE CASCADE,
+    profile_name TEXT NOT NULL,
+    decision_area TEXT NOT NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    trace_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    target TEXT NOT NULL DEFAULT '',
+    applied INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    effect_summary TEXT NOT NULL DEFAULT '',
+    before_json TEXT NOT NULL DEFAULT '{}',
+    after_json TEXT NOT NULL DEFAULT '{}',
+    adjustments_json TEXT NOT NULL DEFAULT '[]',
+    notes_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_profile_applications_run_id
+ON profile_applications(run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_profile_applications_profile_id
+ON profile_applications(profile_id, created_at);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -287,6 +334,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (4, datetime.now(UTC).isoformat()),
+        )
+    if 5 not in applied_versions:
+        connection.executescript(MIGRATION_5)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (5, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

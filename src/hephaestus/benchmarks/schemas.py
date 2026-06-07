@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from hephaestus.models import ModelProfile
 from hephaestus.optimize.context_packer import ContextCandidate
 from hephaestus.optimize.token_firewall import BudgetDecision, TokenBudget
+from hephaestus.policy_learning.schemas import ProfileApplicationResult
 from hephaestus.spec.tasks import Task
 
 
@@ -118,3 +119,5 @@ class BenchmarkResult(BaseModel):
     top_decision_rationale: str = ""
     most_common_rejection_reason: str = ""
     token_savings_summary: str = ""
+    active_profile_ids: list[str] = Field(default_factory=list)
+    profile_applications: list[ProfileApplicationResult] = Field(default_factory=list)

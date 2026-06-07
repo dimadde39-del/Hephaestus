@@ -37,7 +37,17 @@ from hephaestus.optimize.context_packer import (
 )
 from hephaestus.optimize.model_router import ModelRouteRequest, ModelRoutingError, route_model
 from hephaestus.optimize.task_scheduler import SchedulerComparison, compare_schedulers
-from hephaestus.optimize.token_firewall import BudgetDecision
+from hephaestus.optimize.token_firewall import BudgetDecision, TokenBudget
+from hephaestus.policy_learning import (
+    ProfileStore,
+    apply_context_packer_profiles,
+    apply_failure_memory_context_boost,
+    apply_model_router_profiles,
+    apply_scheduler_profiles,
+    apply_token_firewall_profiles,
+    profiles_for_execution,
+)
+from hephaestus.policy_learning.schemas import DecisionQualityProfile, ProfileApplicationResult
 from hephaestus.spec.tasks import Task
 from hephaestus.storage import (
     ApprovalRecord,
@@ -53,11 +63,21 @@ def run_all_benchmarks(
     directory: Path | str | None = None,
     repository: RunRepository | None = None,
     persist: bool = True,
+    profile_ids: Iterable[str] | None = None,
 ) -> list[BenchmarkResult]:
     """Run every benchmark fixture in the benchmark directory."""
 
     cases = load_all_benchmarks(directory)
-    return [run_benchmark(case, repository=repository, persist=persist) for case in cases]
+    profile_id_list = list(profile_ids) if profile_ids is not None else None
+    return [
+        run_benchmark(
+            case,
+            repository=repository,
+            persist=persist,
+            profile_ids=profile_id_list,
+        )
+        for case in cases
+    ]
 
 
 def run_benchmark(
@@ -65,6 +85,7 @@ def run_benchmark(
     *,
     repository: RunRepository | None = None,
     persist: bool = True,
+    profile_ids: Iterable[str] | None = None,
 ) -> BenchmarkResult:
     """Run one benchmark and optionally persist a benchmark-mode run."""
 
@@ -75,28 +96,75 @@ def run_benchmark(
             RunRecord(goal=f"Benchmark {case.id}: {case.goal or case.title}", mode="benchmark")
         )
 
-    comparison = compare_schedulers(case.tasks, DEFAULT_CONFIG.objective_weights)
+    profile_store = _profile_store_for_run(run_repository, profile_ids)
+    active_profiles = (
+        profiles_for_execution(profile_store, profile_ids)
+        if profile_store is not None
+        else []
+    )
+    active_profile_ids = [profile.id for profile in active_profiles]
+    profile_applications: list[ProfileApplicationResult] = []
+    application_run_id = run.id if run is not None else None
+    scheduler_weights, scheduler_apps = apply_scheduler_profiles(
+        DEFAULT_CONFIG.objective_weights,
+        active_profiles,
+        run_id=application_run_id,
+        store=profile_store if persist else None,
+    )
+    profile_applications.extend(scheduler_apps)
+    comparison = compare_schedulers(case.tasks, scheduler_weights)
     scheduler = summarize_scheduler(comparison)
     best_order = comparison.best_order
-    context_result = pack_context(case.context_candidates, case.context_token_budget)
-    context = summarize_context(
+    context_settings, context_apps = apply_context_packer_profiles(
+        active_profiles,
+        run_id=application_run_id,
+        store=profile_store if persist else None,
+    )
+    profile_applications.extend(context_apps)
+    context_candidates = apply_failure_memory_context_boost(
         case.context_candidates,
+        context_settings,
+    )
+    context_result = pack_context(
+        context_candidates,
+        case.context_token_budget,
+        preserve_critical_context=context_settings.preserve_critical_context,
+        failure_memory_importance_boost=context_settings.failure_memory_importance_boost,
+        compression_aggressiveness=context_settings.compression_aggressiveness,
+    )
+    context = summarize_context(
+        context_candidates,
         context_result.selected,
         context_result.excluded,
         case.context_token_budget,
     )
     approval_tasks = [task for task in best_order if task.requires_approval]
-    model_routes = _route_tasks(case, best_order)
+    model_routes, model_apps = _route_tasks(
+        case,
+        best_order,
+        active_profiles=active_profiles,
+        run_id=application_run_id,
+        store=profile_store if persist else None,
+    )
+    profile_applications.extend(model_apps)
     total_input = sum(task.estimated_input_tokens for task in best_order)
     total_output = sum(task.estimated_output_tokens for task in best_order)
     total_cost = sum(route.estimated_cost for route in model_routes)
     quality_preserved = bool(model_routes) and all(route.quality_preserved for route in model_routes)
+    adjusted_token_budget, token_apps = apply_token_firewall_profiles(
+        case.token_budget,
+        active_profiles,
+        run_id=application_run_id,
+        store=profile_store if persist else None,
+    )
+    profile_applications.extend(token_apps)
     budget = summarize_budget(
         input_tokens=total_input,
         output_tokens=total_output,
         estimated_cost=total_cost,
         quality_preserved=quality_preserved,
         case=case,
+        token_budget=adjusted_token_budget,
     )
     trace_run_id = run.id if run is not None else f"benchmark_{case.id}"
     decision_traces = _build_benchmark_traces(
@@ -104,7 +172,9 @@ def run_benchmark(
         case=case,
         comparison=comparison,
         context_result=context_result,
+        context_candidates=context_candidates,
         budget=budget,
+        token_budget=adjusted_token_budget,
         model_routes=model_routes,
         approval_tasks=approval_tasks,
     )
@@ -119,6 +189,7 @@ def run_benchmark(
             model_routes=model_routes,
             context=context,
             budget=budget,
+            token_budget=adjusted_token_budget,
             approval_tasks=approval_tasks,
             decision_traces=decision_traces,
         )
@@ -139,6 +210,8 @@ def run_benchmark(
         top_decision_rationale=top_rationale,
         most_common_rejection_reason=common_rejection_reason,
         token_savings_summary=token_savings_summary,
+        active_profile_ids=active_profile_ids,
+        profile_applications=profile_applications,
     )
     if persist and run_repository is not None and run is not None:
         run_repository.complete_run(
@@ -169,6 +242,8 @@ def run_benchmark(
         top_decision_rationale=top_rationale,
         most_common_rejection_reason=common_rejection_reason,
         token_savings_summary=token_savings_summary,
+        active_profile_ids=active_profile_ids,
+        profile_applications=profile_applications,
     )
 
 
@@ -263,14 +338,16 @@ def summarize_budget(
     estimated_cost: float,
     quality_preserved: bool,
     case: BenchmarkCase,
+    token_budget: TokenBudget | None = None,
 ) -> BudgetDecision:
     """Create an aggregate token/cost/quality budget decision."""
 
+    effective_budget = token_budget or case.token_budget
     within_token_budget = (
-        input_tokens <= case.token_budget.max_input_tokens
-        and output_tokens <= case.token_budget.max_output_tokens
+        input_tokens <= effective_budget.max_input_tokens
+        and output_tokens <= effective_budget.max_output_tokens
     )
-    within_cost_budget = estimated_cost <= case.token_budget.max_cost
+    within_cost_budget = estimated_cost <= effective_budget.max_cost
     explanation = (
         f"Benchmark aggregate uses {input_tokens}+{output_tokens} tokens at "
         f"about ${estimated_cost:.6f}. Quality "
@@ -289,30 +366,44 @@ def summarize_budget(
     )
 
 
-def _route_tasks(case: BenchmarkCase, tasks: list[Task]) -> list[ModelRouteSummary]:
+def _route_tasks(
+    case: BenchmarkCase,
+    tasks: list[Task],
+    *,
+    active_profiles: list[DecisionQualityProfile],
+    run_id: str | None,
+    store: ProfileStore | None,
+) -> tuple[list[ModelRouteSummary], list[ProfileApplicationResult]]:
     profiles = case.model_profiles or fake_model_profiles()
     routes: list[ModelRouteSummary] = []
+    applications: list[ProfileApplicationResult] = []
     for task in tasks:
         threshold = case.quality_thresholds.get(task.id, case.quality_threshold)
+        request = ModelRouteRequest(
+            required_capabilities=task.required_capabilities,
+            input_tokens=task.estimated_input_tokens,
+            output_tokens=task.estimated_output_tokens,
+            quality_threshold=threshold,
+            privacy_level=task.privacy_level,
+            needs_tools=bool(task.allowed_tools),
+            needs_json=True,
+            profiles=profiles,
+        )
+        request, request_apps = apply_model_router_profiles(
+            request,
+            active_profiles,
+            run_id=run_id,
+            store=store,
+        )
+        applications.extend(request_apps)
         try:
-            route = route_model(
-                ModelRouteRequest(
-                    required_capabilities=task.required_capabilities,
-                    input_tokens=task.estimated_input_tokens,
-                    output_tokens=task.estimated_output_tokens,
-                    quality_threshold=threshold,
-                    privacy_level=task.privacy_level,
-                    needs_tools=bool(task.allowed_tools),
-                    needs_json=True,
-                    profiles=profiles,
-                )
-            )
+            route = route_model(request)
         except ModelRoutingError as error:
             routes.append(
                 ModelRouteSummary(
                     task_id=task.id,
                     selected_model="unrouted",
-                    required_quality_threshold=threshold,
+                    required_quality_threshold=request.quality_threshold,
                     estimated_cost=0.0,
                     rejected_models=[RejectedModelSummary(identifier="all", reason=str(error))],
                     error=str(error),
@@ -324,7 +415,7 @@ def _route_tasks(case: BenchmarkCase, tasks: list[Task]) -> list[ModelRouteSumma
                 task_id=task.id,
                 selected_model=route.profile.identifier,
                 selected_quality=route.quality,
-                required_quality_threshold=threshold,
+                required_quality_threshold=request.quality_threshold,
                 estimated_cost=route.estimated_cost,
                 rejected_models=[
                     RejectedModelSummary(identifier=item.identifier, reason=item.reason)
@@ -332,7 +423,7 @@ def _route_tasks(case: BenchmarkCase, tasks: list[Task]) -> list[ModelRouteSumma
                 ],
             )
         )
-    return routes
+    return routes, applications
 
 
 def _build_benchmark_traces(
@@ -341,7 +432,9 @@ def _build_benchmark_traces(
     case: BenchmarkCase,
     comparison: SchedulerComparison,
     context_result: ContextPackResult,
+    context_candidates: list[ContextCandidate],
     budget: BudgetDecision,
+    token_budget: TokenBudget,
     model_routes: list[ModelRouteSummary],
     approval_tasks: list[Task],
 ) -> list[DecisionTraceVariant]:
@@ -355,11 +448,11 @@ def _build_benchmark_traces(
         optimization_trace,
         task_trace,
         builder.context_selection(
-            case.context_candidates,
+            context_candidates,
             context_result,
             case.context_token_budget,
         ),
-        builder.budget(budget, case.token_budget),
+        builder.budget(budget, token_budget),
     ]
     traces.extend(
         _model_route_trace(
@@ -440,6 +533,7 @@ def _persist_benchmark_run(
     model_routes: list[ModelRouteSummary],
     context: ContextBenchmarkSummary,
     budget: BudgetDecision,
+    token_budget: TokenBudget,
     approval_tasks: list[Task],
     decision_traces: list[DecisionTraceVariant],
 ) -> None:
@@ -528,7 +622,7 @@ def _persist_benchmark_run(
             decision_type="quality_guard",
             selected_option="preserved" if budget.meets_quality_threshold else "missed",
             objective_score=1.0 if budget.meets_quality_threshold else 0.0,
-            rationale=f"Required benchmark threshold: {case.quality_threshold:.2f}.",
+            rationale=f"Required benchmark threshold: {token_budget.quality_threshold:.2f}.",
         )
     )
     repository.save_decision(
@@ -565,6 +659,8 @@ def _summary_text(
     top_decision_rationale: str,
     most_common_rejection_reason: str,
     token_savings_summary: str,
+    active_profile_ids: list[str],
+    profile_applications: list[ProfileApplicationResult],
 ) -> str:
     selected_models = sorted({route.selected_model for route in model_routes})
     return "\n".join(
@@ -584,6 +680,8 @@ def _summary_text(
             f"Quality preserved: {'yes' if budget.meets_quality_threshold else 'no'}.",
             "Approval-needed tasks: " + (", ".join(task.id for task in approval_tasks) or "none"),
             f"Decision count: {decision_count}.",
+            "Active profiles: " + (", ".join(active_profile_ids) or "none"),
+            f"Profile applications: {len(profile_applications)}.",
             f"Top decision type: {_sentence(top_decision_type)}",
             f"Top decision rationale: {_sentence(top_decision_rationale)}",
             f"Most common rejection reason: {_sentence(most_common_rejection_reason)}",
@@ -651,3 +749,14 @@ def _sentence(value: str) -> str:
     if value.endswith((".", "!", "?")):
         return value
     return f"{value}."
+
+
+def _profile_store_for_run(
+    repository: RunRepository | None,
+    profile_ids: Iterable[str] | None,
+) -> ProfileStore | None:
+    if repository is not None:
+        return ProfileStore(repository.database_path)
+    if profile_ids is not None:
+        return ProfileStore()
+    return None

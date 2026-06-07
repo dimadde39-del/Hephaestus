@@ -33,39 +33,51 @@
 
 ## v0.4 Policy Learning + Decision Quality Profiles
 
-- Use accumulated outcomes and learning signals to tune decision profiles.
-- Track model-routing quality profiles by task type and threshold.
-- Tune context strategy profiles for critical-context preservation.
-- Suggest scheduler weight adjustments from repeated task-order outcomes.
-- Keep policy updates reviewed and non-automatic by default.
-- Preserve the loop:
+- Added explicit decision quality profiles for model routing, context packing,
+  token firewall, scheduler, safety, memory retrieval, and optimizer decisions.
+- Added profile suggestions from accumulated outcomes, reflections, learning
+  signals, failure drafts, policy suggestions, and decision traces.
+- Added profile activation/archive and profile application records.
+- Added profile-aware model routing thresholds, context failure-memory boosts,
+  token firewall threshold adjustments, scheduler weight adjustments, and
+  safety approval demo behavior.
+- Kept policy updates reviewed and non-automatic by default.
+- Preserved the loop:
 
 ```text
-Decision -> Outcome -> Reflection -> Memory Draft -> Learning Signal -> Reviewed Policy Update
+Learning Signal -> Profile Suggestion -> Decision Quality Profile -> Future Decision Bias
 ```
 
-## v0.5 Token Firewall
+## v0.5 Pareto Optimization + Decision Tradeoff Frontier
+
+- Evaluate competing decision candidates across quality, cost, latency, risk,
+  privacy, and token usage.
+- Preserve Pareto frontiers before collapsing everything into one score.
+- Explain tradeoffs between candidates rather than only reporting a winner.
+- Compare profile-influenced candidates against unprofiled baselines.
+
+## v0.6 Token Firewall
 
 - Per-run and per-project budgets.
 - Cost ledgers.
 - Provider-specific model catalogs.
 - Quality regression checks.
 
-## v0.6 Memory Monster
+## v0.7 Memory Monster
 
 - Hybrid search.
 - Graph memory.
 - Verification and decay.
 - Failure-to-decision learning.
 
-## v0.7 Skill Growth
+## v0.8 Skill Growth
 
 - Skill registry.
 - Skill validation.
 - Promotion from repeated memories.
 - Safety review before using generated skills.
 
-## v0.8 Dashboard
+## v0.9 Dashboard
 
 - Local web dashboard.
 - Plan visualizations.

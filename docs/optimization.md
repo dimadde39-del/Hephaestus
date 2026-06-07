@@ -22,6 +22,10 @@ utility =
 Weights live in `ObjectiveWeights` and can be tuned without changing task
 schemas.
 
+Active scheduler decision quality profiles can adjust objective weights at run
+time. Profile applications are recorded so a later explanation can show exactly
+which dependency or risk penalty changed.
+
 ## Greedy Baseline
 
 The greedy scheduler repeatedly chooses the highest-scoring task whose
@@ -74,6 +78,7 @@ classical/quantum-inspired planning.
 - Tool choice.
 - Risk and autonomy decisions.
 - Token budget allocation.
+- Active decision quality profile application.
 - Future multi-agent task allocation.
 - Future skill promotion.
 
@@ -121,6 +126,16 @@ rich decision traces. Benchmark reports include decision count, top decision
 type, top decision rationale, the most common rejection reason, quality
 preserved status, and token savings summary.
 
+By default benchmark runs use active decision quality profiles from the local
+SQLite database. You can also pass an explicit profile:
+
+```bash
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --profile <profile_id>
+```
+
+Reports include profile application counts and a table of threshold/weight or
+context strategy changes caused by profiles.
+
 ## Explainability
 
 Optimization without explainability is hard to trust and hard to improve. The
@@ -149,6 +164,11 @@ decision statistics across persisted runs.
 
 Hephaestus does not only optimize decisions. It records why each decision was
 made so future versions can learn from outcomes.
+
+Phase 3C closes the loop by letting active profiles bias future model routing,
+context packing, token firewall, and scheduler inputs. The bias is explicit and
+reversible: profiles must be activated, profile applications are persisted, and
+`heph explain <run_id>` shows the effect.
 
 The benchmark suite is designed to test optimizer behavior, not to claim
 real-world AGI performance.
