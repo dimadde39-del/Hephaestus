@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -15,9 +16,22 @@ from hephaestus.benchmarks.schemas import (
     SchedulerBenchmarkSummary,
 )
 from hephaestus.core.config import DEFAULT_CONFIG, RiskLevel
+from hephaestus.decision import (
+    DecisionTraceBuilder,
+    DecisionTraceRepository,
+    most_common_rationale,
+    most_common_rejection_reason,
+)
+from hephaestus.decision.schemas import (
+    DecisionAlternative,
+    DecisionTraceVariant,
+    ModelRoutingDecision,
+    metric,
+)
 from hephaestus.models import fake_model_profiles
 from hephaestus.optimize.context_packer import (
     ContextCandidate,
+    ContextPackResult,
     ExcludedContext,
     pack_context,
 )
@@ -84,6 +98,16 @@ def run_benchmark(
         quality_preserved=quality_preserved,
         case=case,
     )
+    trace_run_id = run.id if run is not None else f"benchmark_{case.id}"
+    decision_traces = _build_benchmark_traces(
+        run_id=trace_run_id,
+        case=case,
+        comparison=comparison,
+        context_result=context_result,
+        budget=budget,
+        model_routes=model_routes,
+        approval_tasks=approval_tasks,
+    )
 
     if persist and run_repository is not None and run is not None:
         _persist_benchmark_run(
@@ -96,9 +120,26 @@ def run_benchmark(
             context=context,
             budget=budget,
             approval_tasks=approval_tasks,
+            decision_traces=decision_traces,
         )
 
-    summary = _summary_text(case, scheduler, context, budget, model_routes, approval_tasks)
+    top_rationale = most_common_rationale(decision_traces)
+    top_decision_type = _top_decision_type(decision_traces)
+    common_rejection_reason = most_common_rejection_reason(decision_traces)
+    token_savings_summary = _token_savings_summary(context)
+    summary = _summary_text(
+        case,
+        scheduler,
+        context,
+        budget,
+        model_routes,
+        approval_tasks,
+        decision_count=len(decision_traces),
+        top_decision_type=top_decision_type,
+        top_decision_rationale=top_rationale,
+        most_common_rejection_reason=common_rejection_reason,
+        token_savings_summary=token_savings_summary,
+    )
     if persist and run_repository is not None and run is not None:
         run_repository.complete_run(
             run.id,
@@ -123,6 +164,11 @@ def run_benchmark(
         estimated_cost=total_cost,
         quality_preserved=quality_preserved,
         summary=summary,
+        decision_count=len(decision_traces),
+        top_decision_type=top_decision_type,
+        top_decision_rationale=top_rationale,
+        most_common_rejection_reason=common_rejection_reason,
+        token_savings_summary=token_savings_summary,
     )
 
 
@@ -289,6 +335,101 @@ def _route_tasks(case: BenchmarkCase, tasks: list[Task]) -> list[ModelRouteSumma
     return routes
 
 
+def _build_benchmark_traces(
+    *,
+    run_id: str,
+    case: BenchmarkCase,
+    comparison: SchedulerComparison,
+    context_result: ContextPackResult,
+    budget: BudgetDecision,
+    model_routes: list[ModelRouteSummary],
+    approval_tasks: list[Task],
+) -> list[DecisionTraceVariant]:
+    builder = DecisionTraceBuilder(run_id, phase="benchmark", tags=["benchmark"])
+    optimization_trace = builder.optimization(comparison)
+    task_trace = builder.task_selection(
+        comparison,
+        parent_id=optimization_trace.id,
+    )
+    traces: list[DecisionTraceVariant] = [
+        optimization_trace,
+        task_trace,
+        builder.context_selection(
+            case.context_candidates,
+            context_result,
+            case.context_token_budget,
+        ),
+        builder.budget(budget, case.token_budget),
+    ]
+    traces.extend(
+        _model_route_trace(
+            run_id=run_id,
+            route=route,
+            candidate_count=len(case.model_profiles or fake_model_profiles()),
+            parent_id=task_trace.id,
+        )
+        for route in model_routes
+    )
+    traces.extend(
+        builder.safety_approval(
+            action=task.description,
+            reason=f"Benchmark task {task.id} requires approval before execution.",
+            risk_level=_risk_level_from_score(task.risk),
+            parent_id=task_trace.id,
+        )
+        for task in approval_tasks
+    )
+    return traces
+
+
+def _model_route_trace(
+    *,
+    run_id: str,
+    route: ModelRouteSummary,
+    candidate_count: int,
+    parent_id: str | None = None,
+) -> ModelRoutingDecision:
+    return ModelRoutingDecision(
+        run_id=run_id,
+        phase="benchmark",
+        selected_option=route.selected_model,
+        alternatives=[
+            DecisionAlternative(
+                option_id=item.identifier,
+                rejection_reason=item.reason,
+                violated_constraints=_constraints_for_rejection(item.reason),
+            )
+            for item in route.rejected_models
+        ],
+        rationale=route.error or "Selected cheapest model preserving required quality.",
+        metrics=[
+            metric("quality_threshold", route.required_quality_threshold),
+            metric("selected_quality", route.selected_quality),
+            metric("estimated_cost", route.estimated_cost, unit="USD"),
+            metric("candidate_count", candidate_count),
+            metric("rejected_count", len(route.rejected_models)),
+        ],
+        objective_score=route.selected_quality,
+        confidence=0.84 if not route.error else 0.62,
+        constraints_considered=[
+            f"quality >= {route.required_quality_threshold:.2f}",
+            "required capabilities",
+            "context window",
+            "privacy",
+            "tools/JSON support",
+        ],
+        tags=["benchmark", "model-routing"],
+        caused_by=[f"benchmark_route:{route.task_id}", "model_profiles"],
+        will_affect=["quality_preserved_status", "estimated_cost"],
+        learning_hooks=[
+            "model_quality_outcome",
+            "benchmark_failure_learning",
+            "routing_threshold_policy",
+        ],
+        parent_id=parent_id,
+    )
+
+
 def _persist_benchmark_run(
     *,
     repository: RunRepository,
@@ -300,7 +441,10 @@ def _persist_benchmark_run(
     context: ContextBenchmarkSummary,
     budget: BudgetDecision,
     approval_tasks: list[Task],
+    decision_traces: list[DecisionTraceVariant],
 ) -> None:
+    trace_repository = DecisionTraceRepository(repository.database_path)
+    trace_repository.save_traces(decision_traces)
     repository.save_run_tasks(
         RunTaskRecord(
             run_id=run_id,
@@ -415,6 +559,12 @@ def _summary_text(
     budget: BudgetDecision,
     model_routes: list[ModelRouteSummary],
     approval_tasks: list[Task],
+    *,
+    decision_count: int,
+    top_decision_type: str,
+    top_decision_rationale: str,
+    most_common_rejection_reason: str,
+    token_savings_summary: str,
 ) -> str:
     selected_models = sorted({route.selected_model for route in model_routes})
     return "\n".join(
@@ -433,6 +583,11 @@ def _summary_text(
             f"Selected models: {', '.join(selected_models) or 'none'}.",
             f"Quality preserved: {'yes' if budget.meets_quality_threshold else 'no'}.",
             "Approval-needed tasks: " + (", ".join(task.id for task in approval_tasks) or "none"),
+            f"Decision count: {decision_count}.",
+            f"Top decision type: {_sentence(top_decision_type)}",
+            f"Top decision rationale: {_sentence(top_decision_rationale)}",
+            f"Most common rejection reason: {_sentence(most_common_rejection_reason)}",
+            f"Token savings summary: {_sentence(token_savings_summary)}",
             budget.explanation,
         ]
     )
@@ -457,3 +612,42 @@ def _budget_rejections(decision: BudgetDecision) -> list[str]:
     if not decision.meets_quality_threshold:
         rejected.append("quality threshold missed")
     return rejected
+
+
+def _constraints_for_rejection(reason: str) -> list[str]:
+    lowered = reason.lower()
+    constraints: list[str] = []
+    if "quality" in lowered or "threshold" in lowered:
+        constraints.append("quality threshold")
+    if "capabilit" in lowered:
+        constraints.append("required capabilities")
+    if "context" in lowered or "token" in lowered:
+        constraints.append("token budget")
+    if "cost" in lowered:
+        constraints.append("cost budget")
+    if "tool" in lowered:
+        constraints.append("tool support")
+    if "json" in lowered:
+        constraints.append("JSON output")
+    if "privacy" in lowered:
+        constraints.append("privacy policy")
+    return constraints or ["objective comparison"]
+
+
+def _top_decision_type(traces: Iterable[DecisionTraceVariant]) -> str:
+    counts = Counter(trace.decision_type.value for trace in traces)
+    top = counts.most_common(1)
+    return top[0][0] if top else ""
+
+
+def _token_savings_summary(context: ContextBenchmarkSummary) -> str:
+    saved = max(0, context.tokens_before - context.tokens_after)
+    return f"saved {saved} context tokens ({context.token_savings_percent:.1f}%)"
+
+
+def _sentence(value: str) -> str:
+    if not value:
+        return "none."
+    if value.endswith((".", "!", "?")):
+        return value
+    return f"{value}."

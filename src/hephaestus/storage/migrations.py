@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -94,6 +94,54 @@ CREATE INDEX IF NOT EXISTS idx_approvals_run_id
 ON approvals(run_id, created_at);
 """
 
+MIGRATION_2 = """
+CREATE TABLE IF NOT EXISTS decision_traces (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    parent_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    decision_type TEXT NOT NULL,
+    phase TEXT NOT NULL DEFAULT 'runtime',
+    timestamp TEXT NOT NULL,
+    selected_option TEXT NOT NULL,
+    rationale TEXT NOT NULL DEFAULT '',
+    objective_score REAL,
+    confidence REAL NOT NULL,
+    alternatives_json TEXT NOT NULL DEFAULT '[]',
+    metrics_json TEXT NOT NULL DEFAULT '[]',
+    constraints_json TEXT NOT NULL DEFAULT '[]',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    caused_by_json TEXT NOT NULL DEFAULT '[]',
+    will_affect_json TEXT NOT NULL DEFAULT '[]',
+    learning_hooks_json TEXT NOT NULL DEFAULT '[]',
+    outcome_id TEXT,
+    failure_memory_id TEXT,
+    policy_update_id TEXT,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_decision_traces_run_id
+ON decision_traces(run_id, timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_decision_traces_type
+ON decision_traces(decision_type);
+"""
+
+_DECISION_TRACE_COLUMNS: dict[str, str] = {
+    "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
+    "phase": "TEXT NOT NULL DEFAULT 'runtime'",
+    "alternatives_json": "TEXT NOT NULL DEFAULT '[]'",
+    "metrics_json": "TEXT NOT NULL DEFAULT '[]'",
+    "constraints_json": "TEXT NOT NULL DEFAULT '[]'",
+    "tags_json": "TEXT NOT NULL DEFAULT '[]'",
+    "caused_by_json": "TEXT NOT NULL DEFAULT '[]'",
+    "will_affect_json": "TEXT NOT NULL DEFAULT '[]'",
+    "learning_hooks_json": "TEXT NOT NULL DEFAULT '[]'",
+    "outcome_id": "TEXT",
+    "failure_memory_id": "TEXT",
+    "policy_update_id": "TEXT",
+    "raw_json": "TEXT NOT NULL DEFAULT '{}'",
+}
+
 
 def run_migrations(connection: sqlite3.Connection) -> None:
     """Apply all known SQLite migrations idempotently."""
@@ -113,6 +161,63 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.executescript(MIGRATION_1)
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-            (SCHEMA_VERSION, datetime.now(UTC).isoformat()),
+            (1, datetime.now(UTC).isoformat()),
+        )
+    if 2 not in applied_versions:
+        connection.executescript(MIGRATION_2)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (2, datetime.now(UTC).isoformat()),
+        )
+    if 3 not in applied_versions:
+        _migrate_decision_traces_v3(connection)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (3, datetime.now(UTC).isoformat()),
         )
     connection.commit()
+
+
+def _migrate_decision_traces_v3(connection: sqlite3.Connection) -> None:
+    """Add future-learning trace columns to databases created during early Phase 3A."""
+
+    table = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_traces'"
+    ).fetchone()
+    if table is None:
+        connection.executescript(MIGRATION_2)
+
+    existing_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(decision_traces)").fetchall()
+    }
+    for column, definition in _DECISION_TRACE_COLUMNS.items():
+        if column not in existing_columns:
+            connection.execute(f"ALTER TABLE decision_traces ADD COLUMN {column} {definition}")
+
+    refreshed_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(decision_traces)").fetchall()
+    }
+    if "alternatives" in refreshed_columns:
+        connection.execute(
+            """
+            UPDATE decision_traces
+            SET alternatives_json = alternatives
+            WHERE alternatives_json = '[]' AND alternatives IS NOT NULL
+            """
+        )
+    if "metrics" in refreshed_columns:
+        connection.execute(
+            """
+            UPDATE decision_traces
+            SET metrics_json = metrics
+            WHERE metrics_json = '[]' AND metrics IS NOT NULL
+            """
+        )
+    if "constraints_considered" in refreshed_columns:
+        connection.execute(
+            """
+            UPDATE decision_traces
+            SET constraints_json = constraints_considered
+            WHERE constraints_json = '[]' AND constraints_considered IS NOT NULL
+            """
+        )

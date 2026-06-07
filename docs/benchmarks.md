@@ -30,6 +30,8 @@ Passing an id, stem, filename, or path runs one fixture.
   savings percentage, and critical context preservation.
 - Quality and budget guard: aggregate token budget, cost budget, quality
   preservation, approvals required, and estimated cost.
+- Decision trace summary: trace count, top decision type, top rationale, most
+  common rejection reason, and token savings summary.
 
 Greedy is included because it is a clear baseline. Simulated annealing explores
 more schedules, but it is not automatically better; reports show cases where it
@@ -50,14 +52,22 @@ ties or does not improve the score.
 
 Each benchmark run creates a SQLite run with `mode=benchmark`. Tasks are stored
 in `run_tasks`, optimizer/router/context/budget decisions are stored in
-`run_decisions`, and approval-required actions are stored in `approvals`.
+`run_decisions`, rich explainable traces are stored in `decision_traces`, and
+approval-required actions are stored in `approvals`.
 
 Inspect recent runs with:
 
 ```bash
 uv run heph runs
 uv run heph run show <run_id>
+uv run heph explain <run_id>
+uv run heph explain <run_id> --summary
 ```
+
+Benchmark traces use the same decision engine as optimization demos. That means
+model-quality threshold fixtures preserve the rejected-model rationale, context
+overload fixtures preserve token savings and excluded context reasons, and
+approval-gate fixtures preserve safety decisions.
 
 ## Limitations
 

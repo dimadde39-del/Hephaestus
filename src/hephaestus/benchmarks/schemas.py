@@ -113,3 +113,8 @@ class BenchmarkResult(BaseModel):
     estimated_cost: float = Field(ge=0)
     quality_preserved: bool
     summary: str
+    decision_count: int = Field(default=0, ge=0)
+    top_decision_type: str = ""
+    top_decision_rationale: str = ""
+    most_common_rejection_reason: str = ""
+    token_savings_summary: str = ""

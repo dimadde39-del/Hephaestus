@@ -31,6 +31,9 @@ keeps dependency handling clear.
 Greedy remains in benchmark reports even when simulated annealing wins because
 it is the honest baseline: simple, explainable, and easy to reason about.
 
+Phase 3A records the selected greedy-derived task order as a
+`task_selection` decision trace with the annealing order as an alternative.
+
 ## Simulated Annealing
 
 The annealing scheduler starts from the greedy order, explores swaps, and accepts
@@ -45,6 +48,9 @@ Annealing is not treated as automatically better. Benchmarks report the greedy
 score, annealing score, absolute delta, percentage delta, dependency violations,
 and the selected schedule. If annealing does not improve the objective, that is
 shown directly.
+
+The scheduler comparison also emits an `optimization` trace that records the
+winning scheduler, score delta, objective score, and constraints considered.
 
 ## Future QUBO / Ising Direction
 
@@ -81,13 +87,16 @@ at `.hephaestus/hephaestus.db`. A run captures:
 - model routing decisions and rejected options,
 - context packing selections and exclusions,
 - token budget evaluation,
-- pending approvals for approval-gated tasks.
+- pending approvals for approval-gated tasks,
+- rich decision traces for scheduler, router, context, budget, and safety
+  choices.
 
 The CLI prints the saved run ID:
 
 ```text
 Saved run: run_...
 View with: heph run show run_...
+Explain with: heph explain run_...
 ```
 
 Durable run history is intentionally in place before always-on mode so future
@@ -107,7 +116,39 @@ by `heph optimize`:
 
 Benchmark runs are saved with `mode=benchmark`, and the resulting `heph run show`
 output includes scheduler decisions, model route decisions, rejected options,
-context packing, quality guard, token budget decisions, and pending approvals.
+context packing, quality guard, token budget decisions, pending approvals, and
+rich decision traces. Benchmark reports include decision count, top decision
+type, top decision rationale, the most common rejection reason, quality
+preserved status, and token savings summary.
+
+## Explainability
+
+Optimization without explainability is hard to trust and hard to improve. The
+same objective score can hide a quality rejection, a token-pressure tradeoff, an
+approval gate, or a context exclusion. Phase 3A therefore records typed decision
+traces for the major optimizer surfaces:
+
+- `task_selection`: selected task order and scheduler alternatives.
+- `model_routing`: selected model, rejected models, quality thresholds, cost,
+  and capability/privacy/tool constraints.
+- `context_selection`: included context, excluded context, token savings, and
+  critical-context constraints.
+- `budget`: token, cost, and quality budget outcomes.
+- `safety`: approval-required actions and safety-policy triggers.
+- `optimization`: objective comparison between strategies.
+
+Rejected options are structured alternatives with scores, rejection reasons,
+violated constraints, would-have cost, expected quality, and risk when those are
+known. Trace metrics are typed records rather than prose-only logs. Each trace
+also carries learning hooks plus nullable outcome, failure-memory, and
+policy-update links.
+
+Use `heph explain <run_id>` for a full trace, `heph explain <run_id> --summary`
+for counts and rejection reasons, and `heph explain stats` for aggregate
+decision statistics across persisted runs.
+
+Hephaestus does not only optimize decisions. It records why each decision was
+made so future versions can learn from outcomes.
 
 The benchmark suite is designed to test optimizer behavior, not to claim
 real-world AGI performance.

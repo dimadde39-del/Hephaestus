@@ -24,6 +24,21 @@ from hephaestus.benchmarks.reporter import (
     results_to_json,
 )
 from hephaestus.core.config import DEFAULT_CONFIG, PrivacyLevel, RiskLevel
+from hephaestus.decision import (
+    DecisionTraceRepository,
+    aggregate_decision_stats,
+    build_budget_decision,
+    build_context_selection_decision,
+    build_decision_stats_renderable,
+    build_decision_summary_renderable,
+    build_model_routing_decision,
+    build_model_routing_error_decision,
+    build_optimization_decision,
+    build_run_explanation_renderable,
+    build_safety_approval_decision,
+    build_task_selection_decision,
+    summarize_decisions,
+)
 from hephaestus.memory import MemoryItem, MemoryType
 from hephaestus.models import DeepSeekProvider, ModelProfile, fake_model_profiles
 from hephaestus.optimize.context_packer import ContextCandidate, pack_context
@@ -182,9 +197,28 @@ def optimize(
 
     scenario = DemoScenario.model_validate_json(path.read_text(encoding="utf-8"))
     run_repository = RunRepository()
+    trace_repository = DecisionTraceRepository(run_repository.database_path)
     run = run_repository.save_run(RunRecord(goal=f"Optimize {path}", mode="optimize"))
     comparison = compare_schedulers(scenario.tasks, DEFAULT_CONFIG.objective_weights)
     context = pack_context(scenario.context_candidates, scenario.context_token_budget)
+    optimization_trace = build_optimization_decision(run.id, comparison)
+    task_trace = build_task_selection_decision(
+        run.id,
+        comparison,
+        parent_id=optimization_trace.id,
+    )
+    trace_repository.save_traces(
+        [
+            optimization_trace,
+            task_trace,
+            build_context_selection_decision(
+                run.id,
+                scenario.context_candidates,
+                context,
+                scenario.context_token_budget,
+            ),
+        ]
+    )
     run_repository.save_run_tasks(
         RunTaskRecord(
             run_id=run.id,
@@ -203,12 +237,22 @@ def optimize(
     )
     for task in comparison.best_order:
         if task.requires_approval:
-            run_repository.save_approval(
+            risk_level = _risk_level_from_score(task.risk)
+            approval = run_repository.save_approval(
                 ApprovalRecord(
                     run_id=run.id,
                     action_type="task",
                     action_description=task.description,
-                    risk_level=_risk_level_from_score(task.risk),
+                    risk_level=risk_level,
+                )
+            )
+            trace_repository.save_trace(
+                build_safety_approval_decision(
+                    run.id,
+                    action=approval.action_description,
+                    reason=f"Task {task.id} requires approval before execution.",
+                    risk_level=risk_level,
+                    parent_id=task_trace.id,
                 )
             )
     run_repository.save_decision(
@@ -273,19 +317,18 @@ def optimize(
     for task in comparison.best_order:
         total_input += task.estimated_input_tokens
         total_output += task.estimated_output_tokens
+        route_request = ModelRouteRequest(
+            required_capabilities=task.required_capabilities,
+            input_tokens=task.estimated_input_tokens,
+            output_tokens=task.estimated_output_tokens,
+            quality_threshold=scenario.quality_threshold,
+            privacy_level=task.privacy_level,
+            needs_tools=bool(task.allowed_tools),
+            needs_json=True,
+            profiles=profiles,
+        )
         try:
-            route = route_model(
-                ModelRouteRequest(
-                    required_capabilities=task.required_capabilities,
-                    input_tokens=task.estimated_input_tokens,
-                    output_tokens=task.estimated_output_tokens,
-                    quality_threshold=scenario.quality_threshold,
-                    privacy_level=task.privacy_level,
-                    needs_tools=bool(task.allowed_tools),
-                    needs_json=True,
-                    profiles=profiles,
-                )
-            )
+            route = route_model(route_request)
         except ModelRoutingError as error:
             route_table.add_row(task.id, "unrouted", "-", "-", style="red")
             run_repository.save_decision(
@@ -296,6 +339,15 @@ def optimize(
                     rejected_options=[str(error)],
                     estimated_cost=0.0,
                     rationale=str(error),
+                )
+            )
+            trace_repository.save_trace(
+                build_model_routing_error_decision(
+                    run.id,
+                    route_request,
+                    error,
+                    task_id=task.id,
+                    parent_id=task_trace.id,
                 )
             )
             console.print(f"[red]{error}[/red]")
@@ -313,6 +365,15 @@ def optimize(
                 objective_score=route.quality,
                 estimated_cost=route.estimated_cost,
                 rationale=route.explanation,
+            )
+        )
+        trace_repository.save_trace(
+            build_model_routing_decision(
+                run.id,
+                route_request,
+                route,
+                task_id=task.id,
+                parent_id=task_trace.id,
             )
         )
         route_table.add_row(
@@ -352,6 +413,13 @@ def optimize(
                 rationale=budget_decision.explanation,
             )
         )
+        trace_repository.save_trace(
+            build_budget_decision(
+                run.id,
+                budget_decision,
+                scenario.token_budget,
+            )
+        )
 
     summary_lines = [
         comparison.explanation,
@@ -379,6 +447,7 @@ def optimize(
     )
     console.print(f"Saved run: {run.id}")
     console.print(f"View with: heph run show {run.id}")
+    console.print(f"Explain with: heph explain {run.id}")
 
 
 @app.command("models")
@@ -550,6 +619,39 @@ def list_runs(
     console.print(table)
 
 
+@app.command("explain")
+def explain_run(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Run ID to explain, or 'stats' for aggregate trace statistics."),
+    ],
+    summary: Annotated[
+        bool,
+        typer.Option("--summary", help="Show a compact decision count and rejection summary."),
+    ] = False,
+) -> None:
+    """Explain a run's rich decision trace, or aggregate trace statistics."""
+
+    trace_repository = DecisionTraceRepository()
+    if run_id == "stats":
+        traces = trace_repository.list_traces()
+        console.print(build_decision_stats_renderable(aggregate_decision_stats(traces)))
+        return
+
+    run_repository = RunRepository(trace_repository.database_path)
+    detail = run_repository.get_run(run_id)
+    if detail is None:
+        console.print(f"[red]Run not found: {run_id}[/red]")
+        raise typer.Exit(1)
+
+    traces = trace_repository.list_traces(run_id=run_id)
+    if summary:
+        console.print(build_decision_summary_renderable(run_id, summarize_decisions(traces)))
+        return
+
+    console.print(build_run_explanation_renderable(run_id, traces))
+
+
 @run_app.command("show")
 def run_show(
     run_id: Annotated[str, typer.Argument(help="Run ID to inspect.")],
@@ -631,6 +733,13 @@ def run_show(
                 approval.status.value,
             )
         console.print(approval_table)
+
+    trace_count = len(DecisionTraceRepository(repository.database_path).list_traces(run_id=run.id))
+    if trace_count:
+        console.print(f"Decision traces: {trace_count}")
+        console.print(f"View decision trace: heph explain {run.id}")
+    else:
+        console.print("Decision traces: none")
 
 
 def _print_memory_table(title: str, memories: list[MemoryItem]) -> None:

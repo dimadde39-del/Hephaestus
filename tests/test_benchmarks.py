@@ -14,6 +14,7 @@ from hephaestus.benchmarks.runner import (
     run_benchmark,
 )
 from hephaestus.cli.main import app
+from hephaestus.decision import DecisionTraceRepository
 from hephaestus.optimize.context_packer import ContextCandidate
 from hephaestus.storage import RunRepository
 
@@ -40,6 +41,9 @@ def test_running_single_benchmark_without_persistence() -> None:
     assert result.scheduler.best_scheduler in {"greedy", "annealing"}
     assert result.context.tokens_before > result.context.tokens_after
     assert result.quality_preserved is True
+    assert result.decision_count > 0
+    assert result.top_decision_type
+    assert result.token_savings_summary.startswith("saved ")
 
 
 def test_running_all_benchmarks_without_persistence() -> None:
@@ -115,12 +119,20 @@ def test_benchmark_run_persisted_to_sqlite(tmp_path) -> None:
     result = run_benchmark(case, repository=repository)
 
     assert result.run_id is not None
+    assert result.decision_count > 0
+    assert result.top_decision_type
+    assert result.top_decision_rationale
+    assert result.token_savings_summary
     detail = repository.get_run(result.run_id)
+    traces = DecisionTraceRepository(tmp_path / "hephaestus.db").list_traces(
+        run_id=result.run_id
+    )
     assert detail is not None
     assert detail.run.mode == "benchmark"
     assert detail.run.status == "completed"
     assert len(detail.tasks) == len(case.tasks)
     assert len(detail.approvals) == 2
+    assert len(traces) == result.decision_count
     assert {decision.decision_type for decision in detail.decisions} >= {
         "scheduler_greedy",
         "scheduler_annealing",
@@ -157,6 +169,8 @@ def test_cli_benchmark_run_single_smoke(tmp_path, monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert "Benchmark: simple_release" in result.output
+    assert "Decision Trace" in result.output
+    assert "Top Type" in result.output
     assert "Saved run: run_" in result.output
 
 
@@ -169,6 +183,7 @@ def test_cli_benchmark_run_json_smoke(tmp_path, monkeypatch) -> None:
     payload = json.loads(result.output)
     assert payload[0]["case"]["id"] == "model_quality_threshold"
     assert payload[0]["model_routes"][0]["selected_model"] == "local/fake-quality-strong"
+    assert payload[0]["top_decision_type"]
 
 
 def test_cli_benchmark_run_all_smoke(tmp_path, monkeypatch) -> None:

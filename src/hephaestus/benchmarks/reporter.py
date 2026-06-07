@@ -128,10 +128,26 @@ def print_benchmark_result(console: Console, result: BenchmarkResult) -> None:
         f"${result.estimated_cost:.6f}",
     )
     console.print(guard_table)
+
+    decision_table = Table(title="Decision Trace")
+    decision_table.add_column("Decisions", justify="right")
+    decision_table.add_column("Top Type")
+    decision_table.add_column("Top Rationale")
+    decision_table.add_column("Most Common Rejection")
+    decision_table.add_column("Token Savings")
+    decision_table.add_row(
+        str(result.decision_count),
+        result.top_decision_type or "-",
+        result.top_decision_rationale or "-",
+        result.most_common_rejection_reason or "-",
+        result.token_savings_summary or "-",
+    )
+    console.print(decision_table)
     console.print(Panel(result.summary, title="Summary"))
     if result.run_id is not None:
         console.print(f"Saved run: {result.run_id}")
         console.print(f"View with: heph run show {result.run_id}")
+        console.print(f"Explain with: heph explain {result.run_id}")
 
 
 def results_to_json(results: list[BenchmarkResult]) -> str:
