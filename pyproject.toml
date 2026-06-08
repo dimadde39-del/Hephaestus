@@ -5,12 +5,21 @@ build-backend = "hatchling.build"
 [project]
 name = "hephaestus-agent"
 version = "0.1.0"
-description = "An open-source forge for always-on, self-improving AI agents."
+description = "Optimization-first agent OS with explainable decisions and learning memory."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Hephaestus contributors" }]
-keywords = ["ai-agents", "optimization", "agent-runtime", "memory", "cli"]
+keywords = [
+    "ai-agents",
+    "optimization",
+    "agent-runtime",
+    "decision-traces",
+    "pareto",
+    "qubo",
+    "memory",
+    "cli",
+]
 dependencies = [
     "pydantic>=2.8,<3",
     "rich>=13.7,<15",
@@ -48,4 +57,3 @@ python_version = "3.12"
 strict = true
 packages = ["hephaestus"]
 plugins = ["pydantic.mypy"]
-

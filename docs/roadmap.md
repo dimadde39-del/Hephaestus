@@ -1,177 +1,162 @@
 # Roadmap
 
-## v0.1 Core Runtime
+Hephaestus is building toward an optimization-first agent OS: local-first,
+explainable, memory-backed, and careful about execution. The public alpha goal
+is not to look autonomous before the core is ready. It is to make decision
+quality understandable.
 
-- Typed schemas.
+## Complete
+
+### Foundation
+
+- Python 3.12 package managed with `uv`.
+- Pydantic v2 schemas.
+- Typer/Rich CLI.
 - Deterministic spec pipeline.
-- Memory repository.
-- Fake models.
-- Optimizer baselines.
-- CLI demo.
+- Task graph generation and optimizer-compatible tasks.
+- Memory store and model provider interface.
+- Fake local models and optional DeepSeek provider.
+- Safety and tool schemas.
 
-## v0.2 Spec / Task Graph
+### Persistence
 
-- Richer constraints.
-- Task graph validation.
-- Generated implementation plans.
-- SQLite run history capture.
-- Persistent local memory.
-- Benchmark fixture preparation.
+- SQLite database initialization and migrations.
+- Persistent memories.
+- Run history, run tasks, decisions, and approvals.
+- Local state in `.hephaestus/hephaestus.db`.
 
-## v0.3 Quantum Planner Benchmarks
+### Benchmark Reports
 
-- Benchmark suites for task order and model/context decisions.
-- Reporting over `benchmarks/task_graphs/` fixtures.
-- Persisted benchmark runs in SQLite run history.
-- Explainable decision traces for task selection, model routing, context
-  selection, token budgets, safety gates, and optimizer comparisons.
-- Outcome tracking and failure-learning foundations.
-- Deterministic benchmark outcome evaluation with draft learning artifacts.
-- QUBO/Ising formulations.
-- Simulated annealing tuning.
-- Comparison against greedy and naive baselines.
+- Benchmark fixtures for designed optimizer pressure cases.
+- Greedy and simulated annealing comparisons.
+- Model routing, context packing, token budget, and approval-gate reporting.
+- Persisted benchmark runs.
 
-## v0.4 Policy Learning + Decision Quality Profiles
+### Decision Traces
 
-- Added explicit decision quality profiles for model routing, context packing,
-  token firewall, scheduler, safety, memory retrieval, and optimizer decisions.
-- Added profile suggestions from accumulated outcomes, reflections, learning
-  signals, failure drafts, policy suggestions, and decision traces.
-- Added profile activation/archive and profile application records.
-- Added profile-aware model routing thresholds, context failure-memory boosts,
-  token firewall threshold adjustments, scheduler weight adjustments, and
-  safety approval demo behavior.
-- Kept policy updates reviewed and non-automatic by default.
-- Preserved the loop:
+- First-class decision trace records.
+- Trace rendering through `heph explain <run_id>`.
+- Aggregate explanation stats.
+- Structured selected/rejected alternatives, metrics, confidence, and rationale.
 
-```text
-Learning Signal -> Profile Suggestion -> Decision Quality Profile -> Future Decision Bias
-```
+### Outcome Learning
 
-## v0.5 Pareto Optimization + Decision Tradeoff Frontier
+- Outcome records linked to decision traces.
+- Deterministic reflections.
+- Learning signals.
+- Failure memory drafts.
+- Policy update suggestions kept as reviewable artifacts.
 
-- Added candidate generation for model routing, context packing, and scheduler
-  strategies.
-- Added objective vectors across quality, cost, latency, risk, privacy, token
-  usage, confidence, safety, and profile alignment.
-- Added built-in Pareto preference profiles: `balanced`, `frugal`,
-  `quality_first`, `privacy_first`, `safety_first`, and `speed_first`.
-- Added frontier detection, preference ranking, tradeoff explanations, SQLite
-  persistence, CLI commands, benchmark `--pareto`, and explain integration.
-- Preserved the principle:
+### Policy Profiles
 
-```text
-Hephaestus does not hide tradeoffs behind a single magic score.
-It exposes the decision frontier and explains why a candidate was selected.
-```
+- Decision quality profile suggestions.
+- Explicit activation and archive commands.
+- Profile application records.
+- Active profiles can bias future model routing, context packing, token
+  firewall, scheduler, and safety behavior.
 
-## v0.6 QUBO / Ising Formulation Layer
+### Pareto Frontier
 
-- Added QUBO schemas for binary variables, linear/quadratic terms, constraints,
-  objectives, problems, solutions, formulation reports, comparisons, and Ising
-  problems.
-- Added practical formulations for context packing, model selection, budget
-  strategy, and a small task-ordering demo.
-- Added local exhaustive, greedy, and seeded simulated annealing QUBO solvers.
-- Added QUBO to Ising conversion using `x = (1 + s) / 2`.
-- Added SQLite persistence for `qubo_problems` and `qubo_solutions`.
-- Added `heph qubo ...` CLI commands, benchmark `--qubo`, explain integration,
-  and Pareto comparison notes.
-- Preserved the principle:
+- Multi-objective candidates for model routing, context packing, and scheduler
+  choices.
+- Built-in preference profiles such as `balanced`, `frugal`, `quality_first`,
+  `privacy_first`, `safety_first`, and `speed_first`.
+- Persisted frontiers and selections.
+- CLI list/show/compare commands.
 
-```text
-Hephaestus uses QUBO/Ising-style formulations to make agent decision problems explicit and optimizable. This is quantum-inspired optimization, not a claim of quantum hardware acceleration.
-```
+### QUBO and Ising
 
-## v0.7 Repo Intelligence
+- QUBO schemas for variables, terms, constraints, objectives, problems, and
+  solutions.
+- Context packing, model selection, budget strategy, and task-ordering demo
+  formulations.
+- Local exhaustive, greedy, and seeded annealing solvers.
+- QUBO to Ising conversion.
+- CLI formulation, solve, list, show, compare, and convert commands.
 
-- Added read-only local repository inspection.
-- Added Node/TypeScript/JavaScript, Python, Rust, Go, Docker, GitHub Actions,
-  and GitLab CI signal detection.
-- Added package manager, script, validation command, environment file, and risk
-  signal schemas.
-- Added safe command classification for validation, medium risk, high risk,
-  destructive commands, and external side effects.
-- Added validation plan generation and repo-aware release-readiness task graphs.
-- Added SQLite persistence for `repo_profiles` and `repo_inspections`.
-- Added `heph repo inspect/list/show/tasks/plan/export-benchmark`.
-- Added benchmark export so real repo tasks can run through optimizer, Pareto,
-  and QUBO proof reports.
-- Preserved the principle:
+### Repo Intelligence
+
+- Read-only local repository inspection.
+- Detection for Python, Node/TypeScript/JavaScript, Rust, Go, Docker, GitHub
+  Actions, and GitLab CI signals.
+- Package manager, script, validation command, env-file, and risk signals.
+- Safe command classification.
+- Repo-aware release-readiness task generation.
+- Benchmark export from real repo profiles.
+
+### Release Planning Demo
+
+- `heph release plan/list/show`.
+- End-to-end local demo:
 
 ```text
-Hephaestus does not jump straight from prompt to action.
-It first inspects the repository, builds a project profile, generates repo-aware tasks, and then lets the decision engine optimize the plan.
+Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
 ```
 
-## v0.8 Repo-Aware Release Planning Demo
+- Release plans link repo profiles, optimizer runs, decision traces, Pareto
+  frontiers, QUBO problems, simulated outcomes, and learning signals.
+- Execution remains deferred: validation, deploy, publish, destructive, and
+  external side-effect commands are not run.
 
-- Added `src/hephaestus/release/` with request/result/recommendation schemas,
-  planner helpers, orchestrator, repository, analysis, and Rich renderers.
-- Added SQLite persistence for `release_plans`.
-- Added `heph release plan/list/show`.
-- Connected repo inspection, repo planning, optimizer, Pareto, QUBO, explain,
-  simulated outcome evaluation, learning signals, and release recommendation
-  generation into one local demo.
-- Kept execution deferred: validation, deploy, publish, destructive, and
-  external side-effect commands are not run in this phase.
-- Public demo flow:
+### Public Alpha Readiness Polish
 
-```bash
-heph release plan . --pareto --qubo --evaluate
-heph release show <release_run_id>
-```
+- README hero rewritten around a 30-second public explanation.
+- Demo-first quickstart and walkthrough.
+- Contributor guide and issue templates.
+- Public roadmap cleanup.
+- Brand and mascot direction.
+- Soft reveal launch copy drafts.
+- GitHub metadata suggestions.
 
-- Preserved the principle:
+## Upcoming
 
-```text
-Hephaestus does not run blindly.
-It inspects the repository, builds a release plan, exposes tradeoffs, formulates optimizations, explains decisions, and records learning signals before execution is ever allowed.
-```
+### Phase 4D: Soft Reveal Pack
 
-## v0.9 Public Alpha Readiness Polish
+- Polished screenshots of the current CLI demo.
+- Short terminal recording plan.
+- One-minute demo script.
+- Final first posts for X/Twitter, Reddit, and Telegram/Discord communities.
+- Social preview image brief.
 
-- Improve README hero and project identity.
-- Polish CLI copy and visual hierarchy.
-- Improve demo examples and onboarding flow.
-- Plan GitHub social preview and mascot direction.
-- Keep voice, Telegram, browser automation, dashboard, and autonomous editing
-  deferred until the core is mature.
+### Safe Validation Execution
 
-## v0.10 Token Firewall
+- Execute only approved low-risk validation commands.
+- Capture command output, exit codes, duration, and environment constraints.
+- Store real validation outcomes against decision traces.
+- Keep deploy, publish, destructive, and external side-effect commands gated.
 
-- Per-run and per-project budgets.
-- Cost ledgers.
-- Provider-specific model catalogs.
-- Quality regression checks.
+### Repo-Aware Outcome Learning From Real Commands
 
-## v0.11 Memory Monster
+- Turn real validation results into outcome records.
+- Connect failures back to decision traces and repo profiles.
+- Improve learning signals with command evidence.
+- Keep policy/profile updates reviewable before activation.
 
-- Hybrid search.
-- Graph memory.
-- Verification and decay.
-- Failure-to-decision learning.
+### Strategy and Research Deliberation Modes
 
-## v0.12 Skill Growth
+- Add deliberation modes for uncertain planning and research-heavy decisions.
+- Make assumptions, alternatives, and uncertainty explicit.
+- Preserve the same trace/outcome/learning architecture.
 
-- Skill registry.
-- Skill validation.
-- Promotion from repeated memories.
-- Safety review before using generated skills.
+### Dashboard Later
 
-## v0.13 Dashboard
+- Local web dashboard for decision traces, Pareto frontiers, QUBO problems,
+  memories, approvals, and run history.
+- Not part of the current alpha.
 
-- Local web dashboard.
-- Plan visualizations.
-- Decision trace trees and aggregate decision stats.
-- Budget reports.
-- Memory inspection.
-- Approval queue.
+### Voice Much Later
 
-## v1.0 Always-On Agent OS
+- Voice/Jarvis-style features are intentionally deferred until the decision
+  core, execution safety, and learning loop are mature.
 
-- Event daemon.
-- Safe tool execution.
-- Multi-agent allocation.
-- Persistent skills and memory.
-- Production-ready policy and audit.
+## Deferred On Purpose
+
+- Autonomous code editing.
+- Always-on daemon behavior.
+- Browser or desktop automation.
+- Telegram bot integrations.
+- Dashboard-first product work.
+- Random integrations that do not improve decision quality.
+
+The current priority is clear: core decision quality, repo-aware planning,
+explainability, learning memory, and safe execution later.

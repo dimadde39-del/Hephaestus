@@ -1,449 +1,190 @@
 # Hephaestus
 
-An open-source forge for always-on, self-improving AI agents.
+**Optimization-first agent OS with explainable decisions and learning memory.**
 
-Hephaestus explores optimization-first agent execution: what to do next, which
-model to use, what context to include, which tools to call, and when to ask for
-approval.
+Status: **early alpha, local-first, planning-only**. Hephaestus can inspect a
+repository, build a release-readiness plan, expose tradeoffs, formulate decision
+problems, explain why choices were made, evaluate deterministic simulated
+outcomes, and create learning signals. It does **not** execute repository
+commands, edit code autonomously, run as a daemon, or claim production-ready
+autonomy.
+
+```text
+The forge for agents that think before they act.
+```
+
+## Demo First
+
+```bash
+git clone https://github.com/dimadde39-del/Hephaestus.git hephaestus
+cd hephaestus
+uv sync
+uv run heph doctor
+uv run heph release plan . --pareto --qubo --evaluate
+```
+
+Expected high-level flow:
+
+```text
+Repo inspected
+Release tasks generated
+Pareto tradeoffs compared
+QUBO problems formulated
+Decision traces saved
+Outcomes evaluated
+Learning signals created
+```
+
+Then inspect the artifacts:
+
+```bash
+uv run heph release list
+uv run heph release show <release_run_id>
+uv run heph runs
+uv run heph explain <optimizer_run_id>
+uv run heph pareto list
+uv run heph qubo list
+```
+
+The walkthrough in [examples/release_plan_demo.md](examples/release_plan_demo.md)
+explains what each stage means, which parts are real, and which parts are
+simulated in the current alpha.
+
+## What It Is
+
+Hephaestus is a Python 3.12 agent runtime foundation built around decision
+quality. Ordinary agents often jump from prompt to action. Hephaestus starts by
+making the decision problem explicit: inspect the repo, generate tasks, compare
+plans, surface tradeoffs, explain selections, record outcomes, and turn failures
+into reviewable learning artifacts.
+
+The current public demo is intentionally conservative:
+
+```text
+Repo -> Profile -> Tasks -> Optimizer -> Pareto -> QUBO -> Explain -> Outcomes -> Learning Profiles
+```
+
+In one sentence:
 
 ```text
 Hermes learns workflows.
 Hephaestus learns decision quality.
 ```
 
-This repository is an early optimization-first agent runtime. It is not a
-production agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a
-typed, testable Python core for spec-driven planning, persistent local memory,
-model routing, context packing, token budgeting, safe tool gating, benchmark
-proof reports, explainable decision traces, outcome learning, decision quality
-profiles, Pareto tradeoff frontiers, QUBO/Ising-style binary formulations, and
-read-only repository intelligence plus repo-aware release planning for local
-development workflows.
-
-## Core Loop
-
-```text
-Observe -> Remember -> Specify -> Optimize -> Act -> Explain -> Outcome -> Reflect -> Learn
-```
-
-## Architecture
-
-```text
-CLI
- |-- Spec layer: constitution, goals, tasks, execution plans
- |-- Storage layer: SQLite memory, run history, decisions, traces, approvals
- |-- Decision layer: typed traces, persistence, rendering, aggregate analysis
- |-- Outcome layer: outcomes, reflections, learning signals, failure drafts
- |-- Policy learning layer: draft/active profiles and profile applications
- |-- Pareto layer: candidates, objective vectors, frontiers, selections
- |-- QUBO layer: binary variables, penalties, solvers, Ising conversion
- |-- Repo layer: local repo inspection, stack detection, risk classification
- |-- Release layer: repo-aware release planning demo and recommendations
- |-- Memory layer: episodic, semantic, project, failure, decision records
- |-- Optimization core
- |    |-- central objective function
- |    |-- greedy task scheduler
- |    |-- simulated annealing scheduler
- |    |-- model router
- |    |-- context packer
- |    `-- token firewall
- |-- Benchmark layer: fixtures, runner, reports, persisted proof runs
- |-- Model layer: provider interface, fake local provider, optional DeepSeek
- |-- Tool layer: typed tool definitions
- `-- Safety layer: approval gates, risky command policy, audit schemas
-```
-
-## Why Optimization-First Agents Matter
-
-Agents spend most of their quality budget before they call a tool. They decide
-what to do, what to remember, what to ignore, which model to use, and how much
-risk to take. If those choices are random or cheapest-first, the agent can waste
-tokens, miss critical context, or take unsafe actions.
-
-Hephaestus treats planning as an optimization problem from the beginning. It
-uses explainable greedy and simulated annealing baselines, Pareto frontiers for
-tradeoff visibility, and QUBO/Ising-style formulations when a decision can be
-shown as binary variables, objectives, and penalties.
-
-## Quality-Preserving Token Optimization
-
-The token firewall and router follow one rule:
-
-```text
-Cheap when possible. Strong when necessary. Local/private when required.
-```
-
-The model router minimizes estimated cost only after filtering for capabilities,
-privacy, context window, tool/JSON support, and quality threshold. A cheap model
-that cannot meet the threshold is rejected.
-
-## Benchmark Proof Reports
-
-Phase 2B adds benchmark commands that exercise the optimizer on designed task
-graphs:
-
-```bash
-uv run heph benchmark list
-uv run heph benchmark show model_quality_threshold
-uv run heph benchmark run benchmarks/task_graphs/simple_release.json
-uv run heph benchmark run
-uv run heph benchmark run --json
-```
-
-Each benchmark compares greedy scheduling with simulated annealing, routes
-models under quality thresholds, packs context under token pressure, checks
-aggregate token/cost budgets, counts approval-gated tasks, and saves a
-`mode=benchmark` run. Use `heph run show <run_id>` to inspect persisted tasks,
-decisions, rejected models, context packing, budget decisions, and approvals.
-Use `heph explain <run_id>` to inspect the richer decision trace generated by
-the benchmark.
-
-Add `--evaluate` to attach simulated outcomes, reflections, learning signals,
-failure memory drafts, and reviewed policy suggestions:
-
-```bash
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
-uv run heph reflect <run_id>
-uv run heph learn signals
-uv run heph learn failures
-uv run heph learn policies
-```
-
-The benchmark suite is designed to test optimizer behavior, not to claim
-real-world AGI performance.
-
-Add `--pareto` to expose the decision frontier before the final recommendation:
-
-```bash
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
-uv run heph pareto profiles
-uv run heph pareto compare benchmarks/task_graphs/context_overload.json --preference balanced
-uv run heph pareto list
-uv run heph pareto show <frontier_id>
-```
-
-Hephaestus does not hide tradeoffs behind a single magic score.
-It exposes the decision frontier and explains why a candidate was selected.
-
-## Explainable Decision Engine
-
-Phase 3A adds typed decision traces for task selection, model routing, context
-selection, budget checks, safety approval gates, and optimizer comparisons. The
-goal is optimizer transparency: every important choice should say what was
-selected, what was rejected, which constraints mattered, and which metrics drove
-the result.
-
-Hephaestus does not only optimize decisions.
-It records why each decision was made so future versions can learn from outcomes.
-
-```bash
-uv run heph explain <run_id>
-uv run heph explain <run_id> --summary
-uv run heph explain stats
-```
-
-The richer traces live alongside the older `run_decisions` records in SQLite.
-They include structured alternatives, typed metrics, confidence, objective
-score, constraints, tags, causal links, downstream effects, and nullable future
-links for `outcome_id`, `failure_memory_id`, and `policy_update_id`.
-They are intentionally shaped so future QUBO optimization, self-evaluation,
-failure memory, skill growth, dashboards, and autonomous runtime loops can
-measure why the system behaved as it did.
-
-## Outcome Tracking + Failure Learning
-
-Phase 3B adds the next loop:
-
-```text
-Decision -> Outcome -> Reflection -> Memory Draft -> Learning Signal -> Better Future Decision
-```
-
-Hephaestus does not only explain decisions. It observes whether decisions
-worked, records outcomes, and turns failures into draft learning artifacts.
-Policy update suggestions are stored for review; they are not silently applied.
-
-```bash
-uv run heph outcome add <decision_trace_id> --status success --summary "Worked in production"
-uv run heph outcome list
-uv run heph outcome show <outcome_id>
-uv run heph reflect <run_id>
-uv run heph learn signals
-uv run heph learn failures
-uv run heph learn policies
-uv run heph learn promote-failure <failure_draft_id>
-```
-
-Outcome records link back to `decision_traces.id` through `outcome_id`.
-Failures can create `failure_memory_drafts`, and explicit promotion converts a
-draft into a normal persistent `failure` memory.
-
-## Policy Learning + Decision Quality Profiles
-
-Phase 3C turns passive learning artifacts into explicit, reversible decision
-quality profiles:
-
-```text
-Learning Signal -> Profile Suggestion -> Decision Quality Profile -> Future Decision Bias
-```
-
-Hephaestus does not silently rewrite itself.
-It converts outcomes into inspectable decision quality profiles that can be reviewed, activated, and measured.
-
-Profiles can target model routing, context packing, token firewall behavior,
-scheduler weights, safety gates, memory retrieval, and optimizer bias. Suggested
-profiles are drafts until activated:
-
-```bash
-uv run heph profile suggest
-uv run heph profile list
-uv run heph profile show <profile_id>
-uv run heph profile activate <profile_id>
-uv run heph profile active
-uv run heph profile apply-demo <profile_id>
-uv run heph profile archive <profile_id>
-```
-
-Active profiles can increase model quality thresholds, boost failure memories
-inside context packing, reduce aggressive token compression, increase scheduler
-dependency/risk penalties, and make safety approval gates more conservative.
-Each application is recorded in SQLite and appears in benchmark reports and
-`heph explain <run_id>`.
-
-## Pareto Optimization + Decision Tradeoff Frontier
-
-Phase 3D adds explicit tradeoff frontiers for model routing, context packing,
-and scheduler choices:
-
-```text
-Generate candidates -> score multiple objectives -> identify Pareto frontier -> select final candidate -> explain tradeoff
-```
-
-Candidates are scored across quality, cost, latency, risk, privacy, token usage,
-confidence, safety, and profile alignment. Preference profiles such as
-`balanced`, `frugal`, `quality_first`, `privacy_first`, `safety_first`, and
-`speed_first` rank the frontier after invalid candidates are filtered.
-
-Preference profiles are selection modes. Decision quality profiles are learned
-rules from outcomes. They coexist: active learned profiles can influence
-candidate scoring, while the current Pareto preference decides which valid
-frontier candidate is selected.
-
-## QUBO / Ising Formulation Layer
-
-Phase 3E adds inspectable binary optimization formulations:
-
-```text
-Hephaestus uses QUBO/Ising-style formulations to make agent decision problems explicit and optimizable. This is quantum-inspired optimization, not a claim of quantum hardware acceleration.
-```
-
-QUBO formulations currently cover context packing, model selection, budget
-strategy selection, and a small task-ordering demo. Each problem shows variables,
-linear terms, quadratic terms, constraints, penalties, selected variables,
-objective value, feasibility, and local solver explanation.
-
-```bash
-uv run heph qubo formulate benchmarks/task_graphs/model_quality_threshold.json --type model_selection
-uv run heph qubo solve <problem_id> --solver exhaustive
-uv run heph qubo show <problem_id>
-uv run heph qubo convert-ising <problem_id>
-uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
-```
-
-QUBO does not replace Pareto. Pareto exposes a tradeoff frontier; QUBO encodes a
-chosen decision problem into binary optimization energy.
-
-## Repo Intelligence
-
-Phase 4A moves Hephaestus from synthetic fixtures toward real local development
-workflows. It inspects a repository read-only, detects stack signals, classifies
-package scripts and validation commands, persists a repo profile, generates
-repo-aware release-readiness tasks, and can export those tasks as a benchmark
-fixture for the existing optimizer/Pareto/QUBO stack.
-
-```text
-Hephaestus does not jump straight from prompt to action.
-It first inspects the repository, builds a project profile, generates repo-aware tasks, and then lets the decision engine optimize the plan.
-```
-
-```bash
-uv run heph repo inspect .
-uv run heph repo list
-uv run heph repo show <profile_id>
-uv run heph repo tasks <profile_id>
-uv run heph repo plan <profile_id>
-uv run heph repo export-benchmark <profile_id> --output benchmarks/repo/hephaestus_self.json
-uv run heph benchmark run benchmarks/repo/hephaestus_self.json --pareto --qubo
-```
-
-Repo intelligence detects common Node/TypeScript, Python, Rust, Go, Docker, and
-CI signals. Commands such as tests, lint, builds, deploys, publishes, database
-migrations, `curl | sh`, `.env` access, and destructive deletes are classified
-before any future execution phase can consider them.
-
-## Repo-Aware Release Planning Demo
-
-Phase 4B connects the existing systems into the first credible local public-demo
-flow:
-
-```text
-Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
-```
-
-```bash
-uv run heph release plan . --pareto --qubo --evaluate
-uv run heph release list
-uv run heph release show <release_run_id>
-```
-
-Hephaestus inspected the repo, generated release-readiness tasks, compared
-tradeoffs, formulated QUBO problems, explained decisions, evaluated simulated
-outcomes, and produced learning signals. It does not execute repo commands in
-this phase and does not claim the repository is actually release-ready.
-
-```text
-Hephaestus does not run blindly.
-It inspects the repository, builds a release plan, exposes tradeoffs, formulates optimizations, explains decisions, and records learning signals before execution is ever allowed.
-```
-
-The release recommendation is intentionally conservative. A typical result is
-`needs_validation` when lint/build/test commands are detected but have not been
-run yet, env files or risky scripts require review, CI is only detected by file
-path, or approval-gated publish/deploy commands are present.
-
-## Quickstart
-
-```bash
-uv sync --extra dev
-uv run heph --help
-uv run heph doctor
-uv run heph db init
-uv run heph db path
-uv run heph plan "prepare this repo for release"
-uv run heph optimize examples/repo_release_demo.json
-uv run heph benchmark list
-uv run heph benchmark run benchmarks/task_graphs/simple_release.json
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
-uv run heph repo inspect .
-uv run heph repo list
-uv run heph release plan . --pareto --qubo --evaluate
-uv run heph release list
-uv run heph pareto profiles
-uv run heph pareto compare benchmarks/task_graphs/model_quality_threshold.json
-uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
-uv run heph profile suggest
-uv run heph profile list
-uv run heph runs
-uv run heph explain stats
-uv run heph learn signals
-uv run heph models
-uv run heph memory add --type failure --content "Validation failed because tests were missing"
-uv run heph memory search tests
-uv run heph memory list
-uv run heph budget demo
-```
-
-By default, durable local state is stored in:
-
-```text
-.hephaestus/hephaestus.db
-```
-
-The path is relative to the current working directory. Memory commands
-auto-initialize the database, and `heph optimize ...` saves a run record with
-tasks, scheduler decisions, model routing decisions, context packing, budget
-evaluation, rich decision traces, and pending approval markers. Use
-`heph run show <run_id>` for the compact history view and `heph explain <run_id>`
-for the trace-level explanation. Benchmark commands use the same durable run
-history with `mode=benchmark`. Outcome learning commands use the same database
-and never require paid APIs. Active decision quality profiles in the same
-database are applied to benchmark and optimize runs, with application records
-shown in reports and explanations.
-Pareto frontiers are also persisted in the same database and appear in
-benchmark reports and `heph explain <run_id>` when generated.
-QUBO problems and solutions are persisted in the same database and appear in
-benchmark reports and `heph explain <run_id>` when generated with `--qubo`.
-Repo intelligence profiles and inspection reports are persisted in the same
-database through `repo_profiles` and `repo_inspections`.
-Release planning results are persisted in the same database through
-`release_plans` and link to repo profiles, optimizer runs, decision traces,
-Pareto frontiers, QUBO problems, outcomes, and learning signals.
-
-Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
-
-```bash
-export DEEPSEEK_API_KEY="..."
-```
-
-On PowerShell:
-
-```powershell
-$env:DEEPSEEK_API_KEY = "..."
-```
-
-Tests do not require paid APIs.
-
-## Development
-
-```bash
-uv run ruff format .
-uv run ruff check .
-uv run pytest
-uv run mypy
-uv run heph doctor
-uv run heph db init
-uv run heph optimize examples/repo_release_demo.json
-uv run heph benchmark run benchmarks/task_graphs/simple_release.json
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
-uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
-uv run heph repo inspect .
-uv run heph release plan . --pareto --qubo --evaluate
-uv run heph profile suggest
-uv run heph profile active
-uv run heph explain stats
-uv run heph learn signals
-```
+## Why It Is Different
+
+- **Decision traces are first-class.** The system records selected options,
+  rejected alternatives, constraints, metrics, confidence, and rationale.
+- **Planning is optimization-shaped.** Task ordering, model routing, context
+  packing, and budget checks flow through explicit objective functions.
+- **Tradeoffs are visible.** Pareto frontiers show quality, cost, latency, risk,
+  privacy, token usage, safety, and profile alignment instead of hiding
+  everything behind one score.
+- **QUBO/Ising is inspectable.** Binary variables, objectives, constraints, and
+  local solver results make selected decision problems concrete. This is
+  classical local solving, not a quantum hardware claim.
+- **Learning is reviewable.** Outcomes create reflections, learning signals,
+  failure memory drafts, and policy profile suggestions before anything can
+  bias future decisions.
+- **Repo intelligence grounds the plan.** The demo reads real local repo signals
+  such as manifests, lockfiles, scripts, CI config, env file names, and command
+  risk categories before planning.
 
 ## Current Status
 
 Built:
 
-- Typed Pydantic schemas for tasks, models, memories, tools, and plans.
-- Deterministic goal-to-task spec pipeline.
-- SQLite-backed persistent memory with lexical retrieval.
-- SQLite-backed optimization run history.
-- Fake model provider and optional DeepSeek provider.
-- Greedy and simulated annealing task schedulers.
-- Quality-preserving model router.
-- Context packing optimizer.
-- Token firewall.
-- Safety policy for risky tools and shell commands.
-- Benchmark runner and optimizer proof reports.
-- Explainable decision traces, summaries, and aggregate stats.
-- Outcome records, deterministic reflections, learning signals, failure memory
-  drafts, and policy update suggestions.
-- Decision quality profiles, profile persistence, explicit activation/archive,
-  profile application records, and profile-aware benchmark/explain integration.
-- Pareto candidate schemas, objective vectors, preference profiles, frontier
-  persistence, CLI comparison commands, and benchmark/explain integration.
-- QUBO schemas, practical binary formulations, local exhaustive/greedy/annealing
-  solvers, Ising conversion, SQLite persistence, CLI commands, and
-  benchmark/explain/Pareto comparison integration.
-- Repo intelligence schemas, read-only stack detection, command risk
-  classification, validation plan generation, repo-aware task generation,
-  SQLite persistence, CLI commands, and benchmark export integration.
-- Repo-aware release planning schemas, orchestrator, SQLite persistence, Rich
-  CLI demo, conservative recommendation generation, and links across repo
-  profiles, optimizer runs, explain traces, Pareto frontiers, QUBO problems,
-  simulated outcomes, and learning signals.
-- Typer/Rich CLI.
+- Pydantic v2 schemas and a Typer/Rich CLI.
+- SQLite persistence for memory, runs, tasks, decisions, approvals, and release
+  planning artifacts.
+- Optimizer baselines, model routing, context packing, and token budget checks.
+- Benchmark proof reports.
+- Explainable decision traces.
+- Outcome tracking, reflections, learning signals, and failure memory drafts.
+- Decision quality profiles with explicit activation/archive.
+- Pareto tradeoff frontiers and preference profiles.
+- QUBO formulations, local solvers, and QUBO to Ising conversion.
+- Read-only repo intelligence and repo-aware release planning.
 
 Not built yet:
 
-- Live always-on daemon.
-- Browser/desktop/voice/Telegram automation.
-- Full self-improving skill promotion.
-- Unsafe automatic self-modification.
+- Autonomous code edits.
+- Execution of repository validation, build, deploy, publish, or destructive
+  commands.
+- A long-running daemon.
+- A dashboard.
+- Browser, desktop, Telegram, or voice automation.
 - Production sandbox execution.
+- Quantum hardware integration.
+
+Current outcomes are deterministic simulations over decision traces. They are
+useful for testing the learning loop, but they do not prove that `pytest`,
+`ruff`, a build, a deploy, or a release actually succeeded.
+
+## Core Loop
+
+```text
+Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Bias future decisions only after review
+```
+
+Architecture at a glance:
+
+```text
+CLI
+ |-- Repo intelligence: read-only local inspection and command risk classification
+ |-- Release planning: demo orchestration and conservative recommendations
+ |-- Optimization core: scheduling, routing, context packing, token budget checks
+ |-- Pareto layer: multi-objective candidate frontiers and selections
+ |-- QUBO layer: binary formulations, local solvers, Ising conversion
+ |-- Decision layer: persisted traces and explanation rendering
+ |-- Outcome layer: deterministic evaluations, reflections, learning signals
+ |-- Policy learning: reviewable decision quality profiles
+ |-- Memory layer: local persistent memories
+ `-- Safety layer: approval gates and risk policy schemas
+```
+
+For the deeper module map, see [docs/architecture.md](docs/architecture.md).
+For phase history and upcoming work, see [docs/roadmap.md](docs/roadmap.md).
+
+## Useful Commands
+
+```bash
+uv run heph --help
+uv run heph doctor
+uv run heph repo inspect .
+uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release list
+uv run heph runs
+uv run heph explain <run_id>
+uv run heph explain <run_id> --summary
+uv run heph pareto list
+uv run heph qubo list
+uv run heph learn signals
+```
+
+By default, local state is stored in:
+
+```text
+.hephaestus/hephaestus.db
+```
+
+Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set. Tests
+and the public demo do not require paid APIs.
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run ruff format .
+uv run ruff check .
+uv run pytest
+uv run mypy
+uv run heph doctor
+uv run heph release plan . --pareto --qubo --evaluate
+```
+
+Contributors should start with [CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/contributor_guide.md](docs/contributor_guide.md). The short version:
+focus on core decision quality, repo-aware planning, explainability, learning
+memory, and safe execution foundations. Voice, dashboards, random integrations,
+and always-on automation are intentionally later.

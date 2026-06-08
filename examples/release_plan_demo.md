@@ -1,72 +1,187 @@
-# Release Planning Demo
+# Release Plan Demo
 
-Use Hephaestus itself as the demo target:
+The release planning demo is the fastest way to understand Hephaestus today.
+It uses the current repository as the target and runs the planning loop without
+executing repo commands.
 
 ```bash
 uv run heph release plan . --pareto --qubo --evaluate
 ```
 
-The command runs this local flow:
+## Flow
 
 ```text
 Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
 ```
 
-What happens:
-
-- Hephaestus inspects the repository read-only.
-- It persists a repo profile and generated release-readiness tasks.
-- It converts the tasks into the existing optimizer-compatible format.
-- It persists an optimizer run with `mode=release`.
-- `--pareto` persists tradeoff frontiers.
-- `--qubo` persists QUBO problems and local solver results.
-- `--evaluate` generates simulated outcomes, reflections, and learning signals.
-- It saves a `release_plans` row with all linked artifact IDs.
-
-Sample output shape:
+At a high level, expect:
 
 ```text
-Repo-Aware Release Planning
+Repo inspected
+Release tasks generated
+Pareto tradeoffs compared
+QUBO problems formulated
+Decision traces saved
+Outcomes evaluated
+Learning signals created
+```
+
+## Annotated Output
+
+### Repo-Aware Release Planning
+
+This panel gives you the IDs that tie the demo together:
+
+```text
 Release plan: release_...
 Repo profile: repo_...
 Optimizer run: run_...
 Readiness score: 80/100
 Recommendation: needs_validation
-
-Demo Flow
-Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
-
-Release Recommendation
-Recommendation: needs_validation
-
-Why:
-- lint/build/test commands were detected but not executed.
-- CI configuration was detected.
-- QUBO formulated 3 problem(s), 3 feasible.
-- simulated outcomes and learning signals were generated from decision traces.
 ```
 
-Inspect linked artifacts:
+The readiness score is deterministic and coarse. It is not proof that a release
+passed. In the current alpha, `needs_validation` is the honest default when the
+repo has validation commands that Hephaestus has detected but not executed.
+
+### Demo Flow
+
+This table shows which artifacts were created at each stage:
+
+```text
+Repo Inspect    repo_...                      1
+Repo Plan       generated release tasks       N
+Optimize        run_...                       1
+Pareto          frontier_...                  N
+QUBO            qubo_...                      N
+Explain         trace_...                     N
+Evaluate        outcome_...                   N
+Learn           signal_...                    N
+```
+
+### Readiness Signals
+
+This table explains why the recommendation was conservative. Signals include
+repo profile confidence, detected validation commands, tests, build/lint
+commands, CI files, env-file posture, approval gates, optimizer persistence,
+Pareto feasibility, and QUBO feasibility.
+
+### Release Task Plan
+
+This table contains generated repo-aware tasks. The command column shows
+detected validation or package-script commands when available. The approval
+column shows tasks that future execution phases must gate.
+
+### Release Recommendation
+
+The recommendation panel summarizes the status, why Hephaestus chose it, and
+what should happen next. Typical alpha reasons include:
+
+```text
+- lint/build/test commands were detected but not executed.
+- CI configuration was detected.
+- env files were detected by name; contents were not inspected.
+- publish/deploy/destructive scripts require approval before execution.
+```
+
+### Linked Artifacts
+
+The final panel gives follow-up commands for inspecting what was saved.
+
+## What Is Real
+
+- Repository inspection reads local files and filenames read-only.
+- Repo profiles are persisted in SQLite.
+- Release-readiness tasks are generated from detected repo signals.
+- Optimizer runs, tasks, decisions, approvals, and decision traces are persisted.
+- Pareto frontiers compare real candidate objective vectors.
+- QUBO problems are formulated and solved locally with classical solvers.
+- Release plans link the saved repo, run, Pareto, QUBO, trace, outcome, and
+  learning artifacts.
+
+## What Is Simulated
+
+- `--evaluate` creates deterministic outcomes from decision traces.
+- Reflections and learning signals are generated from those simulated outcomes.
+- No validation commands are executed.
+- No code is edited.
+- No package is published.
+- No deployment is attempted.
+- QUBO/Ising support is local classical optimization, not quantum hardware.
+
+## Inspect The Linked Run
+
+List saved release plans:
 
 ```bash
 uv run heph release list
+```
+
+Open a release plan:
+
+```bash
 uv run heph release show <release_run_id>
-uv run heph repo tasks <profile_id>
+```
+
+List recent optimizer runs:
+
+```bash
+uv run heph runs
+```
+
+Inspect the optimizer run linked from the release plan:
+
+```bash
 uv run heph run show <optimizer_run_id>
+```
+
+Explain the decision trace:
+
+```bash
 uv run heph explain <optimizer_run_id>
+uv run heph explain <optimizer_run_id> --summary
+```
+
+List persisted Pareto frontiers:
+
+```bash
+uv run heph pareto list
+```
+
+Open a frontier:
+
+```bash
 uv run heph pareto show <frontier_id>
+```
+
+List persisted QUBO problems:
+
+```bash
+uv run heph qubo list
+```
+
+Open a QUBO problem:
+
+```bash
 uv run heph qubo show <problem_id>
+```
+
+Inspect simulated outcome learning:
+
+```bash
 uv run heph outcome list --run <optimizer_run_id>
 uv run heph learn signals --run <optimizer_run_id>
 ```
 
-Important boundary:
+## Boundary
+
+Hephaestus does not run blindly. The current demo proves the planning and
+explanation loop:
 
 ```text
-Hephaestus does not run blindly.
-It inspects the repository, builds a release plan, exposes tradeoffs, formulates optimizations, explains decisions, and records learning signals before execution is ever allowed.
+Inspect first.
+Optimize honestly.
+Explain every important decision.
+Learn from outcomes.
+Execute safely later.
 ```
-
-Phase 4B does not execute validation commands, publish packages, deploy, edit
-code, or run destructive commands. The recommendation is a planning
-recommendation, not proof that a release passed.

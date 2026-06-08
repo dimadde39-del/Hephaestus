@@ -1,7 +1,18 @@
 # Architecture
 
-Hephaestus is organized around a local-first core that can grow into an
-always-on runtime without forcing paid APIs or a single model provider.
+Hephaestus is organized around a local-first core that can grow into a safely
+executable agent runtime without forcing paid APIs or a single model provider.
+
+The public alpha architecture is easiest to read as one planning loop:
+
+```text
+Repo -> Profile -> Tasks -> Optimizer -> Pareto -> QUBO -> Explain -> Outcomes -> Learning Profiles
+```
+
+The current system stops before execution. It inspects, plans, optimizes,
+explains, evaluates deterministic simulated outcomes, and creates reviewable
+learning artifacts. Future phases can add safe command execution without
+changing the core decision trail.
 
 ## Core Modules
 
@@ -65,16 +76,16 @@ User goal
   -> ExecutionPlan
 ```
 
-At the product level this is the same loop expressed as:
+At the product level this is the current alpha loop expressed as:
 
 ```text
-Observe -> Remember -> Specify -> Optimize -> Act -> Explain -> Outcome -> Reflect -> Learn
+Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Execute safely later
 ```
 
 Phase 1 intentionally avoids a long-running daemon. The CLI proves the module
 boundaries and gives tests a stable surface. Phase 2A adds a local SQLite file at
 `.hephaestus/hephaestus.db` so separate CLI invocations can share memory and run
-history before any always-on process exists.
+history before any daemon process exists.
 
 ## Design Constraints
 
