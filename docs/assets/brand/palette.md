@@ -8,14 +8,14 @@ tooling, not fantasy poster art.
 | --- | --- | --- |
 | `charcoal` | `#0D1117` | Primary dark background; GitHub-dark friendly. |
 | `deep_iron` | `#161B22` | Panels, bands, and quiet UI surfaces. |
-| `iron` | `#242A31` | Anvil and machine-shadow forms. |
-| `tempered_steel` | `#3A424C` | Metal highlights and outlines. |
+| `iron` | `#2B3138` | Anvil and machine-shadow forms. |
+| `tempered_steel` | `#3D4751` | Metal highlights and outlines. |
 | `bronze` | `#B87333` | Talos body, forge craft, primary warm brand color. |
-| `old_bronze` | `#7A4A22` | Bronze shadow and worn-metal depth. |
-| `bright_bronze` | `#D69245` | Bronze edge highlights. |
-| `forge_gold` | `#FFD166` | Decision emphasis and key sparks. |
-| `ember` | `#FF6B1A` | Heat, action, and forge energy. |
-| `graph_cyan` | `#58D7FF` | Subtle cool accent for decision graph glow. |
+| `old_bronze` | `#7B451D` | Bronze shadow and worn-metal depth. |
+| `bright_bronze` | `#D08A3A` | Bronze edge highlights. |
+| `forge_gold` | `#FFC14D` | Decision emphasis and key sparks. |
+| `ember` | `#FF6A00` | Heat, action, and forge energy. |
+| `graph_cyan` | `#3DD6FF` | Subtle cool accent for decision graph glow. |
 | `mist` | `#E8EDF2` | Primary text on dark backgrounds. |
 | `muted` | `#95A1AD` | Secondary text and labels. |
 

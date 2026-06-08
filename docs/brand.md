@@ -77,9 +77,9 @@ Guidelines:
 - Use him sparingly until the core demo is strong.
 
 The current asset pack interprets Talos as a compact bronze/iron automaton with
-glowing eyes, a warm core, a small hammer, an anvil, and a restrained decision
-graph motif. He is friendly enough to be memorable, but still belongs to a
-developer tool.
+glowing eyes, a warm core, a small forge hammer, an anvil, and a restrained
+decision graph motif. He is friendly enough to be memorable, but still belongs
+to a developer tool.
 
 ## Visual System
 
@@ -102,14 +102,16 @@ Brand assets live in `docs/assets/brand/`.
 
 | Asset | Purpose |
 | --- | --- |
+| `hephaestus-brand-board.png` | Source brand board for the current high-fidelity raster crops. |
 | `hephaestus-social-preview.png` | GitHub social preview image with project name, tagline, Talos, and the release-planning pipeline. |
-| `hephaestus-social-preview.svg` | Editable source for the social preview. |
+| `hephaestus-social-preview.svg` | Crop-source SVG that references `hephaestus-brand-board.png`. |
 | `hephaestus-readme-hero.png` | Wide README hero used near the top of the repository README. |
-| `hephaestus-readme-hero.svg` | Editable source for the README hero. |
-| `talos-pixel.png` | 48x48 transparent pixel mascot for docs, social posts, or future CLI splash experiments. |
-| `talos-pixel-4x.png` | 192x192 nearest-neighbor export of the pixel mascot. |
-| `talos-icon.svg` | Compact anvil plus decision-graph icon for future avatar/favicon use. |
-| `talos-mark.svg` | Square Talos mark for larger brand placements. |
+| `hephaestus-readme-hero-source.png` | Source image for the current README banner. |
+| `hephaestus-readme-hero.svg` | Source-image SVG wrapper for the current README banner. |
+| `talos-pixel.png` | 64x64 pixel mascot crop for docs, social posts, or future CLI splash experiments. |
+| `talos-pixel-4x.png` | 256x256 nearest-neighbor export of the pixel mascot. |
+| `talos-icon.svg` | Compact Talos robot-head icon for future avatar/favicon use. |
+| `talos-mark.svg` | Minimal anvil plus decision-graph mark for larger brand placements. |
 | `talos-badge.svg` | Horizontal badge used in this brand guide. |
 | `palette.md` | Core brand colors and usage notes. |
 
@@ -121,9 +123,15 @@ Run:
 uv run python scripts/brand/generate_brand_assets.py
 ```
 
-The generator uses only the Python standard library. It writes SVG sources,
-exports the social preview and README hero through a local Chromium-compatible
-browser when available, and encodes the pixel PNGs directly.
+The generator uses only the Python standard library. When
+`hephaestus-brand-board.png` is present, it extracts the social preview, README
+hero, and pixel mascot from that board through local PowerShell/.NET image
+APIs. It also writes the SVG crop sources, vector icon/mark/badge, and palette.
+If the board is missing, it falls back to deterministic code-generated SVG and
+PNG assets.
+
+If `hephaestus-readme-hero-source.png` is present, it takes precedence for the
+README hero banner.
 
 ## Future Visual Expansion
 

@@ -1,24 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Talos anvil decision graph icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Talos robot head icon">
 
   <defs>
     <radialGradient id="emberField" cx="80%" cy="78%" r="70%">
-      <stop offset="0%" stop-color="#FF6B1A" stop-opacity="0.32"/>
-      <stop offset="45%" stop-color="#7A4A22" stop-opacity="0.15"/>
+      <stop offset="0%" stop-color="#FF6A00" stop-opacity="0.32"/>
+      <stop offset="45%" stop-color="#7B451D" stop-opacity="0.15"/>
       <stop offset="100%" stop-color="#0D1117" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="coolField" cx="22%" cy="24%" r="58%">
-      <stop offset="0%" stop-color="#58D7FF" stop-opacity="0.13"/>
+      <stop offset="0%" stop-color="#3DD6FF" stop-opacity="0.13"/>
       <stop offset="100%" stop-color="#0D1117" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="bronzeMetal" x1="0%" x2="100%" y1="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFD166"/>
-      <stop offset="22%" stop-color="#D69245"/>
+      <stop offset="0%" stop-color="#FFC14D"/>
+      <stop offset="22%" stop-color="#D08A3A"/>
       <stop offset="58%" stop-color="#B87333"/>
-      <stop offset="100%" stop-color="#7A4A22"/>
+      <stop offset="100%" stop-color="#7B451D"/>
     </linearGradient>
     <linearGradient id="darkSteel" x1="0%" x2="100%" y1="0%" y2="100%">
-      <stop offset="0%" stop-color="#3A424C"/>
-      <stop offset="55%" stop-color="#242A31"/>
+      <stop offset="0%" stop-color="#3D4751"/>
+      <stop offset="55%" stop-color="#2B3138"/>
       <stop offset="100%" stop-color="#101419"/>
     </linearGradient>
     <linearGradient id="anvilTop" x1="0%" x2="100%" y1="0%" y2="0%">
@@ -40,25 +40,24 @@
       <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#2E3742" stroke-opacity="0.22" stroke-width="1"/>
     </pattern>
     <pattern id="sparks" width="160" height="120" patternUnits="userSpaceOnUse">
-      <circle cx="26" cy="24" r="1.6" fill="#FFD166" opacity="0.42"/>
-      <circle cx="96" cy="72" r="1.2" fill="#FF6B1A" opacity="0.38"/>
-      <circle cx="138" cy="38" r="1.1" fill="#58D7FF" opacity="0.22"/>
+      <circle cx="26" cy="24" r="1.6" fill="#FFC14D" opacity="0.42"/>
+      <circle cx="96" cy="72" r="1.2" fill="#FF6A00" opacity="0.38"/>
+      <circle cx="138" cy="38" r="1.1" fill="#3DD6FF" opacity="0.22"/>
     </pattern>
   </defs>
 
-  <rect width="256" height="256" rx="54" fill="#0D1117"/>
-  <rect width="256" height="256" rx="54" fill="url(#emberField)" opacity="0.85"/>
-  <path d="M48 152 H192 L178 176 H66 Z" fill="url(#anvilTop)"/>
-  <path d="M70 176 H156 L142 204 H86 Z" fill="url(#darkSteel)"/>
-  <path d="M36 150 C56 134 80 130 108 142 L48 152 Z" fill="#252D36"/>
-  <path d="M192 152 C216 146 229 134 238 116 C237 146 218 166 192 172 Z" fill="#202832"/>
-  <g fill="none" stroke="#58D7FF" stroke-width="7" stroke-linecap="round" filter="url(#softGlow)">
-    <path d="M82 119 L116 82 L158 116 L190 76"/>
-    <path d="M116 82 L132 148 L158 116"/>
+  <circle cx="128" cy="128" r="104" fill="#10161C" stroke="#B87333" stroke-width="6"/>
+  <circle cx="128" cy="128" r="94" fill="url(#emberField)" opacity="0.75"/>
+  <g filter="url(#hardShadow)">
+    <path d="M128 44 V72" stroke="url(#bronzeMetal)" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="128" cy="38" r="10" fill="url(#bronzeMetal)" stroke="#3A1E0C" stroke-width="4"/>
+    <path d="M58 130 C58 108 74 93 96 93 H160 C182 93 198 108 198 130 V154 C198 176 182 191 160 191 H96 C74 191 58 176 58 154 Z" fill="url(#bronzeMetal)" stroke="#4A260D" stroke-width="7"/>
+    <path d="M70 124 H186 V152 H70 Z" fill="#10151B" opacity="0.84"/>
+    <circle cx="103" cy="138" r="10" fill="#FFC14D" filter="url(#softGlow)"/>
+    <circle cx="153" cy="138" r="10" fill="#FFC14D" filter="url(#softGlow)"/>
+    <path d="M78 191 H178 L194 224 H62 Z" fill="url(#bronzeMetal)" stroke="#4A260D" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M88 204 H168" stroke="#4A260D" stroke-width="6" stroke-linecap="round" opacity="0.58"/>
+    <rect x="40" y="124" width="22" height="46" rx="10" fill="url(#darkSteel)" stroke="#0A0E12" stroke-width="5"/>
+    <rect x="194" y="124" width="22" height="46" rx="10" fill="url(#darkSteel)" stroke="#0A0E12" stroke-width="5"/>
   </g>
-  <circle cx="82" cy="119" r="10" fill="#58D7FF"/>
-  <circle cx="116" cy="82" r="12" fill="#FFD166"/>
-  <circle cx="158" cy="116" r="10" fill="#58D7FF"/>
-  <circle cx="190" cy="76" r="9" fill="#FF6B1A"/>
-  <path d="M69 207 H151 L166 224 H54 Z" fill="#080B0F"/>
 </svg>

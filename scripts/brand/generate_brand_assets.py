@@ -17,23 +17,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BRAND_DIR = ROOT / "docs" / "assets" / "brand"
+REFERENCE_BOARD = BRAND_DIR / "hephaestus-brand-board.png"
+REFERENCE_HERO_BANNER = BRAND_DIR / "hephaestus-readme-hero-source.png"
 
 SOCIAL_SIZE = (1280, 640)
-HERO_SIZE = (1600, 560)
+HERO_SIZE = (2508, 627)
 PIXEL_SIZE = 48
+BOARD_SIZE = (1536, 1024)
+SOCIAL_BOARD_CROP = (10, 90, 735, 368)
+HERO_BOARD_CROP = (764, 88, 759, 266)
+PIXEL_BOARD_CROP = (190, 532, 190, 190)
 
 PALETTE = {
     "charcoal": "#0D1117",
     "deep_iron": "#161B22",
-    "iron": "#242A31",
-    "tempered_steel": "#3A424C",
+    "iron": "#2B3138",
+    "tempered_steel": "#3D4751",
     "bronze": "#B87333",
-    "old_bronze": "#7A4A22",
-    "bright_bronze": "#D69245",
-    "forge_gold": "#FFD166",
-    "ember": "#FF6B1A",
-    "core_orange": "#FF9A3D",
-    "graph_cyan": "#58D7FF",
+    "old_bronze": "#7B451D",
+    "bright_bronze": "#D08A3A",
+    "forge_gold": "#FFC14D",
+    "ember": "#FF6A00",
+    "core_orange": "#FF8A1D",
+    "graph_cyan": "#3DD6FF",
     "mist": "#E8EDF2",
     "muted": "#95A1AD",
 }
@@ -90,6 +96,97 @@ def render_svg_to_png(svg_path: Path, png_path: Path, width: int, height: int) -
             )
     joined = "\n".join(errors) if errors else "No Chromium-compatible browser found."
     raise RuntimeError(f"Could not render {svg_path.name} to PNG:\n{joined}")
+
+
+def powershell_candidates() -> list[str]:
+    return [found for name in ["pwsh", "powershell"] if (found := shutil.which(name))]
+
+
+def extract_reference_board_assets() -> bool:
+    if not REFERENCE_BOARD.exists():
+        return False
+    powershell = powershell_candidates()
+    if not powershell:
+        return False
+
+    script = r"""
+param([string]$Source, [string]$OutputDir)
+Add-Type -AssemblyName System.Drawing
+
+$src = [System.Drawing.Bitmap]::new($Source)
+
+function Save-Crop {
+    param(
+        [string]$Name,
+        [int]$X,
+        [int]$Y,
+        [int]$W,
+        [int]$H,
+        [int]$OutW,
+        [int]$OutH,
+        [string]$Interpolation
+    )
+
+    $dest = [System.Drawing.Bitmap]::new(
+        $OutW,
+        $OutH,
+        [System.Drawing.Imaging.PixelFormat]::Format32bppArgb
+    )
+    $graphics = [System.Drawing.Graphics]::FromImage($dest)
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+    $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::$Interpolation
+
+    $sourceRect = [System.Drawing.Rectangle]::new($X, $Y, $W, $H)
+    $destRect = [System.Drawing.Rectangle]::new(0, 0, $OutW, $OutH)
+    $graphics.DrawImage($src, $destRect, $sourceRect, [System.Drawing.GraphicsUnit]::Pixel)
+
+    $output = Join-Path $OutputDir $Name
+    $dest.Save($output, [System.Drawing.Imaging.ImageFormat]::Png)
+    $graphics.Dispose()
+    $dest.Dispose()
+}
+
+Save-Crop "hephaestus-social-preview.png" 10 90 735 368 1280 640 "HighQualityBicubic"
+Save-Crop "hephaestus-readme-hero.png" 764 88 759 266 1600 560 "HighQualityBicubic"
+Save-Crop "talos-pixel.png" 190 532 190 190 64 64 "NearestNeighbor"
+Save-Crop "talos-pixel-4x.png" 190 532 190 190 256 256 "NearestNeighbor"
+
+$src.Dispose()
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8") as temp:
+        temp.write(script)
+        script_path = Path(temp.name)
+    try:
+        result = subprocess.run(
+            [
+                powershell[0],
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(script_path),
+                str(REFERENCE_BOARD),
+                str(BRAND_DIR),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    finally:
+        script_path.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Could not extract brand board assets:\n"
+            f"stdout={result.stdout[-800:]!r}\n"
+            f"stderr={result.stderr[-800:]!r}"
+        )
+    return True
 
 
 def svg_defs() -> str:
@@ -226,8 +323,45 @@ def talos_group(scale: float = 1.0) -> str:
 """
 
 
+def board_crop_svg(
+    width: int,
+    height: int,
+    crop: tuple[int, int, int, int],
+    label: str,
+) -> str:
+    source_width, source_height = BOARD_SIZE
+    crop_x, crop_y, crop_width, crop_height = crop
+    scale_x = width / crop_width
+    scale_y = height / crop_height
+    image_x = -crop_x * scale_x
+    image_y = -crop_y * scale_y
+    image_width = source_width * scale_x
+    image_height = source_height * scale_y
+    return f"""
+<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{label}">
+  <image href="hephaestus-brand-board.png" x="{image_x:.4f}" y="{image_y:.4f}" width="{image_width:.4f}" height="{image_height:.4f}" preserveAspectRatio="none"/>
+</svg>
+"""
+
+
+def source_image_svg(width: int, height: int, filename: str, label: str) -> str:
+    return f"""
+<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{label}">
+  <image href="{filename}" x="0" y="0" width="{width}" height="{height}" preserveAspectRatio="none"/>
+</svg>
+"""
+
+
 def social_svg() -> str:
     width, height = SOCIAL_SIZE
+    if REFERENCE_BOARD.exists():
+        return board_crop_svg(
+            width,
+            height,
+            SOCIAL_BOARD_CROP,
+            "Hephaestus social preview with Talos forging a decision graph",
+        )
+
     pipeline = ["Repo", "Profile", "Tasks", "Pareto", "QUBO", "Explain", "Learn"]
     chips = []
     start_x = 74
@@ -275,6 +409,22 @@ def social_svg() -> str:
 
 def hero_svg() -> str:
     width, height = HERO_SIZE
+    if REFERENCE_HERO_BANNER.exists():
+        return source_image_svg(
+            width,
+            height,
+            REFERENCE_HERO_BANNER.name,
+            "Hephaestus README banner with Talos forging decisions",
+        )
+
+    if REFERENCE_BOARD.exists():
+        return board_crop_svg(
+            width,
+            height,
+            HERO_BOARD_CROP,
+            "Hephaestus README hero with Talos forging an explainable decision graph",
+        )
+
     return f"""
 <svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="Hephaestus README hero with Talos forging an explainable decision graph">
   {svg_defs()}
@@ -319,35 +469,46 @@ def hero_svg() -> str:
 
 def icon_svg() -> str:
     return f"""
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Talos anvil decision graph icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Talos robot head icon">
   {svg_defs()}
-  <rect width="256" height="256" rx="54" fill="{PALETTE['charcoal']}"/>
-  <rect width="256" height="256" rx="54" fill="url(#emberField)" opacity="0.85"/>
-  <path d="M48 152 H192 L178 176 H66 Z" fill="url(#anvilTop)"/>
-  <path d="M70 176 H156 L142 204 H86 Z" fill="url(#darkSteel)"/>
-  <path d="M36 150 C56 134 80 130 108 142 L48 152 Z" fill="#252D36"/>
-  <path d="M192 152 C216 146 229 134 238 116 C237 146 218 166 192 172 Z" fill="#202832"/>
-  <g fill="none" stroke="{PALETTE['graph_cyan']}" stroke-width="7" stroke-linecap="round" filter="url(#softGlow)">
-    <path d="M82 119 L116 82 L158 116 L190 76"/>
-    <path d="M116 82 L132 148 L158 116"/>
+  <circle cx="128" cy="128" r="104" fill="#10161C" stroke="{PALETTE['bronze']}" stroke-width="6"/>
+  <circle cx="128" cy="128" r="94" fill="url(#emberField)" opacity="0.75"/>
+  <g filter="url(#hardShadow)">
+    <path d="M128 44 V72" stroke="url(#bronzeMetal)" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="128" cy="38" r="10" fill="url(#bronzeMetal)" stroke="#3A1E0C" stroke-width="4"/>
+    <path d="M58 130 C58 108 74 93 96 93 H160 C182 93 198 108 198 130 V154 C198 176 182 191 160 191 H96 C74 191 58 176 58 154 Z" fill="url(#bronzeMetal)" stroke="#4A260D" stroke-width="7"/>
+    <path d="M70 124 H186 V152 H70 Z" fill="#10151B" opacity="0.84"/>
+    <circle cx="103" cy="138" r="10" fill="{PALETTE['forge_gold']}" filter="url(#softGlow)"/>
+    <circle cx="153" cy="138" r="10" fill="{PALETTE['forge_gold']}" filter="url(#softGlow)"/>
+    <path d="M78 191 H178 L194 224 H62 Z" fill="url(#bronzeMetal)" stroke="#4A260D" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M88 204 H168" stroke="#4A260D" stroke-width="6" stroke-linecap="round" opacity="0.58"/>
+    <rect x="40" y="124" width="22" height="46" rx="10" fill="url(#darkSteel)" stroke="#0A0E12" stroke-width="5"/>
+    <rect x="194" y="124" width="22" height="46" rx="10" fill="url(#darkSteel)" stroke="#0A0E12" stroke-width="5"/>
   </g>
-  <circle cx="82" cy="119" r="10" fill="{PALETTE['graph_cyan']}"/>
-  <circle cx="116" cy="82" r="12" fill="{PALETTE['forge_gold']}"/>
-  <circle cx="158" cy="116" r="10" fill="{PALETTE['graph_cyan']}"/>
-  <circle cx="190" cy="76" r="9" fill="{PALETTE['ember']}"/>
-  <path d="M69 207 H151 L166 224 H54 Z" fill="#080B0F"/>
 </svg>
 """
 
 
 def mark_svg() -> str:
     return f"""
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Talos forge automaton mark">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Hephaestus anvil decision graph mark">
   {svg_defs()}
-  <rect width="512" height="512" rx="112" fill="{PALETTE['charcoal']}"/>
-  <rect width="512" height="512" rx="112" fill="url(#coolField)" opacity="0.9"/>
-  <g transform="translate(62 76) scale(1.12)">
-    {talos_group(1)}
+  <g fill="none" stroke="{PALETTE['bronze']}" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 172 L205 112 L256 172 L315 122 L366 174" stroke-width="16"/>
+    <path d="M205 112 L226 216 L256 172 L286 218 L315 122" stroke-width="10" opacity="0.86"/>
+  </g>
+  <g fill="url(#bronzeMetal)" stroke="#5A2D11" stroke-width="8">
+    <circle cx="150" cy="172" r="20"/>
+    <circle cx="205" cy="112" r="20"/>
+    <circle cx="256" cy="172" r="20"/>
+    <circle cx="315" cy="122" r="20"/>
+    <circle cx="366" cy="174" r="20"/>
+  </g>
+  <g fill="url(#bronzeMetal)" stroke="#5A2D11" stroke-linejoin="round" stroke-width="8">
+    <path d="M198 232 L226 284 L256 232 L286 284 L314 232 L326 310 H186 Z"/>
+    <path d="M110 310 H402 L378 352 H136 Z"/>
+    <path d="M148 352 H334 L306 406 H176 Z"/>
+    <path d="M198 406 H286 L312 438 H172 Z"/>
   </g>
 </svg>
 """
@@ -357,16 +518,15 @@ def badge_svg() -> str:
     return f"""
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220" role="img" aria-label="Hephaestus Talos brand badge">
   {svg_defs()}
-  <rect x="2" y="2" width="716" height="216" rx="34" fill="{PALETTE['charcoal']}" stroke="#394552" stroke-width="4"/>
-  <rect x="2" y="2" width="716" height="216" rx="34" fill="url(#emberField)" opacity="0.78"/>
-  <g transform="translate(46 24) scale(0.48)">
+  <rect x="3" y="3" width="714" height="214" rx="48" fill="{PALETTE['charcoal']}" stroke="{PALETTE['old_bronze']}" stroke-width="4"/>
+  <rect x="3" y="3" width="714" height="214" rx="48" fill="url(#emberField)" opacity="0.7"/>
+  <circle cx="116" cy="110" r="72" fill="#10161C" stroke="{PALETTE['bronze']}" stroke-width="4"/>
+  <g transform="translate(52 46) scale(0.36)">
     {talos_group(1)}
   </g>
-  <g transform="translate(248 54)">
-    <text x="0" y="42" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="42" font-weight="850" fill="{PALETTE['mist']}">Hephaestus</text>
-    <text x="1" y="82" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="21" font-weight="650" fill="{PALETTE['forge_gold']}">Optimization-first agent OS</text>
-    <path d="M2 112 H382" stroke="{PALETTE['bronze']}" stroke-width="3" stroke-linecap="round" opacity="0.72"/>
-    <text x="1" y="143" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" fill="{PALETTE['muted']}">Explains decisions. Learns from outcomes.</text>
+  <g transform="translate(204 68)">
+    <text x="0" y="46" font-family="Bahnschrift, Segoe UI, Inter, Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="3" fill="{PALETTE['mist']}">HEPHAESTUS</text>
+    <text x="3" y="90" font-family="Bahnschrift, Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600" letter-spacing="1.5" fill="{PALETTE['ember']}">THINK BEFORE YOU ACT</text>
   </g>
 </svg>
 """
@@ -574,20 +734,24 @@ def main() -> None:
     write_text(BRAND_DIR / "talos-badge.svg", badge_svg())
     write_text(BRAND_DIR / "palette.md", palette_doc())
 
-    render_svg_to_png(
-        social_source,
-        BRAND_DIR / "hephaestus-social-preview.png",
-        *SOCIAL_SIZE,
-    )
-    render_svg_to_png(
-        hero_source,
-        BRAND_DIR / "hephaestus-readme-hero.png",
-        *HERO_SIZE,
-    )
+    if not extract_reference_board_assets():
+        render_svg_to_png(
+            social_source,
+            BRAND_DIR / "hephaestus-social-preview.png",
+            *SOCIAL_SIZE,
+        )
+        render_svg_to_png(
+            hero_source,
+            BRAND_DIR / "hephaestus-readme-hero.png",
+            *HERO_SIZE,
+        )
 
-    mascot = pixel_mascot()
-    write_png(BRAND_DIR / "talos-pixel.png", mascot)
-    write_png(BRAND_DIR / "talos-pixel-4x.png", scale_canvas(mascot, 4))
+        mascot = pixel_mascot()
+        write_png(BRAND_DIR / "talos-pixel.png", mascot)
+        write_png(BRAND_DIR / "talos-pixel-4x.png", scale_canvas(mascot, 4))
+
+    if REFERENCE_HERO_BANNER.exists():
+        shutil.copyfile(REFERENCE_HERO_BANNER, BRAND_DIR / "hephaestus-readme-hero.png")
 
     print(f"Generated brand assets in {BRAND_DIR}")
 
