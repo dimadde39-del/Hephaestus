@@ -1,5 +1,7 @@
 # Hephaestus
 
+![Hephaestus README hero showing Talos forging an explainable decision graph](docs/assets/brand/hephaestus-readme-hero.png)
+
 **Optimization-first agent OS with explainable decisions and learning memory.**
 
 Status: **early alpha, local-first, planning-only**. Hephaestus can inspect a
