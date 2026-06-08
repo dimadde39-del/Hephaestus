@@ -19,6 +19,9 @@ always-on runtime without forcing paid APIs or a single model provider.
   deterministic learner, profile appliers, renderers, and profile summaries.
 - `pareto`: objective vectors, preference profiles, candidate generation,
   Pareto frontier detection, selection, persistence, and Rich renderers.
+- `qubo`: binary variables, QUBO terms, constraints, practical formulations,
+  local solvers, Ising conversion, SQLite persistence, comparison helpers, and
+  Rich renderers.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -49,6 +52,7 @@ User goal
   -> Learning signal / failure draft
   -> Profile suggestion / active profile bias
   -> Pareto frontier / tradeoff selection
+  -> QUBO formulation / local binary solve
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -81,6 +85,10 @@ history before any always-on process exists.
 - Record profile applications so profile influence can be explained later.
 - Expose tradeoff frontiers instead of hiding all decisions behind one scalar
   score.
+- Make QUBO/Ising-style formulations explicit: variables, objective terms,
+  penalties, constraints, selected solution, and baseline comparison.
+- Treat quantum-inspired optimization as a formulation style, not a claim of
+  quantum hardware acceleration.
 - Treat benchmark reports as designed optimizer probes, not real-world AGI
   performance claims.
 
@@ -148,6 +156,29 @@ Active profiles can bias future optimizer inputs:
 Hephaestus does not silently rewrite itself.
 It converts outcomes into inspectable decision quality profiles that can be reviewed, activated, and measured.
 
+## QUBO / Ising Architecture
+
+Phase 3E adds `qubo_problems` and `qubo_solutions` tables. The QUBO repository
+stores full Pydantic JSON for exact roundtrips and summary columns for problem
+type, run ID, source benchmark/frontier IDs, variable counts, term counts,
+constraint counts, solver name, objective value, and feasibility.
+
+The QUBO flow is:
+
+```text
+load benchmark fixture
+  -> formulate binary variables and objective terms
+  -> persist QUBO problem
+  -> solve locally with exhaustive, greedy, or annealing solver
+  -> persist QUBO solution
+  -> compare against baseline and Pareto references
+  -> emit phase=qubo optimization traces
+```
+
+The Ising converter uses `x = (1 + s) / 2` and exposes spin variables, linear
+fields, pair couplings, and constant offset. It is inspectable conversion only;
+there is no quantum hardware integration.
+
 ## Pareto Architecture
 
 Phase 3D adds `pareto_frontiers`, `pareto_candidates`, and
@@ -190,3 +221,6 @@ Active profiles are used by benchmark runs by default, and explicit profiles can
 be supplied with `heph benchmark run --profile <profile_id>`.
 With `--pareto`, benchmark runs also persist frontiers and optimization traces
 that mention the selected tradeoff candidate.
+With `--qubo`, benchmark runs persist QUBO problems and solutions, add
+`phase=qubo` optimization traces, and include QUBO summaries in
+`heph explain <id>` and `heph explain <id> --summary`.

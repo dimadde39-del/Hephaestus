@@ -10,6 +10,7 @@ from rich.table import Table
 from hephaestus.benchmarks.schemas import BenchmarkCase, BenchmarkResult
 from hephaestus.pareto.renderer import build_pareto_summary_table
 from hephaestus.policy_learning.renderer import build_profile_application_table
+from hephaestus.qubo.renderer import build_qubo_comparison_table
 
 
 def print_benchmark_list(console: Console, cases: list[BenchmarkCase]) -> None:
@@ -153,6 +154,8 @@ def print_benchmark_result(console: Console, result: BenchmarkResult) -> None:
         console.print(build_pareto_summary_table(result.pareto_selections))
         for selection in result.pareto_selections:
             console.print(selection.tradeoff_explanation.summary)
+    if result.qubo_comparisons:
+        console.print(build_qubo_comparison_table(result.qubo_comparisons))
     console.print(Panel(result.summary, title="Summary"))
     if result.run_id is not None:
         console.print(f"Saved run: {result.run_id}")

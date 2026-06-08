@@ -16,6 +16,7 @@ uv run heph benchmark run
 uv run heph benchmark run benchmarks/task_graphs/dependency_trap.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
 uv run heph benchmark run --json
 ```
 
@@ -39,6 +40,9 @@ Passing an id, stem, filename, or path runs one fixture.
 - Pareto comparison with `--pareto`: candidate counts, frontier counts,
   dominated candidates, selected candidates, preference profile, and tradeoff
   explanation.
+- QUBO comparison with `--qubo`: formulated problem types, baseline selections,
+  QUBO selections, objective deltas, feasibility, and persisted problem/solution
+  records.
 
 Greedy is included because it is a clear baseline. Simulated annealing explores
 more schedules, but it is not automatically better; reports show cases where it
@@ -78,6 +82,19 @@ uv run heph explain <run_id>
 uv run heph explain <run_id> --summary
 ```
 
+When `--qubo` is passed, benchmark runs also write `qubo_problems` and
+`qubo_solutions`, plus `phase=qubo` optimization traces. These records can be
+inspected with:
+
+```bash
+uv run heph qubo list
+uv run heph qubo show <problem_id>
+uv run heph qubo solve <problem_id> --solver annealing
+uv run heph qubo convert-ising <problem_id>
+uv run heph explain <run_id>
+uv run heph explain <run_id> --summary
+```
+
 Inspect recent runs with:
 
 ```bash
@@ -95,6 +112,9 @@ Benchmark traces use the same decision engine as optimization demos. That means
 model-quality threshold fixtures preserve the rejected-model rationale, context
 overload fixtures preserve token savings and excluded context reasons, and
 approval-gate fixtures preserve safety decisions.
+QUBO benchmark traces preserve the binary formulation evidence: variables,
+objective terms, constraints, solver, selected variables, feasibility, and
+objective value.
 
 ## Deterministic Outcome Evaluation
 

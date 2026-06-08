@@ -94,6 +94,22 @@ from hephaestus.policy_learning import (
     build_profile_summary_renderable,
     suggest_profiles,
 )
+from hephaestus.qubo.analysis import build_qubo_solution_trace, compare_benchmark_with_qubo
+from hephaestus.qubo.formulations import formulate_benchmark_case
+from hephaestus.qubo.ising import qubo_to_ising
+from hephaestus.qubo.renderer import (
+    build_formulation_report_renderable,
+    build_ising_renderable,
+    build_qubo_comparison_table,
+    build_qubo_explain_renderable,
+    build_qubo_problem_list_table,
+    build_qubo_problem_renderable,
+    build_qubo_solution_renderable,
+    build_qubo_summary_panel,
+)
+from hephaestus.qubo.repository import QuboRepository
+from hephaestus.qubo.schemas import QuboProblemType
+from hephaestus.qubo.solver import solve as solve_qubo
 from hephaestus.spec.goal import build_goal_spec
 from hephaestus.spec.tasks import Task, generate_initial_tasks
 from hephaestus.storage import (
@@ -123,6 +139,7 @@ outcome_app = typer.Typer(help="Decision outcome commands.", no_args_is_help=Tru
 learn_app = typer.Typer(help="Outcome-derived learning artifact commands.", no_args_is_help=True)
 profile_app = typer.Typer(help="Decision quality profile commands.", no_args_is_help=True)
 pareto_app = typer.Typer(help="Pareto decision frontier commands.", no_args_is_help=True)
+qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -132,6 +149,7 @@ app.add_typer(outcome_app, name="outcome")
 app.add_typer(learn_app, name="learn")
 app.add_typer(profile_app, name="profile")
 app.add_typer(pareto_app, name="pareto")
+app.add_typer(qubo_app, name="qubo")
 
 
 class DemoScenario(BaseModel):
@@ -630,6 +648,10 @@ def benchmark_run(
             help="Pareto preference profile to use when --pareto is enabled.",
         ),
     ] = "balanced",
+    qubo: Annotated[
+        bool,
+        typer.Option("--qubo", help="Formulate and solve relevant local QUBO problems."),
+    ] = False,
 ) -> None:
     """Run one benchmark fixture, or all fixtures when no target is supplied."""
 
@@ -646,6 +668,7 @@ def benchmark_run(
                 profile_ids=profile,
                 pareto=pareto,
                 pareto_preference=pareto_preference,
+                qubo=qubo,
             )
             for case in cases
         ]
@@ -793,6 +816,214 @@ def pareto_show(
     console.print(build_frontier_detail_renderable(frontier, selection))
 
 
+@qubo_app.command("formulate")
+def qubo_formulate(
+    benchmark_fixture: Annotated[
+        str,
+        typer.Argument(help="Benchmark id, file stem, filename, or JSON path."),
+    ],
+    problem_type: Annotated[
+        QuboProblemType,
+        typer.Option("--type", help="QUBO problem type to formulate."),
+    ],
+) -> None:
+    """Create and persist a QUBO problem from a benchmark fixture."""
+
+    try:
+        case = load_benchmark(benchmark_fixture)
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+
+    repository = QuboRepository()
+    active_profiles = ProfileStore(repository.database_path).list_active_profiles()
+    try:
+        report = formulate_benchmark_case(
+            case,
+            problem_type,
+            active_profiles=active_profiles,
+        )
+    except ValueError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    repository.save_problem(report.problem)
+    console.print(build_formulation_report_renderable(report))
+
+
+@qubo_app.command("solve")
+def qubo_solve(
+    problem_id: Annotated[str, typer.Argument(help="Persisted QUBO problem ID.")],
+    solver_name: Annotated[
+        str,
+        typer.Option("--solver", help="Solver: exhaustive, greedy, or annealing."),
+    ] = "exhaustive",
+    seed: Annotated[int, typer.Option("--seed", help="Seed for annealing.")] = 17,
+    iterations: Annotated[int, typer.Option("--iterations", min=1, help="Solver iterations.")] = 750,
+) -> None:
+    """Solve a persisted QUBO problem and save the solution."""
+
+    repository = QuboRepository()
+    problem = repository.get_problem(problem_id)
+    if problem is None:
+        console.print(f"[red]QUBO problem not found: {problem_id}[/red]")
+        raise typer.Exit(1)
+    try:
+        solution = solve_qubo(
+            problem,
+            solver_name=solver_name,
+            seed=seed,
+            iterations=iterations,
+        )
+    except ValueError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    repository.save_solution(solution, problem)
+    console.print(build_qubo_solution_renderable(solution, problem))
+
+
+@qubo_app.command("show")
+def qubo_show(
+    problem_id: Annotated[str, typer.Argument(help="QUBO problem ID to inspect.")],
+) -> None:
+    """Show a persisted QUBO problem and its latest solution."""
+
+    repository = QuboRepository()
+    problem = repository.get_problem(problem_id)
+    if problem is None:
+        console.print(f"[red]QUBO problem not found: {problem_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_qubo_problem_renderable(problem, repository.get_latest_solution(problem.id)))
+
+
+@qubo_app.command("list")
+def qubo_list(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum problems to show.")] = 20,
+) -> None:
+    """List persisted QUBO problems."""
+
+    repository = QuboRepository()
+    console.print(build_qubo_problem_list_table(repository.list_problems(limit=limit)))
+
+
+@qubo_app.command("compare")
+def qubo_compare(
+    benchmark_fixture: Annotated[
+        str,
+        typer.Argument(help="Benchmark id, file stem, filename, or JSON path."),
+    ],
+    solver_name: Annotated[
+        str,
+        typer.Option("--solver", help="Solver: exhaustive, greedy, or annealing."),
+    ] = "exhaustive",
+) -> None:
+    """Compare baseline decisions with locally solved QUBO formulations."""
+
+    try:
+        case = load_benchmark(benchmark_fixture)
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+
+    run_repository = RunRepository()
+    run = run_repository.save_run(
+        RunRecord(goal=f"QUBO compare {case.id}: {case.goal or case.title}", mode="qubo")
+    )
+    profile_store = ProfileStore(run_repository.database_path)
+    active_profiles = profile_store.list_active_profiles()
+    qubo_repository = QuboRepository(run_repository.database_path)
+
+    preference_profile = get_preference_profile("balanced")
+    pareto_selections = compare_benchmark_case(
+        case,
+        preference_profile,
+        run_id=run.id,
+        active_profiles=active_profiles,
+    )
+    pareto_repository = ParetoRepository(run_repository.database_path)
+    pareto_repository.save_selections(pareto_selections)
+    pareto_traces = [build_pareto_selection_trace(selection, run.id) for selection in pareto_selections]
+    DecisionTraceRepository(run_repository.database_path).save_traces(pareto_traces)
+    pareto_note = (
+        "Pareto reference: "
+        + (", ".join(selection.selected_candidate.label for selection in pareto_selections) or "none")
+    )
+
+    try:
+        comparisons = compare_benchmark_with_qubo(
+            case,
+            repository=qubo_repository,
+            run_id=run.id,
+            active_profiles=active_profiles,
+            source_decision_trace_ids=[trace.id for trace in pareto_traces],
+            solver_name=solver_name,
+            notes=[
+                pareto_note,
+                "Pareto exposes tradeoff frontiers; QUBO encodes binary optimization energy.",
+            ],
+        )
+    except ValueError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+
+    qubo_traces = []
+    for comparison in comparisons:
+        problem = qubo_repository.get_problem(comparison.problem_id)
+        solution = qubo_repository.get_latest_solution(comparison.problem_id)
+        if problem is None or solution is None:
+            continue
+        qubo_traces.append(build_qubo_solution_trace(comparison, problem, solution, run.id))
+        run_repository.save_decision(
+            RunDecisionRecord(
+                run_id=run.id,
+                decision_type=f"qubo:{comparison.problem_type.value}",
+                selected_option=comparison.qubo_selected,
+                rejected_options=[f"baseline: {comparison.baseline_selected}"],
+                objective_score=-comparison.objective_difference,
+                rationale=(
+                    f"Solver {comparison.solver_name}; feasible {comparison.feasible}; "
+                    f"objective delta {comparison.objective_difference:+.3f}."
+                ),
+            )
+        )
+    DecisionTraceRepository(run_repository.database_path).save_traces(qubo_traces)
+    run_repository.complete_run(
+        run.id,
+        estimated_input_tokens=sum(task.estimated_input_tokens for task in case.tasks),
+        estimated_output_tokens=sum(task.estimated_output_tokens for task in case.tasks),
+        estimated_cost=sum(comparison.cost_comparison.get("qubo", 0.0) for comparison in comparisons),
+        objective_score=sum(-comparison.objective_difference for comparison in comparisons),
+        risk_score=0.0 if all(comparison.feasible for comparison in comparisons) else 0.5,
+        summary="\n".join(
+            [
+                f"QUBO fixture: {case.id}",
+                f"Problems: {len(comparisons)}",
+                f"Feasible solutions: {sum(1 for comparison in comparisons if comparison.feasible)}",
+                pareto_note,
+            ]
+        ),
+    )
+    console.print(build_qubo_comparison_table(comparisons))
+    console.print(f"Saved QUBO run: {run.id}")
+    console.print(
+        "Persisted QUBO problems: "
+        + ", ".join(comparison.problem_id for comparison in comparisons)
+    )
+
+
+@qubo_app.command("convert-ising")
+def qubo_convert_ising(
+    problem_id: Annotated[str, typer.Argument(help="QUBO problem ID to convert.")],
+) -> None:
+    """Convert a persisted QUBO problem to inspectable Ising form."""
+
+    repository = QuboRepository()
+    problem = repository.get_problem(problem_id)
+    if problem is None:
+        console.print(f"[red]QUBO problem not found: {problem_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_ising_renderable(qubo_to_ising(problem)))
+
+
 @memory_app.command("add")
 def memory_add(
     type_: Annotated[MemoryType, typer.Option("--type", help="Memory type.")],
@@ -914,11 +1145,18 @@ def explain_run(
     pareto_selections = ParetoRepository(trace_repository.database_path).list_selections_by_run(
         run_id
     )
+    qubo_repository = QuboRepository(trace_repository.database_path)
+    qubo_problems = qubo_repository.list_problems(run_id=run_id, limit=100)
+    qubo_solutions = [
+        qubo_repository.get_latest_solution(problem.id) for problem in qubo_problems
+    ]
     if summary:
         console.print(build_decision_summary_renderable(run_id, summarize_decisions(traces)))
         console.print(build_profile_application_summary_renderable(profile_applications))
         if pareto_selections:
             console.print(build_pareto_summary_panel(pareto_selections))
+        if qubo_problems:
+            console.print(build_qubo_summary_panel(qubo_problems, qubo_solutions))
         outcome_summary = _outcome_learning_summary(outcome_repository, run_id)
         if outcome_summary.total_outcomes:
             console.print(build_outcome_summary_renderable(outcome_summary))
@@ -945,6 +1183,8 @@ def explain_run(
         console.print(build_pareto_summary_table(pareto_selections))
         for selection in pareto_selections:
             console.print(Panel(selection.tradeoff_explanation.summary, title="Tradeoff"))
+    if qubo_problems:
+        console.print(build_qubo_explain_renderable(qubo_problems, qubo_solutions))
 
 
 @outcome_app.command("add")

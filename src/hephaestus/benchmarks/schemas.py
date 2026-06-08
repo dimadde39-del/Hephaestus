@@ -11,6 +11,7 @@ from hephaestus.optimize.context_packer import ContextCandidate
 from hephaestus.optimize.token_firewall import BudgetDecision, TokenBudget
 from hephaestus.pareto.schemas import ParetoSelectionResult
 from hephaestus.policy_learning.schemas import ProfileApplicationResult
+from hephaestus.qubo.schemas import QuboComparisonResult
 from hephaestus.spec.tasks import Task
 
 
@@ -123,3 +124,4 @@ class BenchmarkResult(BaseModel):
     active_profile_ids: list[str] = Field(default_factory=list)
     profile_applications: list[ProfileApplicationResult] = Field(default_factory=list)
     pareto_selections: list[ParetoSelectionResult] = Field(default_factory=list)
+    qubo_comparisons: list[QuboComparisonResult] = Field(default_factory=list)

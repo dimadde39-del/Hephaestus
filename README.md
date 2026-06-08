@@ -16,7 +16,8 @@ production agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a
 typed, testable Python core for spec-driven planning, persistent local memory,
 model routing, context packing, token budgeting, safe tool gating, benchmark
 proof reports, explainable decision traces, outcome learning, decision quality
-profiles, Pareto tradeoff frontiers, and a working CLI demo.
+profiles, Pareto tradeoff frontiers, QUBO/Ising-style binary formulations, and
+a working CLI demo.
 
 ## Core Loop
 
@@ -34,6 +35,7 @@ CLI
  |-- Outcome layer: outcomes, reflections, learning signals, failure drafts
  |-- Policy learning layer: draft/active profiles and profile applications
  |-- Pareto layer: candidates, objective vectors, frontiers, selections
+ |-- QUBO layer: binary variables, penalties, solvers, Ising conversion
  |-- Memory layer: episodic, semantic, project, failure, decision records
  |-- Optimization core
  |    |-- central objective function
@@ -55,9 +57,10 @@ what to do, what to remember, what to ignore, which model to use, and how much
 risk to take. If those choices are random or cheapest-first, the agent can waste
 tokens, miss critical context, or take unsafe actions.
 
-Hephaestus treats planning as an optimization problem from the beginning. Phase 1
-uses explainable greedy and simulated annealing baselines. Later phases can add
-QUBO/Ising formulations, benchmarks, and multi-agent allocation.
+Hephaestus treats planning as an optimization problem from the beginning. It
+uses explainable greedy and simulated annealing baselines, Pareto frontiers for
+tradeoff visibility, and QUBO/Ising-style formulations when a decision can be
+shown as binary variables, objectives, and penalties.
 
 ## Quality-Preserving Token Optimization
 
@@ -222,6 +225,31 @@ rules from outcomes. They coexist: active learned profiles can influence
 candidate scoring, while the current Pareto preference decides which valid
 frontier candidate is selected.
 
+## QUBO / Ising Formulation Layer
+
+Phase 3E adds inspectable binary optimization formulations:
+
+```text
+Hephaestus uses QUBO/Ising-style formulations to make agent decision problems explicit and optimizable. This is quantum-inspired optimization, not a claim of quantum hardware acceleration.
+```
+
+QUBO formulations currently cover context packing, model selection, budget
+strategy selection, and a small task-ordering demo. Each problem shows variables,
+linear terms, quadratic terms, constraints, penalties, selected variables,
+objective value, feasibility, and local solver explanation.
+
+```bash
+uv run heph qubo formulate benchmarks/task_graphs/model_quality_threshold.json --type model_selection
+uv run heph qubo solve <problem_id> --solver exhaustive
+uv run heph qubo show <problem_id>
+uv run heph qubo convert-ising <problem_id>
+uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
+```
+
+QUBO does not replace Pareto. Pareto exposes a tradeoff frontier; QUBO encodes a
+chosen decision problem into binary optimization energy.
+
 ## Quickstart
 
 ```bash
@@ -236,8 +264,10 @@ uv run heph benchmark list
 uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
 uv run heph pareto profiles
 uv run heph pareto compare benchmarks/task_graphs/model_quality_threshold.json
+uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
 uv run heph profile suggest
 uv run heph profile list
 uv run heph runs
@@ -268,6 +298,8 @@ database are applied to benchmark and optimize runs, with application records
 shown in reports and explanations.
 Pareto frontiers are also persisted in the same database and appear in
 benchmark reports and `heph explain <run_id>` when generated.
+QUBO problems and solutions are persisted in the same database and appear in
+benchmark reports and `heph explain <run_id>` when generated with `--qubo`.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -295,6 +327,7 @@ uv run heph db init
 uv run heph optimize examples/repo_release_demo.json
 uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
 uv run heph profile suggest
 uv run heph profile active
 uv run heph explain stats
@@ -323,6 +356,9 @@ Built:
   profile application records, and profile-aware benchmark/explain integration.
 - Pareto candidate schemas, objective vectors, preference profiles, frontier
   persistence, CLI comparison commands, and benchmark/explain integration.
+- QUBO schemas, practical binary formulations, local exhaustive/greedy/annealing
+  solvers, Ising conversion, SQLite persistence, CLI commands, and
+  benchmark/explain/Pareto comparison integration.
 - Typer/Rich CLI.
 
 Not built yet:
@@ -332,4 +368,3 @@ Not built yet:
 - Full self-improving skill promotion.
 - Unsafe automatic self-modification.
 - Production sandbox execution.
-- QUBO/Ising formulation layer.

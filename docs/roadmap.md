@@ -67,34 +67,52 @@ It exposes the decision frontier and explains why a candidate was selected.
 
 ## v0.6 QUBO / Ising Formulation Layer
 
-- Convert context packing and task scheduling problems into explicit binary
-  variables.
-- Compare QUBO-style formulations against greedy, annealing, and Pareto-selected
-  approaches.
-- Keep constraints inspectable and map solver output back into decision traces.
+- Added QUBO schemas for binary variables, linear/quadratic terms, constraints,
+  objectives, problems, solutions, formulation reports, comparisons, and Ising
+  problems.
+- Added practical formulations for context packing, model selection, budget
+  strategy, and a small task-ordering demo.
+- Added local exhaustive, greedy, and seeded simulated annealing QUBO solvers.
+- Added QUBO to Ising conversion using `x = (1 + s) / 2`.
+- Added SQLite persistence for `qubo_problems` and `qubo_solutions`.
+- Added `heph qubo ...` CLI commands, benchmark `--qubo`, explain integration,
+  and Pareto comparison notes.
+- Preserved the principle:
 
-## v0.7 Token Firewall
+```text
+Hephaestus uses QUBO/Ising-style formulations to make agent decision problems explicit and optimizable. This is quantum-inspired optimization, not a claim of quantum hardware acceleration.
+```
+
+## v0.7 Repo Intelligence
+
+- Inspect real local repositories.
+- Detect project structure, package managers, scripts, test commands, and risk
+  areas.
+- Generate repo-aware task graphs for future real agent execution.
+- Keep detected repo facts explainable and overridable.
+
+## v0.8 Token Firewall
 
 - Per-run and per-project budgets.
 - Cost ledgers.
 - Provider-specific model catalogs.
 - Quality regression checks.
 
-## v0.8 Memory Monster
+## v0.9 Memory Monster
 
 - Hybrid search.
 - Graph memory.
 - Verification and decay.
 - Failure-to-decision learning.
 
-## v0.9 Skill Growth
+## v0.10 Skill Growth
 
 - Skill registry.
 - Skill validation.
 - Promotion from repeated memories.
 - Safety review before using generated skills.
 
-## v0.10 Dashboard
+## v0.11 Dashboard
 
 - Local web dashboard.
 - Plan visualizations.

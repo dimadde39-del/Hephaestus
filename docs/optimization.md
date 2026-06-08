@@ -83,24 +83,32 @@ Built-in preference profiles rank a frontier:
 Hephaestus does not hide tradeoffs behind a single magic score.
 It exposes the decision frontier and explains why a candidate was selected.
 
-## Future QUBO / Ising Direction
+## QUBO / Ising Formulations
 
-Later versions can represent ordering, model selection, context inclusion, and
-tool choices as binary variables:
+Phase 3E represents selected agent decision problems as binary variables and
+quadratic penalties:
 
-- `x_task_position`
-- `x_model_for_task`
-- `x_context_included`
-- `x_tool_allowed`
+- `x_context_included`: include a context item.
+- `x_model_selected`: choose one model profile.
+- `x_budget_strategy`: choose one budget strategy.
+- `x_task_position`: assign a task to a position in a small ordering demo.
 
-Hard constraints become large penalties; soft preferences become weighted terms.
-That opens the door to QUBO/Ising solvers, annealing benchmarks, and hybrid
-classical/quantum-inspired planning.
+Hard constraints become large penalties; soft preferences become weighted
+terms. The QUBO layer stores variables, objective coefficients, constraints,
+penalty weights, constant offsets, selected solutions, objective values, and
+constraint violations.
 
-Pareto frontiers prepare that layer by making the decision surface explicit:
-the future formulation can convert context inclusion and task ordering
-candidates into binary variables, then compare QUBO/Ising output against greedy,
-annealing, and Pareto-selected approaches.
+```text
+Hephaestus uses QUBO/Ising-style formulations to make agent decision problems explicit and optimizable. This is quantum-inspired optimization, not a claim of quantum hardware acceleration.
+```
+
+Local solvers include exhaustive search for small problems, greedy binary
+descent, and seeded simulated annealing. QUBO output is compared against greedy,
+annealing, context/model routing baselines, and Pareto references where
+practical.
+
+QUBO and Pareto complement each other. Pareto exposes the tradeoff frontier.
+QUBO encodes a chosen decision surface as binary optimization energy.
 
 ## Where Optimization Applies
 
@@ -112,6 +120,7 @@ annealing, and Pareto-selected approaches.
 - Token budget allocation.
 - Active decision quality profile application.
 - Pareto frontier selection across competing objectives.
+- QUBO formulation and local binary solving.
 - Future multi-agent task allocation.
 - Future skill promotion.
 
@@ -170,6 +179,8 @@ Reports include profile application counts and a table of threshold/weight or
 context strategy changes caused by profiles.
 With `--pareto`, reports also include selected frontier candidates and tradeoff
 explanations.
+With `--qubo`, reports include baseline versus QUBO selections, objective
+delta, feasibility, and persisted QUBO problem/solution IDs.
 
 ## Explainability
 
@@ -186,6 +197,8 @@ traces for the major optimizer surfaces:
 - `budget`: token, cost, and quality budget outcomes.
 - `safety`: approval-required actions and safety-policy triggers.
 - `optimization`: objective comparison between strategies.
+- `optimization` with phase `qubo`: binary formulation solve summaries,
+  feasibility, selected variables, and objective values.
 
 Rejected options are structured alternatives with scores, rejection reasons,
 violated constraints, would-have cost, expected quality, and risk when those are

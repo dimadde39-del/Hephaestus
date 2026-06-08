@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -345,6 +345,50 @@ CREATE INDEX IF NOT EXISTS idx_pareto_selections_run_id
 ON pareto_selections(run_id, created_at);
 """
 
+MIGRATION_7 = """
+CREATE TABLE IF NOT EXISTS qubo_problems (
+    id TEXT PRIMARY KEY,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    problem_type TEXT NOT NULL,
+    source_benchmark_id TEXT,
+    source_frontier_id TEXT,
+    source_decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    variable_count INTEGER NOT NULL DEFAULT 0,
+    linear_term_count INTEGER NOT NULL DEFAULT 0,
+    quadratic_term_count INTEGER NOT NULL DEFAULT 0,
+    constraint_count INTEGER NOT NULL DEFAULT 0,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_qubo_problems_run_id
+ON qubo_problems(run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_qubo_problems_type
+ON qubo_problems(problem_type, created_at);
+
+CREATE TABLE IF NOT EXISTS qubo_solutions (
+    id TEXT PRIMARY KEY,
+    problem_id TEXT NOT NULL REFERENCES qubo_problems(id) ON DELETE CASCADE,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    solver_name TEXT NOT NULL,
+    objective_value REAL NOT NULL,
+    feasible INTEGER NOT NULL DEFAULT 0,
+    iterations INTEGER NOT NULL DEFAULT 0,
+    selected_variables_json TEXT NOT NULL DEFAULT '[]',
+    constraint_violations_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_qubo_solutions_problem_id
+ON qubo_solutions(problem_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_qubo_solutions_run_id
+ON qubo_solutions(run_id, created_at);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -411,6 +455,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (6, datetime.now(UTC).isoformat()),
+        )
+    if 7 not in applied_versions:
+        connection.executescript(MIGRATION_7)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (7, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

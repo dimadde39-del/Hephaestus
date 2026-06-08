@@ -82,6 +82,7 @@ uv run heph pareto compare benchmarks/task_graphs/context_overload.json --prefer
 uv run heph pareto list
 uv run heph pareto show <frontier_id>
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
+uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
 ```
 
 `heph explain <run_id>` shows persisted Pareto selections when present.
@@ -100,18 +101,26 @@ The repository stores compact JSON for full model roundtrips and queryable
 columns for run ID, candidate type, preference, selected candidate, candidate
 count, frontier count, dominated count, and tradeoff summary.
 
-## QUBO Preparation
+## Relationship To QUBO
 
-Pareto does not implement QUBO/Ising optimization. It prepares the decision
-surface future solvers will need. Context inclusion, task ordering, and model
-selection can later be expressed as binary variables and compared against the
-same frontier/ranking/explanation layer.
+Pareto and QUBO solve different explainability problems.
 
-Recommended next phase:
+Pareto exposes a tradeoff frontier before scalar selection. It answers:
 
 ```text
-Phase 3E: QUBO/Ising Formulation Layer
+Which candidates are non-dominated, and what tradeoff did we choose?
 ```
+
+QUBO encodes one selected decision surface as binary optimization energy. It
+answers:
+
+```text
+What are the variables, objective terms, penalties, constraints, and selected binary solution?
+```
+
+`heph qubo compare <fixture>` persists QUBO problems and also creates Pareto
+reference frontiers from the same fixture so the two views can be inspected
+together.
 
 ## Limitations
 
@@ -121,4 +130,4 @@ Phase 3E: QUBO/Ising Formulation Layer
 - Pareto comparisons are per decision surface; cross-surface global optimization
   remains future work.
 - No dashboard, voice, Telegram, browser automation, always-on daemon, full
-  skill self-growth, or QUBO solver was added.
+  skill self-growth, quantum hardware, or quantum speedup claim was added.

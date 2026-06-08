@@ -54,6 +54,9 @@ from hephaestus.policy_learning import (
     profiles_for_execution,
 )
 from hephaestus.policy_learning.schemas import DecisionQualityProfile, ProfileApplicationResult
+from hephaestus.qubo.analysis import build_qubo_solution_trace, compare_benchmark_with_qubo
+from hephaestus.qubo.repository import QuboRepository
+from hephaestus.qubo.schemas import QuboComparisonResult
 from hephaestus.spec.tasks import Task
 from hephaestus.storage import (
     ApprovalRecord,
@@ -72,6 +75,7 @@ def run_all_benchmarks(
     profile_ids: Iterable[str] | None = None,
     pareto: bool = False,
     pareto_preference: str = "balanced",
+    qubo: bool = False,
 ) -> list[BenchmarkResult]:
     """Run every benchmark fixture in the benchmark directory."""
 
@@ -85,6 +89,7 @@ def run_all_benchmarks(
             profile_ids=profile_id_list,
             pareto=pareto,
             pareto_preference=pareto_preference,
+            qubo=qubo,
         )
         for case in cases
     ]
@@ -98,6 +103,7 @@ def run_benchmark(
     profile_ids: Iterable[str] | None = None,
     pareto: bool = False,
     pareto_preference: str = "balanced",
+    qubo: bool = False,
 ) -> BenchmarkResult:
     """Run one benchmark and optionally persist a benchmark-mode run."""
 
@@ -204,6 +210,32 @@ def run_benchmark(
             build_pareto_selection_trace(selection, trace_run_id)
             for selection in pareto_selections
         )
+    qubo_comparisons: list[QuboComparisonResult] = []
+    if qubo:
+        qubo_repository = (
+            QuboRepository(run_repository.database_path)
+            if persist and run_repository is not None
+            else None
+        )
+        qubo_comparisons = compare_benchmark_with_qubo(
+            case,
+            repository=qubo_repository,
+            run_id=trace_run_id,
+            active_profiles=active_profiles,
+            source_decision_trace_ids=[trace.id for trace in decision_traces],
+            solver_name="exhaustive",
+            notes=[
+                "Pareto exposes tradeoff frontiers; QUBO encodes one decision surface as binary energy."
+            ],
+        )
+        if qubo_repository is not None:
+            for qubo_comparison in qubo_comparisons:
+                problem = qubo_repository.get_problem(qubo_comparison.problem_id)
+                solution = qubo_repository.get_latest_solution(qubo_comparison.problem_id)
+                if problem is not None and solution is not None:
+                    decision_traces.append(
+                        build_qubo_solution_trace(qubo_comparison, problem, solution, trace_run_id)
+                    )
 
     if persist and run_repository is not None and run is not None:
         _persist_benchmark_run(
@@ -219,6 +251,7 @@ def run_benchmark(
             approval_tasks=approval_tasks,
             decision_traces=decision_traces,
             pareto_selections=pareto_selections,
+            qubo_comparisons=qubo_comparisons,
         )
 
     top_rationale = most_common_rationale(decision_traces)
@@ -240,6 +273,7 @@ def run_benchmark(
         active_profile_ids=active_profile_ids,
         profile_applications=profile_applications,
         pareto_selections=pareto_selections,
+        qubo_comparisons=qubo_comparisons,
     )
     if persist and run_repository is not None and run is not None:
         run_repository.complete_run(
@@ -273,6 +307,7 @@ def run_benchmark(
         active_profile_ids=active_profile_ids,
         profile_applications=profile_applications,
         pareto_selections=pareto_selections,
+        qubo_comparisons=qubo_comparisons,
     )
 
 
@@ -566,6 +601,7 @@ def _persist_benchmark_run(
     approval_tasks: list[Task],
     decision_traces: list[DecisionTraceVariant],
     pareto_selections: list[ParetoSelectionResult],
+    qubo_comparisons: list[QuboComparisonResult],
 ) -> None:
     trace_repository = DecisionTraceRepository(repository.database_path)
     trace_repository.save_traces(decision_traces)
@@ -676,6 +712,21 @@ def _persist_benchmark_run(
                 risk_level=_risk_level_from_score(task.risk),
             )
         )
+    for comparison in qubo_comparisons:
+        repository.save_decision(
+            RunDecisionRecord(
+                run_id=run_id,
+                decision_type=f"qubo:{comparison.problem_type.value}",
+                selected_option=comparison.qubo_selected,
+                rejected_options=[f"baseline: {comparison.baseline_selected}"],
+                objective_score=-comparison.objective_difference,
+                rationale=(
+                    f"QUBO solver {comparison.solver_name}; "
+                    f"feasible: {comparison.feasible}; "
+                    f"objective delta vs baseline {comparison.objective_difference:+.3f}."
+                ),
+            )
+        )
 
 
 def _summary_text(
@@ -694,6 +745,7 @@ def _summary_text(
     active_profile_ids: list[str],
     profile_applications: list[ProfileApplicationResult],
     pareto_selections: list[ParetoSelectionResult],
+    qubo_comparisons: list[QuboComparisonResult],
 ) -> str:
     selected_models = sorted({route.selected_model for route in model_routes})
     pareto_summary = _pareto_summary(pareto_selections)
@@ -717,6 +769,7 @@ def _summary_text(
             "Active profiles: " + (", ".join(active_profile_ids) or "none"),
             f"Profile applications: {len(profile_applications)}.",
             pareto_summary,
+            _qubo_summary(qubo_comparisons),
             f"Top decision type: {_sentence(top_decision_type)}",
             f"Top decision rationale: {_sentence(top_decision_rationale)}",
             f"Most common rejection reason: {_sentence(most_common_rejection_reason)}",
@@ -735,6 +788,19 @@ def _pareto_summary(selections: list[ParetoSelectionResult]) -> str:
         f"Pareto frontiers: {len(selections)}; "
         f"dominated candidates: {sum(item.dominated_candidate_count for item in selections)}; "
         f"selected: {selected}{suffix}."
+    )
+
+
+def _qubo_summary(comparisons: list[QuboComparisonResult]) -> str:
+    if not comparisons:
+        return "QUBO formulations: none."
+    feasible = sum(1 for comparison in comparisons if comparison.feasible)
+    selected = ", ".join(
+        f"{comparison.problem_type.value}={comparison.qubo_selected}" for comparison in comparisons
+    )
+    return (
+        f"QUBO formulations: {len(comparisons)}; feasible solutions: {feasible}; "
+        f"selected: {selected}."
     )
 
 

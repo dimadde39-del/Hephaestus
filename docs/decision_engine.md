@@ -20,6 +20,8 @@ Users and future runtime systems should be able to answer:
 - What learning signal or failure draft came from the outcome?
 - Did an active decision quality profile influence the decision?
 - Was a Pareto tradeoff frontier generated, and which candidate was selected?
+- Was a QUBO formulation generated, what variables and penalties existed, and
+  which binary solution was selected?
 
 ## Decision Types
 
@@ -99,6 +101,10 @@ decision area it affected, the before/after effect, and the profile rationale.
 When Pareto selections exist, `explain` shows frontier counts, dominated
 candidate counts, selected candidates, preference profiles, and tradeoff
 summaries.
+When QUBO problems exist, `explain` shows problem type, variable count, solver,
+selected variables, feasibility, objective value, and a short reason. `--summary`
+includes QUBO problem count, feasible/infeasible solution counts, and best
+objective value.
 
 ## Pareto Traces
 
@@ -110,6 +116,17 @@ preference profile, quality, cost, risk, and safety.
 
 This lets the existing explain layer show not only the final scalar decision,
 but also the tradeoff surface that produced it.
+
+## QUBO Traces
+
+Phase 3E represents each QUBO solution as an `optimization` decision trace with
+phase `qubo`. The trace links to the persisted QUBO problem and solution IDs,
+records variable counts, objective term counts, constraint counts, objective
+value, feasibility, selected variables, and the formulation constraints.
+
+QUBO traces are classical local optimization records. They are quantum-inspired
+because the decision is expressed as binary energy and can be converted to Ising
+form, not because Hephaestus uses quantum hardware or claims quantum speedups.
 
 ## Outcome Attachments
 
@@ -206,8 +223,7 @@ The decision engine is infrastructure for later phases:
   `policy_update_id`.
 - QUBO/Ising optimization can emit comparable traces for binary-variable
   choices and constraint penalties.
-- Pareto frontiers can become the comparison surface for those future QUBO/Ising
-  candidates.
+- Pareto frontiers can act as a comparison surface for QUBO/Ising formulations.
 - Self-evaluation can score whether rationales match outcomes.
 - Skill growth can identify repeated rejection reasons and approval triggers.
 - Dashboards can visualize trace trees and aggregate optimizer behavior.
