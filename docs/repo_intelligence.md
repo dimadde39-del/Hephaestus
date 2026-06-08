@@ -23,6 +23,21 @@ The profile answers:
 - What release-readiness tasks should be generated?
 - What risks should an agent consider before acting?
 
+## Conversation Integration
+
+`heph ask` and `heph discuss` can use repo intelligence without executing
+commands:
+
+```bash
+uv run heph ask "What are the release risks in this repo?" --repo .
+```
+
+The conversation pipeline reuses the latest profile for the path when one
+exists, otherwise it performs the same read-only inspection used by
+`heph repo inspect`. The answer can reference detected stack, validation
+commands, generated repo tasks, and risk signals, but it still does not run
+validation, build, deploy, publish, or destructive commands.
+
 ## Safety Model
 
 Phase 4A does not execute repository commands. It reads manifests, lockfiles,

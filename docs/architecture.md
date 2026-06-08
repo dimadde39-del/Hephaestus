@@ -9,6 +9,12 @@ The public alpha architecture is easiest to read as one planning loop:
 Repo -> Profile -> Tasks -> Optimizer -> Pareto -> QUBO -> Explain -> Outcomes -> Learning Profiles
 ```
 
+Phase 5A adds a second, text-first loop:
+
+```text
+Input -> Intent Classification -> Context Retrieval -> Deliberation Passes -> Final Response -> Memory Update
+```
+
 The current system stops before execution. It inspects, plans, optimizes,
 explains, evaluates deterministic simulated outcomes, and creates reviewable
 learning artifacts. Future phases can add safe command execution without
@@ -38,6 +44,10 @@ changing the core decision trail.
   Rich renderers, and benchmark export.
 - `release`: repo-aware release planning schemas, orchestration, readiness
   analysis, SQLite persistence, and Rich demo renderers.
+- `conversation`: `ask`, `discuss`, and `chat` schemas, intent classifier,
+  memory/repo context retrieval, internal deliberation passes, prompts, session
+  orchestration, SQLite persistence, Rich renderers, and high-impact trace
+  integration.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -115,6 +125,31 @@ history before any daemon process exists.
   suggested, not executed.
 - Keep release planning pre-execution: optimize, explain, evaluate simulated
   outcomes, and learn before any command execution is allowed.
+- Keep conversation text-only in Phase 5A: reason about code, architecture,
+  strategy, research, and product decisions without editing files, executing
+  commands, browsing, or pretending autonomy exists.
+
+## Conversation Architecture
+
+Phase 5A adds `conversation_sessions`, `conversation_messages`, and
+`conversation_memory_updates`. The package keeps the external UX as one
+Hephaestus while using lightweight internal roles:
+
+```text
+ContextScout -> MemoryRetriever -> AssumptionMapper -> Critic -> Strategist -> Synthesizer
+```
+
+These are structured deliberation passes, not external sub-agent swarms. The
+pipeline classifies intent, retrieves persistent memories by lexical relevance
+and intent tags, optionally loads or creates a repo profile for `--repo`, maps
+assumptions, considers options, critiques risks, synthesizes a final response,
+and proposes memory updates.
+
+High-impact intents such as product strategy, business strategy, architecture
+discussion, roadmap decisions, and idea stress tests create conversation-linked
+optimization traces. The trace records assumptions, options, recommendation,
+confidence, and next move so later outcome learning can evaluate discussion
+quality.
 
 ## Repo Intelligence Architecture
 

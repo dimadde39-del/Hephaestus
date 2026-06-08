@@ -24,6 +24,14 @@ the database explicitly; memory commands also initialize it automatically.
 Retrieval currently uses lexical scoring over content, summary, and tags, boosted
 by confidence and importance. No vector database is required.
 
+Conversation turns retrieve memories by text relevance, project namespace, and
+intent-related tags. Product strategy discussions bias toward strategy and
+roadmap memories, while debugging discussions bias toward failure memories.
+
+Conversation memory updates are conservative. `heph ask` and `heph discuss`
+show suggested updates by default, but durable memories are saved only when
+`--save-memory` is passed or when `/save-memory` is used in chat.
+
 ## CLI
 
 ```bash
@@ -32,6 +40,7 @@ uv run heph db path
 uv run heph memory add --type failure --content "Validation failed because tests were missing"
 uv run heph memory search tests
 uv run heph memory list
+uv run heph ask "Remember that voice features are deferred until the core is mature." --save-memory
 uv run heph learn failures
 uv run heph learn promote-failure <failure_draft_id>
 ```

@@ -1,0 +1,248 @@
+"""High-level conversation session orchestration."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from hephaestus.conversation.analysis import (
+    build_conversation_decision_trace,
+    build_persisted_decision_trace,
+    propose_memory_candidates,
+    should_create_decision_trace,
+    title_from_prompt,
+)
+from hephaestus.conversation.classifier import classify_intent
+from hephaestus.conversation.context import retrieve_conversation_context
+from hephaestus.conversation.deliberation import ConversationDeliberator
+from hephaestus.conversation.repository import ConversationRepository
+from hephaestus.conversation.schemas import (
+    ConversationDecisionTrace,
+    ConversationMemoryCandidate,
+    ConversationMemoryUpdate,
+    ConversationMessage,
+    ConversationRequest,
+    ConversationResponse,
+    ConversationRole,
+    ConversationSession,
+    DeliberationMode,
+    DeliberationResult,
+)
+from hephaestus.decision import DecisionTraceRepository
+from hephaestus.models import ModelProvider
+from hephaestus.repo import RepoProfileRepository
+from hephaestus.storage import RunRecord, RunRepository, SqliteMemoryRepository
+
+
+class ConversationService:
+    """Coordinate conversation persistence, retrieval, deliberation, and traces."""
+
+    def __init__(
+        self,
+        database_path: Path | str | None = None,
+        *,
+        provider: ModelProvider | None = None,
+    ) -> None:
+        self.repository = ConversationRepository(database_path)
+        self.database_path = self.repository.database_path
+        self.memory_repository = SqliteMemoryRepository(self.database_path)
+        self.repo_repository = RepoProfileRepository(self.database_path)
+        self.run_repository = RunRepository(self.database_path)
+        self.trace_repository = DecisionTraceRepository(self.database_path)
+        self.deliberator = ConversationDeliberator(provider)
+
+    def respond(self, request: ConversationRequest) -> ConversationResponse:
+        """Handle one user message and persist the result."""
+
+        session = self._resolve_session(request)
+        effective_request = self._request_with_session_repo(request, session)
+        intent = classify_intent(effective_request.prompt)
+        if session.mode != effective_request.mode:
+            updated_session = self.repository.update_session_mode(session.id, effective_request.mode)
+            if updated_session is not None:
+                session = updated_session
+
+        user_message = self.repository.add_message(
+            ConversationMessage(
+                session_id=session.id,
+                role=ConversationRole.USER,
+                content=effective_request.prompt,
+                intent=intent,
+                mode=effective_request.mode,
+            )
+        )
+        context = retrieve_conversation_context(
+            effective_request,
+            intent,
+            memory_repository=self.memory_repository,
+            repo_repository=self.repo_repository,
+        )
+        if context.repo_profile is not None:
+            updated_session = self.repository.set_session_repo_profile(
+                session.id,
+                context.repo_profile.id,
+            )
+            if updated_session is not None:
+                session = updated_session
+
+        deliberation = self.deliberator.deliberate(effective_request, intent, context)
+        memory_candidates = propose_memory_candidates(
+            effective_request.prompt,
+            deliberation,
+            project=effective_request.project,
+        )
+        decision_trace = self._maybe_create_decision_trace(session.id, deliberation)
+
+        assistant_message = ConversationMessage(
+            session_id=session.id,
+            role=ConversationRole.ASSISTANT,
+            content=deliberation.final_response,
+            intent=intent,
+            mode=effective_request.mode,
+            selected_memory_ids=context.selected_memory_ids,
+            context=context.context_items,
+            decision_trace_id=(
+                decision_trace.decision_trace_id if decision_trace is not None else None
+            ),
+            metadata={
+                "provider_model": deliberation.provider_model,
+                "reply_to": user_message.id,
+            },
+        )
+        assistant_message = self.repository.save_response(assistant_message)
+        if decision_trace is not None and decision_trace.decision_trace_id is not None:
+            self.repository.link_decision_trace(
+                session.id,
+                decision_trace.decision_trace_id,
+                message_id=assistant_message.id,
+            )
+
+        memory_updates = self._save_memory_updates(
+            session.id,
+            assistant_message.id,
+            memory_candidates,
+            save_memory=effective_request.save_memory,
+        )
+
+        return ConversationResponse(
+            session_id=session.id,
+            message_id=assistant_message.id,
+            intent=intent,
+            mode=effective_request.mode,
+            answer=deliberation.final_response,
+            deliberation=deliberation,
+            selected_memory_ids=context.selected_memory_ids,
+            selected_context=context.context_items,
+            memory_candidates=memory_candidates,
+            memory_updates=memory_updates,
+            decision_trace=decision_trace,
+            provider_model=deliberation.provider_model,
+            input_tokens=deliberation.input_tokens,
+            output_tokens=deliberation.output_tokens,
+            estimated_cost=deliberation.estimated_cost,
+        )
+
+    def list_sessions(self, *, limit: int = 20) -> list[ConversationSession]:
+        """List recent conversation sessions."""
+
+        return self.repository.list_sessions(limit=limit)
+
+    def get_session(self, session_id: str) -> ConversationSession | None:
+        """Read one session."""
+
+        return self.repository.get_session(session_id)
+
+    def list_messages(self, session_id: str) -> list[ConversationMessage]:
+        """List messages for one session."""
+
+        return self.repository.list_messages(session_id)
+
+    def set_mode(self, session_id: str, mode: DeliberationMode) -> ConversationSession | None:
+        """Update a chat session mode."""
+
+        return self.repository.update_session_mode(session_id, mode)
+
+    def _resolve_session(self, request: ConversationRequest) -> ConversationSession:
+        if request.session_id is not None:
+            session = self.repository.get_session(request.session_id)
+            if session is None:
+                raise ValueError(f"Conversation session not found: {request.session_id}")
+            return session
+
+        session = ConversationSession(
+            title=title_from_prompt(request.prompt),
+            mode=request.mode,
+        )
+        return self.repository.create_session(session)
+
+    def _request_with_session_repo(
+        self,
+        request: ConversationRequest,
+        session: ConversationSession,
+    ) -> ConversationRequest:
+        if request.repo_path is not None or session.repo_profile_id is None:
+            return request
+        profile = self.repo_repository.get_profile(session.repo_profile_id)
+        if profile is None:
+            return request
+        return request.model_copy(update={"repo_path": profile.path})
+
+    def _maybe_create_decision_trace(
+        self,
+        session_id: str,
+        result: DeliberationResult,
+    ) -> ConversationDecisionTrace | None:
+        if not should_create_decision_trace(result.intent):
+            return None
+
+        summary = build_conversation_decision_trace(session_id, result)
+        run = self.run_repository.save_run(
+            RunRecord(
+                goal=f"Conversation: {summary.intent.value}",
+                mode="conversation",
+            )
+        )
+        trace = build_persisted_decision_trace(run.id, summary)
+        self.trace_repository.save_trace(trace)
+        self.run_repository.complete_run(
+            run.id,
+            estimated_input_tokens=result.input_tokens,
+            estimated_output_tokens=result.output_tokens,
+            estimated_cost=result.estimated_cost,
+            objective_score=result.confidence,
+            risk_score=max(0.0, 1.0 - result.confidence),
+            summary=summary.recommendation,
+        )
+        return summary.model_copy(
+            update={
+                "run_id": run.id,
+                "decision_trace_id": trace.id,
+            }
+        )
+
+    def _save_memory_updates(
+        self,
+        session_id: str,
+        message_id: str,
+        candidates: list[ConversationMemoryCandidate],
+        *,
+        save_memory: bool,
+    ) -> list[ConversationMemoryUpdate]:
+        updates: list[ConversationMemoryUpdate] = []
+        for candidate in candidates:
+            memory_id: str | None = None
+            status = "suggested"
+            if save_memory:
+                memory = self.memory_repository.add(candidate.to_memory_item())
+                memory_id = memory.id
+                status = "saved"
+            update = self.repository.save_memory_update(
+                ConversationMemoryUpdate(
+                    session_id=session_id,
+                    message_id=message_id,
+                    candidate=candidate,
+                    status=status,
+                    memory_id=memory_id,
+                )
+            )
+            updates.append(update)
+        return updates

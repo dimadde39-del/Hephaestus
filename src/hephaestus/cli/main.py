@@ -23,6 +23,18 @@ from hephaestus.benchmarks.reporter import (
     print_benchmark_show,
     results_to_json,
 )
+from hephaestus.conversation import (
+    ConversationMemoryUpdate,
+    ConversationRequest,
+    ConversationResponse,
+    ConversationService,
+    DeliberationMode,
+)
+from hephaestus.conversation.renderer import (
+    build_conversation_response_renderable,
+    build_conversation_sessions_table,
+    build_conversation_show_renderable,
+)
 from hephaestus.core.config import DEFAULT_CONFIG, PrivacyLevel, RiskLevel
 from hephaestus.decision import (
     DecisionTraceRepository,
@@ -167,6 +179,7 @@ pareto_app = typer.Typer(help="Pareto decision frontier commands.", no_args_is_h
 qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_help=True)
 repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
 release_app = typer.Typer(help="Repo-aware release planning demo commands.", no_args_is_help=True)
+conversation_app = typer.Typer(help="Conversation session commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -179,6 +192,7 @@ app.add_typer(pareto_app, name="pareto")
 app.add_typer(qubo_app, name="qubo")
 app.add_typer(repo_app, name="repo")
 app.add_typer(release_app, name="release")
+app.add_typer(conversation_app, name="conversation")
 
 
 class DemoScenario(BaseModel):
@@ -416,6 +430,203 @@ def release_show(
         console.print(f"[red]Release plan not found: {release_run_id}[/red]")
         raise typer.Exit(1)
     console.print(build_release_show_renderable(plan_result))
+
+
+@app.command("ask")
+def ask(
+    prompt: Annotated[str, typer.Argument(help="Question or context to ask Hephaestus.")],
+    mode: Annotated[
+        DeliberationMode,
+        typer.Option("--mode", help="Reasoning style for the response."),
+    ] = DeliberationMode.BALANCED,
+    repo: Annotated[
+        Path | None,
+        typer.Option("--repo", help="Optional repository path for read-only repo context."),
+    ] = None,
+    save_memory: Annotated[
+        bool,
+        typer.Option("--save-memory", help="Persist suggested conversation memories."),
+    ] = False,
+    no_memory: Annotated[
+        bool,
+        typer.Option("--no-memory", help="Do not retrieve persistent memories."),
+    ] = False,
+) -> None:
+    """Ask a one-shot text question using memory, repo context, and deliberation."""
+
+    _run_conversation_turn(
+        prompt,
+        mode=mode,
+        repo=repo,
+        save_memory=save_memory,
+        use_memory=not no_memory,
+        discussion=False,
+    )
+
+
+@app.command("discuss")
+def discuss(
+    prompt: Annotated[str, typer.Argument(help="Long-form plan, idea, or strategic context.")],
+    mode: Annotated[
+        DeliberationMode,
+        typer.Option("--mode", help="Reasoning style for the response."),
+    ] = DeliberationMode.BALANCED,
+    repo: Annotated[
+        Path | None,
+        typer.Option("--repo", help="Optional repository path for read-only repo context."),
+    ] = None,
+    save_memory: Annotated[
+        bool,
+        typer.Option("--save-memory", help="Persist suggested conversation memories."),
+    ] = False,
+    no_memory: Annotated[
+        bool,
+        typer.Option("--no-memory", help="Do not retrieve persistent memories."),
+    ] = False,
+) -> None:
+    """Discuss a longer plan or idea with structured deliberation."""
+
+    _run_conversation_turn(
+        prompt,
+        mode=mode,
+        repo=repo,
+        save_memory=save_memory,
+        use_memory=not no_memory,
+        discussion=True,
+    )
+
+
+@app.command("chat")
+def chat(
+    repo: Annotated[
+        Path | None,
+        typer.Option("--repo", help="Optional repository path for read-only repo context."),
+    ] = None,
+    session_id: Annotated[
+        str | None,
+        typer.Option("--session", help="Existing conversation session ID."),
+    ] = None,
+    mode: Annotated[
+        DeliberationMode,
+        typer.Option("--mode", help="Initial reasoning style."),
+    ] = DeliberationMode.BALANCED,
+) -> None:
+    """Start a persistent interactive text session."""
+
+    service = ConversationService()
+    current_session_id = session_id
+    current_repo = repo
+    current_mode = mode
+    last_response: ConversationResponse | None = None
+    console.print("Hephaestus chat. Type /exit to leave, /memory for selected context.")
+    while True:
+        try:
+            raw_text = console.input("[bold cyan]you> [/bold cyan]")
+        except EOFError:
+            console.print()
+            break
+        text = raw_text.strip()
+        if not text:
+            continue
+        if text in {"exit", "/exit", "quit", "/quit"}:
+            break
+        if text.startswith("/mode"):
+            parts = text.split(maxsplit=1)
+            if len(parts) != 2:
+                console.print(f"Current mode: {current_mode.value}")
+                continue
+            try:
+                current_mode = DeliberationMode(parts[1].strip())
+            except ValueError:
+                console.print(f"[red]Unknown mode: {parts[1].strip()}[/red]")
+                continue
+            if current_session_id is not None:
+                service.set_mode(current_session_id, current_mode)
+            console.print(f"Mode set to {current_mode.value}")
+            continue
+        if text.startswith("/repo"):
+            parts = text.split(maxsplit=1)
+            if len(parts) != 2:
+                console.print(f"Current repo: {current_repo or '-'}")
+                continue
+            current_repo = Path(parts[1].strip())
+            console.print(f"Repo context set to {current_repo}")
+            continue
+        if text == "/memory":
+            _print_chat_context(last_response)
+            continue
+        if text == "/summary":
+            if current_session_id is None:
+                console.print("No session has been created yet.")
+                continue
+            session = service.get_session(current_session_id)
+            if session is None:
+                console.print(f"[red]Session not found: {current_session_id}[/red]")
+                continue
+            messages = service.list_messages(current_session_id)
+            updates = service.repository.list_memory_updates(current_session_id)
+            console.print(build_conversation_show_renderable(session, messages, updates))
+            continue
+        if text == "/save-memory":
+            if last_response is None:
+                console.print("No suggested memories yet.")
+                continue
+            saved_count = 0
+            for candidate in last_response.memory_candidates:
+                memory = service.memory_repository.add(candidate.to_memory_item())
+                service.repository.save_memory_update(
+                    ConversationMemoryUpdate(
+                        session_id=last_response.session_id,
+                        message_id=last_response.message_id,
+                        candidate=candidate,
+                        status="saved",
+                        memory_id=memory.id,
+                    )
+                )
+                saved_count += 1
+            console.print(f"Saved {saved_count} memory update(s).")
+            continue
+
+        try:
+            last_response = service.respond(
+                ConversationRequest(
+                    prompt=text,
+                    mode=current_mode,
+                    session_id=current_session_id,
+                    repo_path=str(current_repo) if current_repo is not None else None,
+                )
+            )
+        except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+            console.print(f"[red]{error}[/red]")
+            continue
+        current_session_id = last_response.session_id
+        console.print(build_conversation_response_renderable(last_response))
+
+
+@app.command("conversations")
+def conversations(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum sessions to show.")] = 20,
+) -> None:
+    """List persisted conversation sessions."""
+
+    service = ConversationService()
+    console.print(build_conversation_sessions_table(service.list_sessions(limit=limit)))
+
+
+@conversation_app.command("show")
+def conversation_show(
+    session_id: Annotated[str, typer.Argument(help="Conversation session ID.")],
+) -> None:
+    """Show a conversation session, messages, traces, and memory updates."""
+
+    service = ConversationService()
+    session = service.get_session(session_id)
+    if session is None:
+        console.print(f"[red]Conversation session not found: {session_id}[/red]")
+        raise typer.Exit(1)
+    messages = service.list_messages(session_id)
+    updates = service.repository.list_memory_updates(session_id)
+    console.print(build_conversation_show_renderable(session, messages, updates))
 
 
 @app.command()
@@ -1889,6 +2100,46 @@ def _get_repo_profile_or_exit(profile_id: str) -> RepoProfile:
         console.print(f"[red]Repo profile not found: {profile_id}[/red]")
         raise typer.Exit(1)
     return profile
+
+
+def _run_conversation_turn(
+    prompt: str,
+    *,
+    mode: DeliberationMode,
+    repo: Path | None,
+    save_memory: bool,
+    use_memory: bool,
+    discussion: bool,
+) -> None:
+    service = ConversationService()
+    try:
+        response = service.respond(
+            ConversationRequest(
+                prompt=prompt,
+                mode=mode,
+                repo_path=str(repo) if repo is not None else None,
+                save_memory=save_memory,
+                use_memory=use_memory,
+                discussion=discussion,
+            )
+        )
+    except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_conversation_response_renderable(response))
+
+
+def _print_chat_context(response: ConversationResponse | None) -> None:
+    if response is None or not response.selected_context:
+        console.print("No selected context yet.")
+        return
+    table = Table(title="Selected Conversation Context")
+    table.add_column("Source")
+    table.add_column("ID")
+    table.add_column("Summary", overflow="fold")
+    for item in response.selected_context:
+        table.add_row(item.source, item.id, item.summary)
+    console.print(table)
 
 
 def _print_memory_table(title: str, memories: list[MemoryItem]) -> None:

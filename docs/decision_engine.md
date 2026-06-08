@@ -209,6 +209,18 @@ With `--evaluate`, benchmark runs also persist simulated outcomes:
   unresolved token/cost pressure,
 - safety decisions fail when high-risk actions are allowed without approval.
 
+## Conversation Traces
+
+Phase 5A records high-impact conversations as decision-quality artifacts.
+Product strategy, business strategy, architecture discussions, roadmap
+decisions, and idea stress tests can create `phase=conversation` optimization
+traces. These traces store assumptions, options considered, recommendation,
+confidence, mode, intent, and suggested next move.
+
+Conversation traces do not imply autonomous execution. They make strategic and
+architecture reasoning inspectable so future outcome learning can evaluate
+whether Hephaestus gave useful advice.
+
 ## Future Connection
 
 The decision engine is infrastructure for later phases:

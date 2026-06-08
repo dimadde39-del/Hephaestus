@@ -7,7 +7,8 @@
 Status: **early alpha, local-first, planning-only**. Hephaestus can inspect a
 repository, build a release-readiness plan, expose tradeoffs, formulate decision
 problems, explain why choices were made, evaluate deterministic simulated
-outcomes, and create learning signals. It does **not** execute repository
+outcomes, create learning signals, and answer text discussions through
+`heph ask`, `heph discuss`, and `heph chat`. It does **not** execute repository
 commands, edit code autonomously, run as a daemon, or claim production-ready
 autonomy.
 
@@ -42,6 +43,8 @@ Learning signals created
 Then inspect the artifacts:
 
 ```bash
+uv run heph ask "What is Hephaestus trying to become?"
+uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
 uv run heph release list
 uv run heph release show <release_run_id>
 uv run heph runs
@@ -95,6 +98,9 @@ Hephaestus learns decision quality.
 - **Repo intelligence grounds the plan.** The demo reads real local repo signals
   such as manifests, lockfiles, scripts, CI config, env file names, and command
   risk categories before planning.
+- **Conversation is deliberative.** `ask`, `discuss`, and `chat` classify the
+  discussion, retrieve memory/repo context, run internal deliberation passes,
+  suggest memory updates, and trace high-impact strategy or architecture calls.
 
 ## Current Status
 
@@ -111,6 +117,8 @@ Built:
 - Pareto tradeoff frontiers and preference profiles.
 - QUBO formulations, local solvers, and QUBO to Ising conversion.
 - Read-only repo intelligence and repo-aware release planning.
+- Conversational text interface with deliberation modes, memory suggestions,
+  repo context, persisted sessions, and high-impact decision traces.
 
 Not built yet:
 
@@ -137,6 +145,7 @@ Architecture at a glance:
 
 ```text
 CLI
+ |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
  |-- Repo intelligence: read-only local inspection and command risk classification
  |-- Release planning: demo orchestration and conservative recommendations
  |-- Optimization core: scheduling, routing, context packing, token budget checks
@@ -160,6 +169,10 @@ For the soft reveal materials, see [docs/public_launch_notes.md](docs/public_lau
 ```bash
 uv run heph --help
 uv run heph doctor
+uv run heph ask "What is Hephaestus trying to become?"
+uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
+uv run heph ask "What are the release risks in this repo?" --repo .
+uv run heph conversations
 uv run heph repo inspect .
 uv run heph release plan . --pareto --qubo --evaluate
 uv run heph release list

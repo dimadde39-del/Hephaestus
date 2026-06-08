@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -456,6 +456,66 @@ CREATE INDEX IF NOT EXISTS idx_release_plans_created
 ON release_plans(created_at DESC);
 """
 
+MIGRATION_10 = """
+CREATE TABLE IF NOT EXISTS conversation_sessions (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    archived INTEGER NOT NULL DEFAULT 0,
+    summary TEXT NOT NULL DEFAULT '',
+    linked_decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_updated
+ON conversation_sessions(archived, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_repo_profile
+ON conversation_sessions(repo_profile_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    intent TEXT,
+    mode TEXT,
+    selected_memory_ids_json TEXT NOT NULL DEFAULT '[]',
+    context_json TEXT NOT NULL DEFAULT '[]',
+    decision_trace_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_session
+ON conversation_messages(session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_trace
+ON conversation_messages(decision_trace_id);
+
+CREATE TABLE IF NOT EXISTS conversation_memory_updates (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+    message_id TEXT REFERENCES conversation_messages(id) ON DELETE SET NULL,
+    memory_id TEXT REFERENCES memories(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'suggested',
+    candidate_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_memory_updates_session
+ON conversation_memory_updates(session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_memory_updates_memory
+ON conversation_memory_updates(memory_id);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -540,6 +600,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (9, datetime.now(UTC).isoformat()),
+        )
+    if 10 not in applied_versions:
+        connection.executescript(MIGRATION_10)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (10, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

@@ -119,7 +119,31 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Reveal strategy notes and launch checklist.
 - GitHub setup guidance tied to the actual brand and demo assets.
 
+### Phase 5A: Conversational Agent Interface
+
+- `heph ask`, `heph discuss`, and `heph chat`.
+- Persisted conversation sessions, messages, and memory update suggestions.
+- Intent classification for repo questions, architecture, product strategy,
+  business strategy, stress tests, roadmap decisions, research planning, risk,
+  personal context, and debugging discussions.
+- Deliberation modes: balanced, direct, critical, strategic, research,
+  architect, coach, and skeptical-but-fair.
+- Internal deliberation passes without multi-process agent swarms.
+- Memory retrieval and conservative memory update suggestions.
+- Optional repo context through `--repo` using read-only repo profiles.
+- High-impact discussion traces linked to the decision engine.
+- Fake/local deterministic mode when no real provider is configured.
+
 ## Upcoming
+
+### Phase 5B: Strategic Memory + Research/Discussion Quality Framework
+
+- Deepen long-term memory for ambitions, project goals, strategic decisions,
+  failure patterns, and repeated objections.
+- Improve research planning, assumption challenge, and discussion-quality
+  evaluation across product, business, architecture, and roadmap work.
+- Add stronger review flows for promoting conversation insights into durable
+  memory.
 
 ### Soft Reveal Execution
 
@@ -142,12 +166,6 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Connect failures back to decision traces and repo profiles.
 - Improve learning signals with command evidence.
 - Keep policy/profile updates reviewable before activation.
-
-### Strategy and Research Deliberation Modes
-
-- Add deliberation modes for uncertain planning and research-heavy decisions.
-- Make assumptions, alternatives, and uncertainty explicit.
-- Preserve the same trace/outcome/learning architecture.
 
 ### Dashboard Later
 
