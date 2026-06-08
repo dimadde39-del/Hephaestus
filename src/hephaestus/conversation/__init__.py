@@ -5,6 +5,7 @@ from hephaestus.conversation.context import retrieve_conversation_context
 from hephaestus.conversation.deliberation import ConversationDeliberator
 from hephaestus.conversation.repository import ConversationRepository
 from hephaestus.conversation.schemas import (
+    ConversationBudgetReport,
     ConversationDecisionTrace,
     ConversationIntent,
     ConversationMemoryCandidate,
@@ -24,6 +25,7 @@ from hephaestus.conversation.session import ConversationService
 __all__ = [
     "ConversationDecisionTrace",
     "ConversationDeliberator",
+    "ConversationBudgetReport",
     "ConversationIntent",
     "ConversationMemoryCandidate",
     "ConversationMemoryUpdate",

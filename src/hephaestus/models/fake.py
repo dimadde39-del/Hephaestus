@@ -28,6 +28,11 @@ def fake_model_profiles() -> list[ModelProfile]:
             },
             privacy_level=PrivacyLevel.SECRET,
             supports_json=True,
+            intended_roles={
+                "conversation",
+                "summarization",
+                "memory_extraction",
+            },
         ),
         ModelProfile(
             provider="local",
@@ -61,6 +66,14 @@ def fake_model_profiles() -> list[ModelProfile]:
             privacy_level=PrivacyLevel.SECRET,
             supports_tools=True,
             supports_json=True,
+            intended_roles={
+                "conversation",
+                "repo_question",
+                "strategic_reasoning",
+                "research_planning",
+                "summarization",
+                "memory_extraction",
+            },
         ),
         ModelProfile(
             provider="local",
@@ -98,6 +111,14 @@ def fake_model_profiles() -> list[ModelProfile]:
             privacy_level=PrivacyLevel.SECRET,
             supports_tools=True,
             supports_json=True,
+            intended_roles={
+                "conversation",
+                "repo_question",
+                "strategic_reasoning",
+                "research_planning",
+                "summarization",
+                "memory_extraction",
+            },
         ),
     ]
 

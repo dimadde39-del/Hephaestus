@@ -56,3 +56,18 @@ would change the recommendation.
 
 The critic role exists to improve judgment. It should challenge weak premises
 when useful, preserve what is strong, and avoid disagreeing just to sound smart.
+
+## Phase 5C Evaluation
+
+Conversation benchmarks now evaluate rubric-shaped output deterministically.
+They check for recommendation, assumptions, risks, missing information, next
+move, research-boundary honesty, strategic memory usage, repo context usage, and
+anti-patterns such as blind agreement, fake certainty, unsupported claims,
+generic advice, moralizing, and contrarianism for its own sake.
+
+Run:
+
+```bash
+uv run heph conversation benchmark list
+uv run heph conversation benchmark run
+```

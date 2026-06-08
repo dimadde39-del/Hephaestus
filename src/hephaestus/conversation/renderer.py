@@ -81,10 +81,15 @@ def build_conversation_response_renderable(response: ConversationResponse) -> Re
         Panel(
             (
                 f"Model: {response.provider_model}\n"
-                f"Tokens: {response.input_tokens} input / {response.output_tokens} output\n"
+                f"Tokens: {response.input_tokens} input / {response.output_tokens} output "
+                f"(budget {response.budget.output_token_budget})\n"
+                f"Context: {response.budget.selected_context_count} selected; "
+                f"{response.budget.selected_memory_count} memory / "
+                f"{response.budget.selected_strategic_memory_count} strategic\n"
+                f"Trimmed: {'yes' if response.budget.context_trimmed else 'no'}\n"
                 f"Estimated cost: ${response.estimated_cost:.6f}"
             ),
-            title="Provider",
+            title="Provider Budget",
         )
     )
     return Group(*parts)
@@ -97,12 +102,14 @@ def build_memory_candidate_table(
 
     table = Table(title="Suggested Memory Updates")
     table.add_column("Type")
+    table.add_column("Stability")
     table.add_column("Tags")
     table.add_column("Summary")
     table.add_column("Rationale")
     for candidate in candidates:
         table.add_row(
             candidate.memory_type.value,
+            candidate.stability,
             ", ".join(candidate.tags) or "-",
             candidate.summary or candidate.content,
             candidate.rationale or "-",
@@ -117,12 +124,14 @@ def build_memory_update_table(updates: list[ConversationMemoryUpdate]) -> Table:
     table.add_column("ID", no_wrap=True)
     table.add_column("Status")
     table.add_column("Memory")
+    table.add_column("Stability")
     table.add_column("Summary")
     for update in updates:
         table.add_row(
             update.id,
             update.status,
             update.memory_id or "-",
+            update.candidate.stability,
             update.candidate.summary or update.candidate.content,
         )
     return table

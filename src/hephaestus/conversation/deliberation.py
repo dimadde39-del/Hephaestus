@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from hephaestus.conversation.analysis import extract_question_terms
-from hephaestus.conversation.prompts import build_synthesis_prompt, mode_guidance
+from hephaestus.conversation.prompt_builder import (
+    build_conversation_prompt,
+    estimate_tokens,
+    mode_guidance,
+)
+from hephaestus.conversation.providers import (
+    CONVERSATION_PROVIDER_LOCAL,
+    select_conversation_provider,
+)
 from hephaestus.conversation.schemas import (
+    ConversationBudgetReport,
     ConversationIntent,
+    ConversationMessage,
     ConversationRequest,
     DeliberationMode,
     DeliberationPass,
@@ -20,20 +30,23 @@ from hephaestus.discussion_quality.schemas import (
     DiscussionQualityEvaluation,
     ResearchPlan,
 )
-from hephaestus.models import DeepSeekProvider, FakeModelProvider, ModelProvider, ModelRequest
+from hephaestus.models import FakeModelProvider, ModelProvider, ModelRequest
+from hephaestus.optimize.model_router import ModelRoutingError
 
 
 class ConversationDeliberator:
     """Run lightweight internal deliberation passes for one Hephaestus response."""
 
     def __init__(self, provider: ModelProvider | None = None) -> None:
-        self.provider = provider or default_conversation_provider()
+        self.provider_override = provider
 
     def deliberate(
         self,
         request: ConversationRequest,
         intent: ConversationIntent,
         context: RetrievedConversationContext,
+        *,
+        recent_messages: list[ConversationMessage] | None = None,
     ) -> DeliberationResult:
         """Run classification-informed deliberation and synthesize a response."""
 
@@ -94,41 +107,84 @@ class ConversationDeliberator:
             research_plan=research_plan,
             quality_evaluation=quality_evaluation,
         )
-        provider_model = "local/deterministic"
-        input_tokens = max(1, len(request.prompt.split()))
-        output_tokens = max(1, len(deterministic.split()))
+        output_budget = request.output_token_budget
+        assembly = build_conversation_prompt(
+            request.prompt,
+            mode=request.mode,
+            context=context,
+            recent_messages=recent_messages or [],
+            assumptions=assumptions,
+            options=options,
+            risks=risks,
+            tradeoffs=tradeoffs,
+            missing_information=missing_information,
+            recommendation=recommendation,
+            next_moves=next_moves,
+            research_plan=research_plan,
+            quality_evaluation=quality_evaluation,
+            max_input_tokens=request.context_token_budget,
+            output_token_budget=output_budget,
+        )
+        provider, selected_provider, selected_model, context_window = _select_provider(
+            request,
+            intent,
+            assembly.input_tokens,
+            output_budget,
+            override=self.provider_override,
+        )
+        prompt_token_budget = min(
+            request.context_token_budget,
+            max(1, context_window - output_budget - 128),
+        )
+        if prompt_token_budget < assembly.input_tokens:
+            assembly = build_conversation_prompt(
+                request.prompt,
+                mode=request.mode,
+                context=context,
+                recent_messages=recent_messages or [],
+                assumptions=assumptions,
+                options=options,
+                risks=risks,
+                tradeoffs=tradeoffs,
+                missing_information=missing_information,
+                recommendation=recommendation,
+                next_moves=next_moves,
+                research_plan=research_plan,
+                quality_evaluation=quality_evaluation,
+                max_input_tokens=prompt_token_budget,
+                output_token_budget=output_budget,
+            )
+
+        provider_model = f"{selected_provider}/{selected_model}"
+        input_tokens = assembly.input_tokens
+        output_tokens = estimate_tokens(deterministic)
         estimated_cost = 0.0
 
-        if self.provider.name == "fake" or not self.provider.is_available:
-            model_response = self.provider.complete(
-                ModelRequest(prompt=request.prompt, max_output_tokens=900)
+        if provider.name == "fake" or not provider.is_available:
+            model_response = provider.complete(
+                ModelRequest(
+                    prompt=assembly.prompt,
+                    model=selected_model,
+                    max_output_tokens=output_budget,
+                )
             )
             provider_model = model_response.model
-            input_tokens = model_response.input_tokens
+            input_tokens = assembly.input_tokens
             output_tokens = max(output_tokens, model_response.output_tokens)
         else:
             try:
-                model_response = self.provider.complete(
+                model_response = provider.complete(
                     ModelRequest(
-                        prompt=build_synthesis_prompt(
-                            request.prompt,
-                            mode=request.mode,
-                            context=context,
-                            assumptions=assumptions,
-                            options=options,
-                            risks=risks,
-                            next_moves=next_moves,
-                            research_plan=research_plan,
-                            quality_evaluation=quality_evaluation,
-                        ),
+                        prompt=assembly.prompt,
+                        model=selected_model,
                         temperature=0.2,
-                        max_output_tokens=1_600,
+                        max_output_tokens=output_budget,
                     )
                 )
                 deterministic = model_response.text.strip() or deterministic
                 provider_model = model_response.model
-                input_tokens = model_response.input_tokens
-                output_tokens = model_response.output_tokens
+                input_tokens = model_response.input_tokens or assembly.input_tokens
+                output_tokens = model_response.output_tokens or estimate_tokens(deterministic)
                 estimated_cost = model_response.estimated_cost
             except Exception as error:
                 deterministic = "\n\n".join(
@@ -140,6 +196,24 @@ class ConversationDeliberator:
                         ),
                     ]
                 )
+                output_tokens = estimate_tokens(deterministic)
+
+        budget = ConversationBudgetReport(
+            provider_model=provider_model,
+            selected_provider=selected_provider,
+            selected_model=selected_model,
+            estimated_input_tokens=input_tokens,
+            estimated_output_tokens=output_tokens,
+            output_token_budget=output_budget,
+            context_window=context_window,
+            prompt_token_budget=prompt_token_budget,
+            estimated_cost=estimated_cost,
+            context_trimmed=assembly.context_trimmed,
+            trimming_notes=assembly.trimming_notes,
+            selected_context_count=len(assembly.selected_context),
+            selected_memory_count=len(assembly.selected_memory_ids),
+            selected_strategic_memory_count=len(assembly.selected_strategic_memory_ids),
+        )
 
         return DeliberationResult(
             intent=intent,
@@ -156,20 +230,50 @@ class ConversationDeliberator:
             quality_evaluation=quality_evaluation,
             research_plan=research_plan,
             confidence=_confidence(intent, context, request.mode),
+            selected_context=assembly.selected_context,
             provider_model=provider_model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             estimated_cost=estimated_cost,
+            budget=budget,
         )
 
 
 def default_conversation_provider() -> ModelProvider:
-    """Prefer configured DeepSeek, otherwise use deterministic fake provider."""
+    """Return the deterministic provider used by local tests and demos."""
 
-    deepseek = DeepSeekProvider()
-    if deepseek.is_available:
-        return deepseek
     return FakeModelProvider()
+
+
+def _select_provider(
+    request: ConversationRequest,
+    intent: ConversationIntent,
+    input_tokens: int,
+    output_tokens: int,
+    *,
+    override: ModelProvider | None,
+) -> tuple[ModelProvider, str, str, int]:
+    if override is not None:
+        profile = next(iter(override.profiles()))
+        return override, profile.provider, profile.model, profile.context_window
+    try:
+        plan = select_conversation_provider(
+            intent=intent,
+            mode=request.mode,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            provider_mode=request.provider,
+        )
+    except ModelRoutingError:
+        plan = select_conversation_provider(
+            intent=intent,
+            mode=request.mode,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            provider_mode=CONVERSATION_PROVIDER_LOCAL,
+        )
+    profile = plan.profile
+    return plan.provider, profile.provider, profile.model, profile.context_window
 
 
 def _context_findings(
@@ -499,7 +603,7 @@ def _next_moves(
         return [
             "Write the launch story around a concrete decision-quality demo.",
             "Name the non-execution boundary directly in the README and demo.",
-            "Collect objections and turn repeated ones into Phase 5B memory/research work.",
+            "Collect objections and turn repeated ones into strategic memory or research-planning work.",
         ]
     if mode == DeliberationMode.RESEARCH:
         return [

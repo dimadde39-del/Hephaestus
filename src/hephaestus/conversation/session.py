@@ -65,6 +65,7 @@ class ConversationService:
         session = self._resolve_session(request)
         effective_request = self._request_with_session_repo(request, session)
         intent = classify_intent(effective_request.prompt)
+        recent_messages = self.repository.list_messages(session.id)
         if session.mode != effective_request.mode:
             updated_session = self.repository.update_session_mode(session.id, effective_request.mode)
             if updated_session is not None:
@@ -94,7 +95,12 @@ class ConversationService:
             if updated_session is not None:
                 session = updated_session
 
-        deliberation = self.deliberator.deliberate(effective_request, intent, context)
+        deliberation = self.deliberator.deliberate(
+            effective_request,
+            intent,
+            context,
+            recent_messages=recent_messages,
+        )
         memory_candidates = propose_memory_candidates(
             effective_request.prompt,
             deliberation,
@@ -113,14 +119,22 @@ class ConversationService:
             strategic_extraction,
         )
 
+        selected_memory_ids = [
+            item.id for item in deliberation.selected_context if item.source == "memory"
+        ]
+        selected_strategic_memory_ids = [
+            item.id
+            for item in deliberation.selected_context
+            if item.source == "strategic_memory"
+        ]
         assistant_message = ConversationMessage(
             session_id=session.id,
             role=ConversationRole.ASSISTANT,
             content=deliberation.final_response,
             intent=intent,
             mode=effective_request.mode,
-            selected_memory_ids=context.selected_memory_ids,
-            context=context.context_items,
+            selected_memory_ids=selected_memory_ids,
+            context=deliberation.selected_context,
             decision_trace_id=(
                 decision_trace.decision_trace_id if decision_trace is not None else None
             ),
@@ -155,9 +169,9 @@ class ConversationService:
             mode=effective_request.mode,
             answer=deliberation.final_response,
             deliberation=deliberation,
-            selected_memory_ids=context.selected_memory_ids,
-            selected_strategic_memory_ids=context.selected_strategic_memory_ids,
-            selected_context=context.context_items,
+            selected_memory_ids=selected_memory_ids,
+            selected_strategic_memory_ids=selected_strategic_memory_ids,
+            selected_context=deliberation.selected_context,
             memory_candidates=memory_candidates,
             memory_updates=memory_updates,
             strategic_memory_extraction=strategic_extraction,
@@ -168,6 +182,7 @@ class ConversationService:
             input_tokens=deliberation.input_tokens,
             output_tokens=deliberation.output_tokens,
             estimated_cost=deliberation.estimated_cost,
+            budget=deliberation.budget,
         )
 
     def list_sessions(self, *, limit: int = 20) -> list[ConversationSession]:

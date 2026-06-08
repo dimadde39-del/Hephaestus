@@ -1,0 +1,34 @@
+{
+  "id": "research_planning",
+  "title": "Research Planning",
+  "prompt": "Research plan: compare Hephaestus positioning against existing open-source agent frameworks without pretending we have already done the research.",
+  "mode": "research",
+  "expected_rubric": "Research Planning",
+  "quality_profile": "research",
+  "required_sections": [
+    "claims to verify",
+    "likely sources",
+    "search queries",
+    "what would change the conclusion"
+  ],
+  "required_qualities": [],
+  "memory_context": [],
+  "strategic_memory_context": [
+    {
+      "type": "open_question",
+      "content": "Hephaestus should separate facts from assumptions and avoid fake certainty in research planning.",
+      "summary": "Research planning must avoid fake certainty.",
+      "tags": ["research", "principle", "uncertainty"],
+      "importance": 0.88,
+      "confidence": 0.88,
+      "stability": "long_term"
+    }
+  ],
+  "repo_context_required": false,
+  "anti_patterns": [
+    "fake certainty",
+    "unsupported claims",
+    "generic advice",
+    "moralizing"
+  ]
+}

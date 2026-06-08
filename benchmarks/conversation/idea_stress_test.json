@@ -1,0 +1,46 @@
+{
+  "id": "idea_stress_test",
+  "title": "Idea Stress Test",
+  "prompt": "Stress-test launching Hephaestus before command execution. Be brutally honest but useful: is the decision-quality OS wedge strong enough, or is it too abstract?",
+  "mode": "strategic",
+  "expected_rubric": "Idea Stress Test",
+  "quality_profile": "stress_test",
+  "required_sections": [
+    "position",
+    "assumptions",
+    "risks",
+    "missing information",
+    "next move"
+  ],
+  "required_qualities": [],
+  "memory_context": [
+    {
+      "type": "project",
+      "content": "Hephaestus must feel like a coherent next-generation agent OS, not a collection of unrelated features.",
+      "summary": "Hephaestus needs coherent agent OS positioning.",
+      "tags": ["project", "positioning", "strategy"],
+      "importance": 0.9,
+      "confidence": 0.9
+    }
+  ],
+  "strategic_memory_context": [
+    {
+      "type": "ambition",
+      "content": "Build Hephaestus toward a 20k-star open-source project by making decision quality the wedge.",
+      "summary": "20k-star ambition through decision quality.",
+      "tags": ["ambition", "open-source", "strategy"],
+      "importance": 0.95,
+      "confidence": 0.9,
+      "stability": "long_term"
+    }
+  ],
+  "repo_context_required": false,
+  "anti_patterns": [
+    "blind agreement",
+    "fake certainty",
+    "unsupported claims",
+    "generic advice",
+    "moralizing",
+    "contrarianism for its own sake"
+  ]
+}

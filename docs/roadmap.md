@@ -155,15 +155,34 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - High-impact traces enriched with assumptions, options, recommendation,
   confidence, memory used, strategic memories suggested, and rubric metadata.
 
-## Upcoming
-
 ### Phase 5C: Real Model Provider Conversation Quality
 
-- Improve LLM-backed answers through provider routing.
-- Add OpenAI-compatible and DeepSeek conversation support without requiring paid
-  APIs by default.
-- Add response quality evaluation fixtures for conversation benchmarks.
-- Preserve deterministic local fixtures for tests.
+- Conversation provider routing across deterministic local mode, DeepSeek, and
+  OpenAI-compatible APIs.
+- OpenRouter-compatible usage through the OpenAI-compatible path.
+- Conversation model profile metadata for JSON, streaming, context windows,
+  cost estimates, and intended roles.
+- Prompt assembly with behavior/policy standards, mode guidance, rubrics,
+  strategic memory, repo context, session context, regular memory, and explicit
+  fact/assumption/recommendation separation.
+- One-call model-backed final synthesis when real providers are configured and
+  selected.
+- Token/context budget reports and deterministic context trimming.
+- Conversation quality benchmark fixtures and deterministic evaluator package.
+- `heph conversation benchmark list/run`.
+- Improved memory candidate summaries and stability labels.
+
+## Upcoming
+
+### Phase 5D: Safe Tool Execution Runtime
+
+- Approval-gated command execution for safe validation.
+- Dry-run planning before execution.
+- Output observation and exit-code capture.
+- Rollback/checkpoint design for file-changing actions.
+- Real outcome learning from validation commands.
+- Continued refusal of destructive, deploy, publish, and external side-effect
+  commands without explicit approval boundaries.
 
 ### Soft Reveal Execution
 

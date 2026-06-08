@@ -28,6 +28,8 @@ class ModelProfile(BaseModel):
     privacy_level: PrivacyLevel = PrivacyLevel.INTERNAL
     supports_tools: bool = False
     supports_json: bool = False
+    supports_streaming: bool = False
+    intended_roles: set[str] = Field(default_factory=set)
 
     @property
     def identifier(self) -> str:

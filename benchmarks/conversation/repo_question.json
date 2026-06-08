@@ -1,0 +1,35 @@
+{
+  "id": "repo_question",
+  "title": "Repo Question",
+  "prompt": "What are the release risks in this repo, and what should we validate before claiming the alpha is ready?",
+  "mode": "strategic",
+  "expected_rubric": "Technical Architecture",
+  "quality_profile": "repo_question",
+  "required_sections": [
+    "repo context",
+    "risks",
+    "validation",
+    "next move"
+  ],
+  "required_qualities": [],
+  "memory_context": [],
+  "strategic_memory_context": [
+    {
+      "type": "principle",
+      "content": "Repo-aware advice should stay read-only until a safe tool execution runtime exists.",
+      "summary": "Repo advice is read-only before safe execution.",
+      "tags": ["repo", "safety", "execution"],
+      "importance": 0.86,
+      "confidence": 0.86,
+      "stability": "medium_term"
+    }
+  ],
+  "repo_context_required": true,
+  "repo_path": "tests/fixtures/repos/python_uv",
+  "anti_patterns": [
+    "fake certainty",
+    "unsupported claims",
+    "generic advice",
+    "moralizing"
+  ]
+}

@@ -127,4 +127,6 @@ def _profile_tags(profile: ModelProfile) -> set[str]:
         f"provider:{profile.provider}".lower(),
         f"model:{profile.model}".lower(),
         *{capability.lower() for capability in profile.capabilities},
+        *{role.lower() for role in profile.intended_roles},
+        *{f"role:{role}".lower() for role in profile.intended_roles},
     }

@@ -19,8 +19,9 @@ uv run heph discuss "Should we launch before execution exists?" --mode strategic
 uv run heph discuss "Plan research for comparing agent OS projects." --mode research
 ```
 
-Modes influence deliberation emphasis. They do not change the safety boundary:
-Phase 5B remains text-only and does not execute commands, edit code, browse, or
+Modes influence deliberation emphasis, provider-routing requirements, quality
+thresholds, and benchmark expectations. They do not change the safety boundary:
+Phase 5C remains text-only and does not execute commands, edit code, browse, or
 pretend live research happened.
 
 ## Rubric-Aware Discussions
@@ -42,3 +43,9 @@ be skeptical, but the goal is useful pressure, not performative disagreement.
 Research mode produces a research plan: claims to verify, likely sources,
 search queries, evidence quality expectations, what would change the conclusion,
 and risks of shallow research.
+
+In Phase 5C, deterministic deliberation still identifies intent, assumptions,
+options, risks, missing information, rubric, and memory context first. If a real
+provider is configured through `auto` mode, only the final synthesis is
+model-backed by default. This keeps cost controlled and preserves deterministic
+tests.

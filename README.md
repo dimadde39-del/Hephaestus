@@ -8,9 +8,11 @@ Status: **early alpha, local-first, planning-only**. Hephaestus can inspect a
 repository, build a release-readiness plan, expose tradeoffs, formulate decision
 problems, explain why choices were made, evaluate deterministic simulated
 outcomes, create learning signals, and answer text discussions through
-`heph ask`, `heph discuss`, and `heph chat`. It does **not** execute repository
-commands, edit code autonomously, run as a daemon, or claim production-ready
-autonomy.
+`heph ask`, `heph discuss`, and `heph chat`. Conversations run in deterministic
+local mode by default and can use configured DeepSeek or OpenAI-compatible
+providers for one-call synthesis with budget visibility. It does **not** execute
+repository commands, edit code autonomously, run as a daemon, or claim
+production-ready autonomy.
 
 ```text
 The forge for agents that think before they act.
@@ -23,6 +25,7 @@ git clone https://github.com/dimadde39-del/Hephaestus.git hephaestus
 cd hephaestus
 uv sync
 uv run heph doctor
+uv run heph models
 uv run heph release plan . --pareto --qubo --evaluate
 ```
 
@@ -43,9 +46,11 @@ Learning signals created
 Then inspect the artifacts:
 
 ```bash
-uv run heph ask "What is Hephaestus trying to become?"
-uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
+uv run heph ask "What is Hephaestus trying to become?" --show-budget
+uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
 uv run heph discuss "Research plan: compare Hephaestus positioning against open-source agent frameworks." --mode research
+uv run heph conversation benchmark list
+uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
 uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
 uv run heph strategy context
 uv run heph release list
@@ -112,6 +117,9 @@ Hephaestus learns decision quality.
   product strategy, architecture, roadmap, research planning, and risk analysis
   use explicit checks so Hephaestus helps the user think better instead of just
   replying.
+- **Conversation quality is measurable.** Model-backed synthesis routes through
+  provider profiles, prompt assembly, context budgets, and deterministic
+  conversation benchmarks that do not require paid APIs.
 
 ## Current Status
 
@@ -133,6 +141,12 @@ Built:
 - Strategic memory for durable goals, ambitions, principles, constraints,
   assumptions, decisions, rejected paths, lessons, and open questions.
 - Discussion-quality rubrics and research planning mode.
+- Real-provider conversation routing for DeepSeek and OpenAI-compatible APIs,
+  including OpenRouter-style endpoints through the OpenAI-compatible path.
+- Prompt assembly with behavior/policy standards, deliberation mode, rubrics,
+  regular memory, strategic memory, repo context, session context, and context
+  trimming.
+- Conversation budget reporting and deterministic conversation benchmarks.
 
 Not built yet:
 

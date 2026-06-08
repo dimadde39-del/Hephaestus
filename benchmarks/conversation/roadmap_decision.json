@@ -1,0 +1,46 @@
+{
+  "id": "roadmap_decision",
+  "title": "Roadmap Decision",
+  "prompt": "Roadmap decision: should we prioritize safe command execution next, or keep improving conversation quality and strategic memory first?",
+  "mode": "strategic",
+  "expected_rubric": "Roadmap Decision",
+  "quality_profile": "strategic",
+  "required_sections": [
+    "recommendation",
+    "assumptions",
+    "risks",
+    "missing information",
+    "next move"
+  ],
+  "required_qualities": [],
+  "memory_context": [
+    {
+      "type": "decision",
+      "content": "Voice and Jarvis-style features are deferred until the core decision-quality system is mature.",
+      "summary": "Voice remains deferred behind core maturity.",
+      "tags": ["roadmap", "decision", "voice"],
+      "importance": 0.82,
+      "confidence": 0.86
+    }
+  ],
+  "strategic_memory_context": [
+    {
+      "type": "roadmap_decision",
+      "content": "Command execution should be approval-gated and deferred until conversation, memory, traces, and validation are stable.",
+      "summary": "Execution comes after stable decision-quality core.",
+      "tags": ["roadmap", "execution", "constraint"],
+      "importance": 0.9,
+      "confidence": 0.86,
+      "stability": "medium_term"
+    }
+  ],
+  "repo_context_required": false,
+  "anti_patterns": [
+    "blind agreement",
+    "fake certainty",
+    "unsupported claims",
+    "generic advice",
+    "moralizing",
+    "contrarianism for its own sake"
+  ]
+}

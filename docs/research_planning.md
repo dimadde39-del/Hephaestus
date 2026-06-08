@@ -28,6 +28,14 @@ change quickly. A useful answer should separate:
 - source quality expectations
 - decision-changing evidence
 
-This mode prepares future web or deep research without crossing the Phase 5B
+This mode prepares future web or deep research without crossing the Phase 5C
 boundary. Hephaestus does not browse, execute commands, or claim current factual
-verification in this phase.
+verification in this phase. Provider-backed synthesis must preserve that
+boundary: it can improve wording and reasoning, but it cannot claim live
+research happened.
+
+Research-planning quality is covered by deterministic conversation benchmarks:
+
+```bash
+uv run heph conversation benchmark run benchmarks/conversation/research_planning.json
+```

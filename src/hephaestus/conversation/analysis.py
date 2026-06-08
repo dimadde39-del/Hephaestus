@@ -13,6 +13,7 @@ from hephaestus.conversation.schemas import (
 )
 from hephaestus.decision import DecisionAlternative, OptimizationDecision, metric
 from hephaestus.memory import MemoryType
+from hephaestus.strategic_memory.classifier import is_potentially_sensitive_personal_context
 from hephaestus.strategic_memory.schemas import StrategicMemoryExtractionResult
 
 HIGH_IMPACT_INTENTS: set[ConversationIntent] = {
@@ -51,6 +52,7 @@ def propose_memory_candidates(
 
     candidates: list[ConversationMemoryCandidate] = []
     lowered = prompt.lower()
+    sensitive_prompt = is_potentially_sensitive_personal_context(prompt)
     if "20k" in lowered or "20,000" in lowered or "stars" in lowered:
         candidates.append(
             ConversationMemoryCandidate(
@@ -62,6 +64,7 @@ def propose_memory_candidates(
                 confidence=0.84,
                 importance=0.86,
                 rationale="The user stated or revisited a durable project ambition.",
+                stability="long_term",
             )
         )
     if "voice" in lowered and ("defer" in lowered or "later" in lowered or "mature" in lowered):
@@ -75,6 +78,7 @@ def propose_memory_candidates(
                 confidence=0.8,
                 importance=0.78,
                 rationale="The prompt reinforced a roadmap boundary.",
+                stability="medium_term",
             )
         )
     if "honest" in lowered or "not a yes-man" in lowered or "think several steps ahead" in lowered:
@@ -91,22 +95,40 @@ def propose_memory_candidates(
                 confidence=0.78,
                 importance=0.76,
                 rationale="The prompt contains a stable interaction preference.",
+                stability="long_term",
             )
         )
-    if result.recommendation and result.intent in HIGH_IMPACT_INTENTS:
+    if result.recommendation and result.intent in HIGH_IMPACT_INTENTS and not sensitive_prompt:
+        recommendation_memory = _summarize_memory_content(
+            f"Conversation recommendation: {result.recommendation}",
+        )
         candidates.append(
             ConversationMemoryCandidate(
                 memory_type=MemoryType.DECISION,
-                content=f"Conversation recommendation: {result.recommendation}",
-                summary="Conversation produced a high-impact recommendation.",
+                content=recommendation_memory,
+                summary=_summarize_memory_content(result.recommendation, max_length=140),
                 tags=["decision", result.intent.value, result.mode.value],
                 project=project,
                 confidence=result.confidence,
                 importance=0.72,
                 rationale="High-impact conversations can become reviewable decision memory.",
+                stability="medium_term",
             )
         )
-    return _dedupe_candidates(candidates)
+    return _dedupe_candidates(
+        [
+            candidate.model_copy(
+                update={
+                    "content": _summarize_memory_content(candidate.content),
+                    "summary": _summarize_memory_content(
+                        candidate.summary or candidate.content,
+                        max_length=140,
+                    ),
+                }
+            )
+            for candidate in candidates
+        ]
+    )
 
 
 def build_conversation_decision_trace(
@@ -237,3 +259,10 @@ def _dedupe_candidates(
         seen.add(key)
         deduped.append(candidate)
     return deduped
+
+
+def _summarize_memory_content(value: str, *, max_length: int = 320) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= max_length:
+        return normalized
+    return normalized[: max(0, max_length - 3)].rstrip() + "..."

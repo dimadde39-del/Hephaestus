@@ -1,0 +1,46 @@
+{
+  "id": "business_strategy",
+  "title": "Business Strategy",
+  "prompt": "Business strategy: if Hephaestus becomes popular as open source, what commercial path is plausible without damaging trust?",
+  "mode": "strategic",
+  "expected_rubric": "Business Strategy",
+  "quality_profile": "strategic",
+  "required_sections": [
+    "customer",
+    "distribution",
+    "risks",
+    "proof plan",
+    "next move"
+  ],
+  "required_qualities": [],
+  "memory_context": [
+    {
+      "type": "project",
+      "content": "Hephaestus is optimization-first and should be useful for code, architecture, research, product, strategy, roadmap, and difficult decisions.",
+      "summary": "Hephaestus is broader than code and centered on decision quality.",
+      "tags": ["project", "strategy", "positioning"],
+      "importance": 0.86,
+      "confidence": 0.88
+    }
+  ],
+  "strategic_memory_context": [
+    {
+      "type": "business_assumption",
+      "content": "Open-source trust matters; commercial extensions should not make the core feel captured or bait-and-switched.",
+      "summary": "Commercial paths must preserve open-source trust.",
+      "tags": ["business", "open-source", "trust"],
+      "importance": 0.9,
+      "confidence": 0.86,
+      "stability": "long_term"
+    }
+  ],
+  "repo_context_required": false,
+  "anti_patterns": [
+    "blind agreement",
+    "fake certainty",
+    "unsupported claims",
+    "generic advice",
+    "moralizing",
+    "contrarianism for its own sake"
+  ]
+}

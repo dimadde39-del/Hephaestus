@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import platform
 import sys
 from datetime import datetime
@@ -30,10 +29,23 @@ from hephaestus.conversation import (
     ConversationService,
     DeliberationMode,
 )
+from hephaestus.conversation.providers import (
+    conversation_model_profiles,
+    conversation_provider_statuses,
+)
 from hephaestus.conversation.renderer import (
     build_conversation_response_renderable,
     build_conversation_sessions_table,
     build_conversation_show_renderable,
+)
+from hephaestus.conversation_eval import (
+    load_all_conversation_benchmarks,
+    run_conversation_benchmarks,
+)
+from hephaestus.conversation_eval.renderer import (
+    build_conversation_benchmark_result_renderable,
+    build_conversation_benchmark_summary_table,
+    print_conversation_benchmark_list,
 )
 from hephaestus.core.config import DEFAULT_CONFIG, PrivacyLevel, RiskLevel
 from hephaestus.decision import (
@@ -195,8 +207,13 @@ qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_h
 repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
 release_app = typer.Typer(help="Repo-aware release planning demo commands.", no_args_is_help=True)
 conversation_app = typer.Typer(help="Conversation session commands.", no_args_is_help=True)
+conversation_benchmark_app = typer.Typer(
+    help="Conversation quality benchmark commands.",
+    no_args_is_help=True,
+)
 strategy_app = typer.Typer(help="Strategic context and memory commands.", no_args_is_help=True)
 strategy_memory_app = typer.Typer(help="Strategic memory commands.", no_args_is_help=True)
+conversation_app.add_typer(conversation_benchmark_app, name="benchmark")
 strategy_app.add_typer(strategy_memory_app, name="memory")
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
@@ -260,14 +277,12 @@ def doctor() -> None:
         f"{platform.python_version()} ({'>=3.12 required'})",
     )
     table.add_row("Package", "ok", f"hephaestus {__version__}")
-    deepseek_available = bool(os.getenv("DEEPSEEK_API_KEY"))
-    table.add_row(
-        "DeepSeek",
-        "configured" if deepseek_available else "optional",
-        "DEEPSEEK_API_KEY is set"
-        if deepseek_available
-        else "Set DEEPSEEK_API_KEY to enable API calls",
-    )
+    for provider_status in conversation_provider_statuses():
+        table.add_row(
+            f"Conversation provider: {provider_status.provider}",
+            "configured" if provider_status.available else "optional",
+            provider_status.detail,
+        )
     table.add_row(
         "Local config",
         "ok",
@@ -474,6 +489,17 @@ def ask(
         bool,
         typer.Option("--show-context", help="Show selected memory and strategic context."),
     ] = False,
+    show_budget: Annotated[
+        bool,
+        typer.Option("--show-budget", help="Show conversation token, context, and model budget."),
+    ] = False,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Conversation provider mode: auto, local, real, or a provider name.",
+        ),
+    ] = "auto",
     no_memory: Annotated[
         bool,
         typer.Option("--no-memory", help="Do not retrieve persistent memories."),
@@ -489,6 +515,8 @@ def ask(
         save_strategy=save_strategy,
         use_memory=not no_memory,
         show_context=show_context,
+        show_budget=show_budget,
+        provider=provider,
         discussion=False,
     )
 
@@ -516,6 +544,17 @@ def discuss(
         bool,
         typer.Option("--show-context", help="Show selected memory and strategic context."),
     ] = False,
+    show_budget: Annotated[
+        bool,
+        typer.Option("--show-budget", help="Show conversation token, context, and model budget."),
+    ] = False,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Conversation provider mode: auto, local, real, or a provider name.",
+        ),
+    ] = "auto",
     no_memory: Annotated[
         bool,
         typer.Option("--no-memory", help="Do not retrieve persistent memories."),
@@ -531,6 +570,8 @@ def discuss(
         save_strategy=save_strategy,
         use_memory=not no_memory,
         show_context=show_context,
+        show_budget=show_budget,
+        provider=provider,
         discussion=True,
     )
 
@@ -640,6 +681,7 @@ def chat(
                     mode=current_mode,
                     session_id=current_session_id,
                     repo_path=str(current_repo) if current_repo is not None else None,
+                    provider="auto",
                 )
             )
         except (FileNotFoundError, NotADirectoryError, ValueError) as error:
@@ -673,6 +715,45 @@ def conversation_show(
     messages = service.list_messages(session_id)
     updates = service.repository.list_memory_updates(session_id)
     console.print(build_conversation_show_renderable(session, messages, updates))
+
+
+@conversation_benchmark_app.command("list")
+def conversation_benchmark_list() -> None:
+    """List deterministic conversation benchmark fixtures."""
+
+    print_conversation_benchmark_list(console, load_all_conversation_benchmarks())
+
+
+@conversation_benchmark_app.command("run")
+def conversation_benchmark_run(
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Optional conversation benchmark JSON path, id, or file stem."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Provider mode for benchmark conversations: local, real, auto, or provider name.",
+        ),
+    ] = "local",
+    live: Annotated[
+        bool,
+        typer.Option("--live", help="Opt into real configured provider calls."),
+    ] = False,
+) -> None:
+    """Run one or all conversation quality benchmarks."""
+
+    selected_provider = "real" if live else provider
+    try:
+        results = run_conversation_benchmarks(target, provider=selected_provider)
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    if len(results) > 1:
+        console.print(build_conversation_benchmark_summary_table(results))
+    for result in results:
+        console.print(build_conversation_benchmark_result_renderable(result))
 
 
 @app.command()
@@ -1012,10 +1093,10 @@ def optimize(
 
 @app.command("models")
 def list_models() -> None:
-    """Show local fake models and optional DeepSeek configuration."""
+    """Show model profiles and conversation provider configuration."""
 
-    deepseek = DeepSeekProvider()
-    profiles = [*fake_model_profiles(), *deepseek.profiles()]
+    statuses = {status.provider: status for status in conversation_provider_statuses()}
+    profiles = conversation_model_profiles(include_unavailable=True)
     table = Table(title="Model Profiles")
     table.add_column("Provider")
     table.add_column("Model")
@@ -1024,10 +1105,14 @@ def list_models() -> None:
     table.add_column("In / Out $ per 1M")
     table.add_column("Tools")
     table.add_column("JSON")
+    table.add_column("Stream")
+    table.add_column("Conversation roles", overflow="fold")
     for profile in profiles:
         available = "yes"
         if profile.provider == "deepseek":
-            available = "yes" if deepseek.is_available else "needs key"
+            available = "yes" if statuses["deepseek"].available else "needs key"
+        if profile.provider == "openai-compatible":
+            available = "yes" if statuses["openai-compatible"].available else "needs env"
         table.add_row(
             profile.provider,
             profile.model,
@@ -1036,6 +1121,8 @@ def list_models() -> None:
             f"{profile.input_cost_per_million:g} / {profile.output_cost_per_million:g}",
             "yes" if profile.supports_tools else "no",
             "yes" if profile.supports_json else "no",
+            "yes" if profile.supports_streaming else "no",
+            ", ".join(sorted(profile.intended_roles)) or "-",
         )
     console.print(table)
 
@@ -2316,6 +2403,8 @@ def _run_conversation_turn(
     save_strategy: bool,
     use_memory: bool,
     show_context: bool,
+    show_budget: bool,
+    provider: str,
     discussion: bool,
 ) -> None:
     service = ConversationService()
@@ -2329,6 +2418,8 @@ def _run_conversation_turn(
                 save_strategy=save_strategy,
                 use_memory=use_memory,
                 show_context=show_context,
+                show_budget=show_budget,
+                provider=provider,
                 discussion=discussion,
             )
         )
@@ -2337,19 +2428,42 @@ def _run_conversation_turn(
         raise typer.Exit(1) from error
     if show_context:
         _print_chat_context(response)
+    if show_budget:
+        _print_conversation_budget(response)
     console.print(build_conversation_response_renderable(response))
 
 
 def _print_chat_context(response: ConversationResponse | None) -> None:
-    if response is None or not response.selected_context:
-        console.print("No selected context yet.")
-        return
     table = Table(title="Selected Conversation Context")
     table.add_column("Source")
     table.add_column("ID")
     table.add_column("Summary", overflow="fold")
-    for item in response.selected_context:
-        table.add_row(item.source, item.id, item.summary)
+    if response is None or not response.selected_context:
+        table.add_row("-", "-", "No selected context yet.")
+    else:
+        for item in response.selected_context:
+            table.add_row(item.source, item.id, item.summary)
+    console.print(table)
+
+
+def _print_conversation_budget(response: ConversationResponse) -> None:
+    budget = response.budget
+    table = Table(title="Conversation Budget")
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_row("Provider/model", budget.provider_model)
+    table.add_row("Input tokens", str(budget.estimated_input_tokens))
+    table.add_row("Output budget", str(budget.output_token_budget))
+    table.add_row("Estimated output tokens", str(budget.estimated_output_tokens))
+    table.add_row("Context window", str(budget.context_window))
+    table.add_row("Prompt token budget", str(budget.prompt_token_budget))
+    table.add_row("Selected context", str(budget.selected_context_count))
+    table.add_row("Regular memories", str(budget.selected_memory_count))
+    table.add_row("Strategic memories", str(budget.selected_strategic_memory_count))
+    table.add_row("Context trimmed", "yes" if budget.context_trimmed else "no")
+    table.add_row("Estimated cost", f"${budget.estimated_cost:.6f}")
+    for note in budget.trimming_notes:
+        table.add_row("Trim note", note)
     console.print(table)
 
 

@@ -14,7 +14,7 @@ Practical behavior:
 - Keep boundaries transparent and configurable over time.
 - Avoid genuinely harmful behavior.
 
-Phase 5B is intentionally text-only. It can reason about code, architecture,
+Phase 5C is intentionally text-only. It can reason about code, architecture,
 roadmaps, risks, research plans, product strategy, business strategy, and
 release planning, but it does not execute shell commands, edit repositories,
 browse, publish, deploy, or send external messages.
@@ -31,3 +31,8 @@ requested. Potentially sensitive personal context is not auto-saved.
 Research mode is also honest by design. It creates a plan for what to verify,
 where to look, and what evidence would change the conclusion. It does not claim
 to have searched the web or checked current facts.
+
+Provider-backed conversation synthesis uses the same standard. A configured
+DeepSeek or OpenAI-compatible provider can improve the final answer, but the
+prompt still carries the freedom/policy UX boundary and the text-only capability
+boundary.

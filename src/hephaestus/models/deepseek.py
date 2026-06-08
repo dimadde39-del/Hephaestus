@@ -61,6 +61,13 @@ class DeepSeekProvider:
                 privacy_level=PrivacyLevel.INTERNAL,
                 supports_tools=True,
                 supports_json=True,
+                supports_streaming=True,
+                intended_roles={
+                    "conversation",
+                    "repo_question",
+                    "summarization",
+                    "memory_extraction",
+                },
             ),
             ModelProfile(
                 provider="deepseek",
@@ -94,6 +101,15 @@ class DeepSeekProvider:
                 privacy_level=PrivacyLevel.INTERNAL,
                 supports_tools=True,
                 supports_json=True,
+                supports_streaming=True,
+                intended_roles={
+                    "conversation",
+                    "repo_question",
+                    "strategic_reasoning",
+                    "research_planning",
+                    "summarization",
+                    "memory_extraction",
+                },
             ),
         ]
 

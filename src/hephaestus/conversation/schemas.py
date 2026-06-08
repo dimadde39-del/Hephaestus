@@ -144,8 +144,33 @@ class ConversationRequest(BaseModel):
     save_memory: bool = False
     save_strategy: bool = False
     show_context: bool = False
+    show_budget: bool = False
     discussion: bool = False
     project: str = "default"
+    provider: str = "local"
+    context_token_budget: int = Field(default=6_000, gt=0)
+    output_token_budget: int = Field(default=1_200, gt=0)
+
+
+class ConversationBudgetReport(BaseModel):
+    """Token, cost, and trimming details for one conversation response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider_model: str = "local/deterministic"
+    selected_provider: str = "local"
+    selected_model: str = "deterministic"
+    estimated_input_tokens: int = Field(default=0, ge=0)
+    estimated_output_tokens: int = Field(default=0, ge=0)
+    output_token_budget: int = Field(default=0, ge=0)
+    context_window: int = Field(default=0, ge=0)
+    prompt_token_budget: int = Field(default=0, ge=0)
+    estimated_cost: float = Field(default=0.0, ge=0)
+    context_trimmed: bool = False
+    trimming_notes: list[str] = Field(default_factory=list)
+    selected_context_count: int = Field(default=0, ge=0)
+    selected_memory_count: int = Field(default=0, ge=0)
+    selected_strategic_memory_count: int = Field(default=0, ge=0)
 
 
 class DeliberationPass(BaseModel):
@@ -178,10 +203,12 @@ class DeliberationResult(BaseModel):
     quality_evaluation: DiscussionQualityEvaluation | None = None
     research_plan: ResearchPlan | None = None
     confidence: float = Field(default=0.7, ge=0, le=1)
+    selected_context: list[ConversationContextItem] = Field(default_factory=list)
     provider_model: str = "local/deterministic"
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
     estimated_cost: float = Field(default=0.0, ge=0)
+    budget: ConversationBudgetReport = Field(default_factory=ConversationBudgetReport)
 
 
 class ConversationMemoryCandidate(BaseModel):
@@ -198,6 +225,7 @@ class ConversationMemoryCandidate(BaseModel):
     confidence: float = Field(default=0.7, ge=0, le=1)
     importance: float = Field(default=0.6, ge=0, le=1)
     rationale: str = ""
+    stability: str = "medium_term"
 
     @field_validator("tags")
     @classmethod
@@ -282,3 +310,4 @@ class ConversationResponse(BaseModel):
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
     estimated_cost: float = Field(default=0.0, ge=0)
+    budget: ConversationBudgetReport = Field(default_factory=ConversationBudgetReport)

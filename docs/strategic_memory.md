@@ -72,3 +72,11 @@ in high-impact decision traces.
 Simple conflict detection flags obvious tensions, such as a saved roadmap memory
 that says to launch before execution and a new candidate that says not to launch
 before execution.
+
+## Phase 5C Conversation Use
+
+Strategic memory has the highest priority in the conversation prompt budget.
+When `ask`, `discuss`, or chat assembles context, strategic memory is considered
+before repo summaries, recent session messages, and regular memory. Use
+`--show-budget` to see the selected strategic memory count and whether any
+lower-priority context was trimmed.
