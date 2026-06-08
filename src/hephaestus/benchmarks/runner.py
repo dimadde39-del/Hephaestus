@@ -38,6 +38,12 @@ from hephaestus.optimize.context_packer import (
 from hephaestus.optimize.model_router import ModelRouteRequest, ModelRoutingError, route_model
 from hephaestus.optimize.task_scheduler import SchedulerComparison, compare_schedulers
 from hephaestus.optimize.token_firewall import BudgetDecision, TokenBudget
+from hephaestus.pareto import ParetoRepository, get_preference_profile
+from hephaestus.pareto.analysis import (
+    build_pareto_selection_trace,
+    compare_benchmark_case,
+)
+from hephaestus.pareto.schemas import ParetoSelectionResult
 from hephaestus.policy_learning import (
     ProfileStore,
     apply_context_packer_profiles,
@@ -64,6 +70,8 @@ def run_all_benchmarks(
     repository: RunRepository | None = None,
     persist: bool = True,
     profile_ids: Iterable[str] | None = None,
+    pareto: bool = False,
+    pareto_preference: str = "balanced",
 ) -> list[BenchmarkResult]:
     """Run every benchmark fixture in the benchmark directory."""
 
@@ -75,6 +83,8 @@ def run_all_benchmarks(
             repository=repository,
             persist=persist,
             profile_ids=profile_id_list,
+            pareto=pareto,
+            pareto_preference=pareto_preference,
         )
         for case in cases
     ]
@@ -86,6 +96,8 @@ def run_benchmark(
     repository: RunRepository | None = None,
     persist: bool = True,
     profile_ids: Iterable[str] | None = None,
+    pareto: bool = False,
+    pareto_preference: str = "balanced",
 ) -> BenchmarkResult:
     """Run one benchmark and optionally persist a benchmark-mode run."""
 
@@ -178,6 +190,20 @@ def run_benchmark(
         model_routes=model_routes,
         approval_tasks=approval_tasks,
     )
+    pareto_selections: list[ParetoSelectionResult] = []
+    if pareto:
+        preference_profile = get_preference_profile(pareto_preference)
+        pareto_selections = compare_benchmark_case(
+            case,
+            preference_profile,
+            run_id=trace_run_id,
+            active_profiles=active_profiles,
+            source_decision_trace_ids=[trace.id for trace in decision_traces],
+        )
+        decision_traces.extend(
+            build_pareto_selection_trace(selection, trace_run_id)
+            for selection in pareto_selections
+        )
 
     if persist and run_repository is not None and run is not None:
         _persist_benchmark_run(
@@ -192,6 +218,7 @@ def run_benchmark(
             token_budget=adjusted_token_budget,
             approval_tasks=approval_tasks,
             decision_traces=decision_traces,
+            pareto_selections=pareto_selections,
         )
 
     top_rationale = most_common_rationale(decision_traces)
@@ -212,6 +239,7 @@ def run_benchmark(
         token_savings_summary=token_savings_summary,
         active_profile_ids=active_profile_ids,
         profile_applications=profile_applications,
+        pareto_selections=pareto_selections,
     )
     if persist and run_repository is not None and run is not None:
         run_repository.complete_run(
@@ -244,6 +272,7 @@ def run_benchmark(
         token_savings_summary=token_savings_summary,
         active_profile_ids=active_profile_ids,
         profile_applications=profile_applications,
+        pareto_selections=pareto_selections,
     )
 
 
@@ -536,9 +565,12 @@ def _persist_benchmark_run(
     token_budget: TokenBudget,
     approval_tasks: list[Task],
     decision_traces: list[DecisionTraceVariant],
+    pareto_selections: list[ParetoSelectionResult],
 ) -> None:
     trace_repository = DecisionTraceRepository(repository.database_path)
     trace_repository.save_traces(decision_traces)
+    if pareto_selections:
+        ParetoRepository(repository.database_path).save_selections(pareto_selections)
     repository.save_run_tasks(
         RunTaskRecord(
             run_id=run_id,
@@ -661,8 +693,10 @@ def _summary_text(
     token_savings_summary: str,
     active_profile_ids: list[str],
     profile_applications: list[ProfileApplicationResult],
+    pareto_selections: list[ParetoSelectionResult],
 ) -> str:
     selected_models = sorted({route.selected_model for route in model_routes})
+    pareto_summary = _pareto_summary(pareto_selections)
     return "\n".join(
         [
             f"Benchmark: {case.id}",
@@ -682,12 +716,25 @@ def _summary_text(
             f"Decision count: {decision_count}.",
             "Active profiles: " + (", ".join(active_profile_ids) or "none"),
             f"Profile applications: {len(profile_applications)}.",
+            pareto_summary,
             f"Top decision type: {_sentence(top_decision_type)}",
             f"Top decision rationale: {_sentence(top_decision_rationale)}",
             f"Most common rejection reason: {_sentence(most_common_rejection_reason)}",
             f"Token savings summary: {_sentence(token_savings_summary)}",
             budget.explanation,
         ]
+    )
+
+
+def _pareto_summary(selections: list[ParetoSelectionResult]) -> str:
+    if not selections:
+        return "Pareto frontiers: none."
+    selected = ", ".join(selection.selected_candidate.label for selection in selections[:4])
+    suffix = "" if len(selections) <= 4 else f", +{len(selections) - 4} more"
+    return (
+        f"Pareto frontiers: {len(selections)}; "
+        f"dominated candidates: {sum(item.dominated_candidate_count for item in selections)}; "
+        f"selected: {selected}{suffix}."
     )
 
 

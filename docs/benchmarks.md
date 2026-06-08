@@ -15,6 +15,7 @@ uv run heph benchmark show <benchmark_id>
 uv run heph benchmark run
 uv run heph benchmark run benchmarks/task_graphs/dependency_trap.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
 uv run heph benchmark run --json
 ```
 
@@ -35,6 +36,9 @@ Passing an id, stem, filename, or path runs one fixture.
   common rejection reason, and token savings summary.
 - Outcome learning with `--evaluate`: outcome counts, deterministic reflections,
   learning signals, failure memory drafts, and policy update suggestions.
+- Pareto comparison with `--pareto`: candidate counts, frontier counts,
+  dominated candidates, selected candidates, preference profile, and tradeoff
+  explanation.
 
 Greedy is included because it is a clear baseline. Simulated annealing explores
 more schedules, but it is not automatically better; reports show cases where it
@@ -62,6 +66,17 @@ When `--evaluate` is passed, benchmark traces also create rows in `outcomes`,
 `reflections`, `learning_signals`, `failure_memory_drafts`, and
 `policy_update_suggestions`. The records remain local SQLite data and do not
 auto-apply policy changes.
+
+When `--pareto` is passed, benchmark runs also write `pareto_frontiers`,
+`pareto_candidates`, and `pareto_selections`, plus `phase=pareto` optimization
+traces. These records can be inspected with:
+
+```bash
+uv run heph pareto list
+uv run heph pareto show <frontier_id>
+uv run heph explain <run_id>
+uv run heph explain <run_id> --summary
+```
 
 Inspect recent runs with:
 

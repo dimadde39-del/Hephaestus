@@ -50,34 +50,51 @@ Learning Signal -> Profile Suggestion -> Decision Quality Profile -> Future Deci
 
 ## v0.5 Pareto Optimization + Decision Tradeoff Frontier
 
-- Evaluate competing decision candidates across quality, cost, latency, risk,
-  privacy, and token usage.
-- Preserve Pareto frontiers before collapsing everything into one score.
-- Explain tradeoffs between candidates rather than only reporting a winner.
-- Compare profile-influenced candidates against unprofiled baselines.
+- Added candidate generation for model routing, context packing, and scheduler
+  strategies.
+- Added objective vectors across quality, cost, latency, risk, privacy, token
+  usage, confidence, safety, and profile alignment.
+- Added built-in Pareto preference profiles: `balanced`, `frugal`,
+  `quality_first`, `privacy_first`, `safety_first`, and `speed_first`.
+- Added frontier detection, preference ranking, tradeoff explanations, SQLite
+  persistence, CLI commands, benchmark `--pareto`, and explain integration.
+- Preserved the principle:
 
-## v0.6 Token Firewall
+```text
+Hephaestus does not hide tradeoffs behind a single magic score.
+It exposes the decision frontier and explains why a candidate was selected.
+```
+
+## v0.6 QUBO / Ising Formulation Layer
+
+- Convert context packing and task scheduling problems into explicit binary
+  variables.
+- Compare QUBO-style formulations against greedy, annealing, and Pareto-selected
+  approaches.
+- Keep constraints inspectable and map solver output back into decision traces.
+
+## v0.7 Token Firewall
 
 - Per-run and per-project budgets.
 - Cost ledgers.
 - Provider-specific model catalogs.
 - Quality regression checks.
 
-## v0.7 Memory Monster
+## v0.8 Memory Monster
 
 - Hybrid search.
 - Graph memory.
 - Verification and decay.
 - Failure-to-decision learning.
 
-## v0.8 Skill Growth
+## v0.9 Skill Growth
 
 - Skill registry.
 - Skill validation.
 - Promotion from repeated memories.
 - Safety review before using generated skills.
 
-## v0.9 Dashboard
+## v0.10 Dashboard
 
 - Local web dashboard.
 - Plan visualizations.

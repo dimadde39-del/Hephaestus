@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -280,6 +280,71 @@ CREATE INDEX IF NOT EXISTS idx_profile_applications_profile_id
 ON profile_applications(profile_id, created_at);
 """
 
+MIGRATION_6 = """
+CREATE TABLE IF NOT EXISTS pareto_frontiers (
+    id TEXT PRIMARY KEY,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    title TEXT NOT NULL DEFAULT '',
+    candidate_type TEXT NOT NULL DEFAULT '',
+    preference_profile_id TEXT NOT NULL,
+    selected_candidate_id TEXT,
+    candidate_count INTEGER NOT NULL DEFAULT 0,
+    frontier_count INTEGER NOT NULL DEFAULT 0,
+    dominated_count INTEGER NOT NULL DEFAULT 0,
+    tradeoff_summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_pareto_frontiers_run_id
+ON pareto_frontiers(run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_pareto_frontiers_preference
+ON pareto_frontiers(preference_profile_id, created_at);
+
+CREATE TABLE IF NOT EXISTS pareto_candidates (
+    id TEXT PRIMARY KEY,
+    frontier_id TEXT NOT NULL REFERENCES pareto_frontiers(id) ON DELETE CASCADE,
+    candidate_id TEXT NOT NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    candidate_type TEXT NOT NULL,
+    label TEXT NOT NULL,
+    constraints_satisfied INTEGER NOT NULL DEFAULT 1,
+    objective_vector_json TEXT NOT NULL DEFAULT '{}',
+    violated_constraints_json TEXT NOT NULL DEFAULT '[]',
+    estimated_cost REAL NOT NULL DEFAULT 0,
+    estimated_tokens INTEGER NOT NULL DEFAULT 0,
+    rationale TEXT NOT NULL DEFAULT '',
+    source_decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    source_profile_ids_json TEXT NOT NULL DEFAULT '[]',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_pareto_candidates_frontier_id
+ON pareto_candidates(frontier_id, candidate_type);
+
+CREATE INDEX IF NOT EXISTS idx_pareto_candidates_run_id
+ON pareto_candidates(run_id, candidate_type);
+
+CREATE TABLE IF NOT EXISTS pareto_selections (
+    id TEXT PRIMARY KEY,
+    frontier_id TEXT NOT NULL UNIQUE REFERENCES pareto_frontiers(id) ON DELETE CASCADE,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    selected_candidate_id TEXT NOT NULL,
+    preference_profile_id TEXT NOT NULL,
+    preference_profile_json TEXT NOT NULL DEFAULT '{}',
+    ranked_candidate_ids_json TEXT NOT NULL DEFAULT '[]',
+    candidate_scores_json TEXT NOT NULL DEFAULT '{}',
+    tradeoff_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_pareto_selections_run_id
+ON pareto_selections(run_id, created_at);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -340,6 +405,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (5, datetime.now(UTC).isoformat()),
+        )
+    if 6 not in applied_versions:
+        connection.executescript(MIGRATION_6)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (6, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

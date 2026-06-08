@@ -29,10 +29,14 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         trace_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_traces'"
         ).fetchone()
+        pareto_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pareto_frontiers'"
+        ).fetchone()
 
-    assert migration_count[0] == 5
+    assert migration_count[0] == 6
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
+    assert pareto_table[0] == "pareto_frontiers"
 
 
 def test_memory_persists_across_repository_instances(tmp_path) -> None:

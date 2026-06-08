@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from hephaestus.benchmarks.schemas import BenchmarkCase, BenchmarkResult
+from hephaestus.pareto.renderer import build_pareto_summary_table
 from hephaestus.policy_learning.renderer import build_profile_application_table
 
 
@@ -148,6 +149,10 @@ def print_benchmark_result(console: Console, result: BenchmarkResult) -> None:
     console.print(decision_table)
     if result.profile_applications:
         console.print(build_profile_application_table(result.profile_applications))
+    if result.pareto_selections:
+        console.print(build_pareto_summary_table(result.pareto_selections))
+        for selection in result.pareto_selections:
+            console.print(selection.tradeoff_explanation.summary)
     console.print(Panel(result.summary, title="Summary"))
     if result.run_id is not None:
         console.print(f"Saved run: {result.run_id}")

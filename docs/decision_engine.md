@@ -19,6 +19,7 @@ Users and future runtime systems should be able to answer:
 - Did the decision succeed, fail, partially succeed, or remain unknown?
 - What learning signal or failure draft came from the outcome?
 - Did an active decision quality profile influence the decision?
+- Was a Pareto tradeoff frontier generated, and which candidate was selected?
 
 ## Decision Types
 
@@ -95,6 +96,20 @@ triggers, token savings, confidence, and objective score across all saved runs.
 When profile applications exist, `explain` shows which profile applied, which
 decision area it affected, the before/after effect, and the profile rationale.
 `--summary` includes a profile application count.
+When Pareto selections exist, `explain` shows frontier counts, dominated
+candidate counts, selected candidates, preference profiles, and tradeoff
+summaries.
+
+## Pareto Traces
+
+Phase 3D represents each Pareto selection as an `optimization` decision trace
+with phase `pareto`. The trace links to the persisted frontier ID, records the
+selected candidate, lists lower-ranked or invalid candidates as alternatives,
+and includes metrics for candidate count, frontier count, dominated count,
+preference profile, quality, cost, risk, and safety.
+
+This lets the existing explain layer show not only the final scalar decision,
+but also the tradeoff surface that produced it.
 
 ## Outcome Attachments
 
@@ -191,6 +206,8 @@ The decision engine is infrastructure for later phases:
   `policy_update_id`.
 - QUBO/Ising optimization can emit comparable traces for binary-variable
   choices and constraint penalties.
+- Pareto frontiers can become the comparison surface for those future QUBO/Ising
+  candidates.
 - Self-evaluation can score whether rationales match outcomes.
 - Skill growth can identify repeated rejection reasons and approval triggers.
 - Dashboards can visualize trace trees and aggregate optimizer behavior.

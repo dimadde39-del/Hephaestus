@@ -61,6 +61,20 @@ from hephaestus.outcomes import (
     reflect_run_outcomes,
     summarize_outcome_learning,
 )
+from hephaestus.pareto import ParetoRepository, get_preference_profile
+from hephaestus.pareto.analysis import (
+    build_pareto_selection_trace,
+    compare_benchmark_case,
+)
+from hephaestus.pareto.renderer import (
+    build_frontier_detail_renderable,
+    build_frontier_list_table,
+    build_pareto_summary_panel,
+    build_pareto_summary_table,
+    build_preference_profiles_table,
+    build_selection_renderable,
+)
+from hephaestus.pareto.schemas import ParetoSelectionResult
 from hephaestus.policy_learning import (
     DecisionArea,
     DecisionQualityProfile,
@@ -108,6 +122,7 @@ benchmark_app = typer.Typer(help="Optimizer benchmark commands.", no_args_is_hel
 outcome_app = typer.Typer(help="Decision outcome commands.", no_args_is_help=True)
 learn_app = typer.Typer(help="Outcome-derived learning artifact commands.", no_args_is_help=True)
 profile_app = typer.Typer(help="Decision quality profile commands.", no_args_is_help=True)
+pareto_app = typer.Typer(help="Pareto decision frontier commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -116,6 +131,7 @@ app.add_typer(benchmark_app, name="benchmark")
 app.add_typer(outcome_app, name="outcome")
 app.add_typer(learn_app, name="learn")
 app.add_typer(profile_app, name="profile")
+app.add_typer(pareto_app, name="pareto")
 
 
 class DemoScenario(BaseModel):
@@ -603,6 +619,17 @@ def benchmark_run(
         list[str] | None,
         typer.Option("--profile", help="Profile ID to apply for this benchmark run."),
     ] = None,
+    pareto: Annotated[
+        bool,
+        typer.Option("--pareto", help="Generate and persist Pareto tradeoff frontiers."),
+    ] = False,
+    pareto_preference: Annotated[
+        str,
+        typer.Option(
+            "--pareto-preference",
+            help="Pareto preference profile to use when --pareto is enabled.",
+        ),
+    ] = "balanced",
 ) -> None:
     """Run one benchmark fixture, or all fixtures when no target is supplied."""
 
@@ -612,7 +639,19 @@ def benchmark_run(
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(1) from error
 
-    results = [run_benchmark(case, profile_ids=profile) for case in cases]
+    try:
+        results = [
+            run_benchmark(
+                case,
+                profile_ids=profile,
+                pareto=pareto,
+                pareto_preference=pareto_preference,
+            )
+            for case in cases
+        ]
+    except ValueError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
     if evaluate:
         for result in results:
             if result.run_id is not None:
@@ -643,6 +682,115 @@ def benchmark_run(
                     summary,
                 )
             )
+
+
+@pareto_app.command("profiles")
+def pareto_profiles() -> None:
+    """Show built-in Pareto preference profiles."""
+
+    console.print(build_preference_profiles_table())
+
+
+@pareto_app.command("compare")
+def pareto_compare(
+    benchmark_fixture: Annotated[
+        str,
+        typer.Argument(help="Benchmark id, file stem, filename, or JSON path."),
+    ],
+    preference: Annotated[
+        str,
+        typer.Option("--preference", help="Pareto preference profile to apply."),
+    ] = "balanced",
+) -> None:
+    """Generate, select, explain, and persist Pareto frontiers for a benchmark fixture."""
+
+    try:
+        case = load_benchmark(benchmark_fixture)
+        preference_profile = get_preference_profile(preference)
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+
+    run_repository = RunRepository()
+    run = run_repository.save_run(
+        RunRecord(goal=f"Pareto compare {case.id}: {case.goal or case.title}", mode="pareto")
+    )
+    profile_store = ProfileStore(run_repository.database_path)
+    active_profiles = profile_store.list_active_profiles()
+    selections = compare_benchmark_case(
+        case,
+        preference_profile,
+        run_id=run.id,
+        active_profiles=active_profiles,
+    )
+    ParetoRepository(run_repository.database_path).save_selections(selections)
+    DecisionTraceRepository(run_repository.database_path).save_traces(
+        build_pareto_selection_trace(selection, run.id) for selection in selections
+    )
+    total_tokens = sum(selection.selected_candidate.estimated_tokens for selection in selections)
+    total_cost = sum(selection.selected_candidate.estimated_cost for selection in selections)
+    average_score = _average_pareto_score(selections)
+    max_risk = max(
+        (selection.selected_candidate.objective_vector.risk for selection in selections),
+        default=0.0,
+    )
+    summary = "\n".join(
+        [
+            f"Pareto fixture: {case.id}",
+            f"Preference: {preference_profile.id}",
+            f"Frontiers: {len(selections)}",
+            (
+                "Selected candidates: "
+                + (", ".join(selection.selected_candidate.label for selection in selections) or "none")
+            ),
+            (
+                "Dominated candidates: "
+                + str(sum(selection.dominated_candidate_count for selection in selections))
+            ),
+        ]
+    )
+    run_repository.complete_run(
+        run.id,
+        estimated_input_tokens=total_tokens,
+        estimated_output_tokens=0,
+        estimated_cost=total_cost,
+        objective_score=average_score,
+        risk_score=max_risk,
+        summary=summary,
+    )
+
+    for selection in selections:
+        console.print(build_selection_renderable(selection))
+    console.print(f"Saved Pareto run: {run.id}")
+    console.print(
+        "Persisted frontiers: "
+        + ", ".join(selection.frontier.id for selection in selections)
+    )
+
+
+@pareto_app.command("list")
+def pareto_list(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum frontiers to show.")] = 20,
+) -> None:
+    """List persisted Pareto frontiers."""
+
+    repository = ParetoRepository()
+    console.print(build_frontier_list_table(repository.list_frontiers(limit=limit)))
+
+
+@pareto_app.command("show")
+def pareto_show(
+    frontier_id: Annotated[str, typer.Argument(help="Pareto frontier ID to inspect.")],
+) -> None:
+    """Show a persisted Pareto frontier."""
+
+    repository = ParetoRepository()
+    selection = repository.get_selection(frontier_id)
+    frontier = selection.frontier if selection is not None else repository.get_frontier(frontier_id)
+    if frontier is None:
+        console.print(f"[red]Pareto frontier not found: {frontier_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_frontier_detail_renderable(frontier, selection))
 
 
 @memory_app.command("add")
@@ -763,9 +911,14 @@ def explain_run(
     outcome_repository = OutcomeRepository(trace_repository.database_path)
     profile_store = ProfileStore(trace_repository.database_path)
     profile_applications = profile_store.list_profile_applications(run_id=run_id)
+    pareto_selections = ParetoRepository(trace_repository.database_path).list_selections_by_run(
+        run_id
+    )
     if summary:
         console.print(build_decision_summary_renderable(run_id, summarize_decisions(traces)))
         console.print(build_profile_application_summary_renderable(profile_applications))
+        if pareto_selections:
+            console.print(build_pareto_summary_panel(pareto_selections))
         outcome_summary = _outcome_learning_summary(outcome_repository, run_id)
         if outcome_summary.total_outcomes:
             console.print(build_outcome_summary_renderable(outcome_summary))
@@ -788,6 +941,10 @@ def explain_run(
             profile_applications,
         )
     )
+    if pareto_selections:
+        console.print(build_pareto_summary_table(pareto_selections))
+        for selection in pareto_selections:
+            console.print(Panel(selection.tradeoff_explanation.summary, title="Tradeoff"))
 
 
 @outcome_app.command("add")
@@ -1390,6 +1547,17 @@ def _outcome_learning_summary(
         repository.list_failure_memory_drafts(run_id=run_id),
         repository.list_policy_update_suggestions(run_id=run_id),
     )
+
+
+def _average_pareto_score(selections: list[ParetoSelectionResult]) -> float:
+    scores = [
+        selection.candidate_scores[selection.selected_candidate.id]
+        for selection in selections
+        if selection.selected_candidate.id in selection.candidate_scores
+    ]
+    if not scores:
+        return 0.0
+    return sum(scores) / len(scores)
 
 
 def _format_datetime(value: datetime | None) -> str:

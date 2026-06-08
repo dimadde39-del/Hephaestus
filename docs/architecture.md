@@ -17,6 +17,8 @@ always-on runtime without forcing paid APIs or a single model provider.
   and Rich renderers.
 - `policy_learning`: decision quality profile schemas, SQLite profile store,
   deterministic learner, profile appliers, renderers, and profile summaries.
+- `pareto`: objective vectors, preference profiles, candidate generation,
+  Pareto frontier detection, selection, persistence, and Rich renderers.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -46,6 +48,7 @@ User goal
   -> Reflection
   -> Learning signal / failure draft
   -> Profile suggestion / active profile bias
+  -> Pareto frontier / tradeoff selection
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -76,6 +79,8 @@ history before any always-on process exists.
   can influence future decisions.
 - Require explicit activation; draft profiles do not silently change behavior.
 - Record profile applications so profile influence can be explained later.
+- Expose tradeoff frontiers instead of hiding all decisions behind one scalar
+  score.
 - Treat benchmark reports as designed optimizer probes, not real-world AGI
   performance claims.
 
@@ -143,6 +148,31 @@ Active profiles can bias future optimizer inputs:
 Hephaestus does not silently rewrite itself.
 It converts outcomes into inspectable decision quality profiles that can be reviewed, activated, and measured.
 
+## Pareto Architecture
+
+Phase 3D adds `pareto_frontiers`, `pareto_candidates`, and
+`pareto_selections` tables. The package keeps a compact JSON roundtrip for full
+fidelity while also exposing queryable columns for run ID, candidate type,
+preference profile, selected candidate, candidate count, frontier count, and
+dominated count.
+
+The Pareto flow is:
+
+```text
+generate candidates
+  -> score objective vectors
+  -> remove invalid candidates unless none are valid
+  -> compute non-dominated frontier
+  -> rank frontier with a preference profile
+  -> persist selection and explain the tradeoff
+```
+
+Preference profiles are not learned policies. They are current selection modes
+such as `balanced`, `frugal`, and `safety_first`. Active decision quality
+profiles from Phase 3C can still affect scoring by raising model risk, boosting
+failure-memory context, changing scheduler weights, or increasing safety
+importance.
+
 ## Benchmark Persistence
 
 The benchmark layer deliberately reuses the generic run history schema. A
@@ -158,3 +188,5 @@ Use `heph benchmark run --evaluate` or `heph reflect <id>` to attach simulated
 outcomes and learning artifacts to benchmark traces.
 Active profiles are used by benchmark runs by default, and explicit profiles can
 be supplied with `heph benchmark run --profile <profile_id>`.
+With `--pareto`, benchmark runs also persist frontiers and optimization traces
+that mention the selected tradeoff candidate.

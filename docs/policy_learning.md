@@ -85,11 +85,28 @@ uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --
 `heph explain <run_id>` shows profile applications. `--summary` includes a
 profile application count.
 
+## Preference Profiles vs Decision Quality Profiles
+
+Phase 3D adds Pareto preference profiles. They are not learned policies.
+
+- Preference profile: the current selection mode for ranking a Pareto frontier,
+  for example `balanced`, `frugal`, `quality_first`, `privacy_first`,
+  `safety_first`, or `speed_first`.
+- Decision quality profile: a learned, reviewed, activatable rule derived from
+  outcomes, reflections, learning signals, and failure evidence.
+
+Both can operate in one run. Active decision quality profiles can adjust model
+risk, context failure-memory importance, scheduler weights, or safety emphasis.
+The selected Pareto preference then chooses among valid frontier candidates.
+
 ## Safety Boundary
 
 Profiles are not unsafe self-modification. They are reviewed configuration
 records with evidence, source IDs, rules, status, and application logs. A profile
 can be archived when it is no longer wanted.
+
+Pareto preference profiles are fixed, inspectable selection modes. They do not
+learn by themselves and they do not rewrite decision quality profiles.
 
 This is how Hephaestus starts saying:
 

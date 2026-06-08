@@ -56,6 +56,33 @@ shown directly.
 The scheduler comparison also emits an `optimization` trace that records the
 winning scheduler, score delta, objective score, and constraints considered.
 
+## Pareto Frontiers
+
+Phase 3D adds multi-objective comparison before the final recommendation.
+Instead of only saying `best score = 84.2`, Hephaestus can show which candidate
+is cheapest, highest quality, safest, fastest, or best balanced.
+
+```text
+Generate candidates -> score multiple objectives -> identify Pareto frontier -> select final candidate -> explain tradeoff
+```
+
+The current dimensions are quality, cost, latency, risk, privacy, token usage,
+confidence, safety, and profile alignment. Quality, confidence, safety, privacy,
+and profile alignment are maximized. Cost, latency, risk, and token usage are
+minimized.
+
+Built-in preference profiles rank a frontier:
+
+- `balanced`: moderate weights across all objectives.
+- `frugal`: cost and token reduction with quality/safety thresholds.
+- `quality_first`: quality and confidence.
+- `privacy_first`: local/private choices and low exposure risk.
+- `safety_first`: safety, risk reduction, and approval-preserving choices.
+- `speed_first`: latency and simpler plans.
+
+Hephaestus does not hide tradeoffs behind a single magic score.
+It exposes the decision frontier and explains why a candidate was selected.
+
 ## Future QUBO / Ising Direction
 
 Later versions can represent ordering, model selection, context inclusion, and
@@ -70,6 +97,11 @@ Hard constraints become large penalties; soft preferences become weighted terms.
 That opens the door to QUBO/Ising solvers, annealing benchmarks, and hybrid
 classical/quantum-inspired planning.
 
+Pareto frontiers prepare that layer by making the decision surface explicit:
+the future formulation can convert context inclusion and task ordering
+candidates into binary variables, then compare QUBO/Ising output against greedy,
+annealing, and Pareto-selected approaches.
+
 ## Where Optimization Applies
 
 - Task order.
@@ -79,6 +111,7 @@ classical/quantum-inspired planning.
 - Risk and autonomy decisions.
 - Token budget allocation.
 - Active decision quality profile application.
+- Pareto frontier selection across competing objectives.
 - Future multi-agent task allocation.
 - Future skill promotion.
 
@@ -135,6 +168,8 @@ uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --
 
 Reports include profile application counts and a table of threshold/weight or
 context strategy changes caused by profiles.
+With `--pareto`, reports also include selected frontier candidates and tradeoff
+explanations.
 
 ## Explainability
 

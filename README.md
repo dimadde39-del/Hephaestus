@@ -16,7 +16,7 @@ production agent OS yet, not a chatbot wrapper, and not a claim of AGI. It is a
 typed, testable Python core for spec-driven planning, persistent local memory,
 model routing, context packing, token budgeting, safe tool gating, benchmark
 proof reports, explainable decision traces, outcome learning, decision quality
-profiles, and a working CLI demo.
+profiles, Pareto tradeoff frontiers, and a working CLI demo.
 
 ## Core Loop
 
@@ -33,6 +33,7 @@ CLI
  |-- Decision layer: typed traces, persistence, rendering, aggregate analysis
  |-- Outcome layer: outcomes, reflections, learning signals, failure drafts
  |-- Policy learning layer: draft/active profiles and profile applications
+ |-- Pareto layer: candidates, objective vectors, frontiers, selections
  |-- Memory layer: episodic, semantic, project, failure, decision records
  |-- Optimization core
  |    |-- central objective function
@@ -104,6 +105,19 @@ uv run heph learn policies
 
 The benchmark suite is designed to test optimizer behavior, not to claim
 real-world AGI performance.
+
+Add `--pareto` to expose the decision frontier before the final recommendation:
+
+```bash
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
+uv run heph pareto profiles
+uv run heph pareto compare benchmarks/task_graphs/context_overload.json --preference balanced
+uv run heph pareto list
+uv run heph pareto show <frontier_id>
+```
+
+Hephaestus does not hide tradeoffs behind a single magic score.
+It exposes the decision frontier and explains why a candidate was selected.
 
 ## Explainable Decision Engine
 
@@ -189,6 +203,25 @@ dependency/risk penalties, and make safety approval gates more conservative.
 Each application is recorded in SQLite and appears in benchmark reports and
 `heph explain <run_id>`.
 
+## Pareto Optimization + Decision Tradeoff Frontier
+
+Phase 3D adds explicit tradeoff frontiers for model routing, context packing,
+and scheduler choices:
+
+```text
+Generate candidates -> score multiple objectives -> identify Pareto frontier -> select final candidate -> explain tradeoff
+```
+
+Candidates are scored across quality, cost, latency, risk, privacy, token usage,
+confidence, safety, and profile alignment. Preference profiles such as
+`balanced`, `frugal`, `quality_first`, `privacy_first`, `safety_first`, and
+`speed_first` rank the frontier after invalid candidates are filtered.
+
+Preference profiles are selection modes. Decision quality profiles are learned
+rules from outcomes. They coexist: active learned profiles can influence
+candidate scoring, while the current Pareto preference decides which valid
+frontier candidate is selected.
+
 ## Quickstart
 
 ```bash
@@ -202,6 +235,9 @@ uv run heph optimize examples/repo_release_demo.json
 uv run heph benchmark list
 uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
+uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
+uv run heph pareto profiles
+uv run heph pareto compare benchmarks/task_graphs/model_quality_threshold.json
 uv run heph profile suggest
 uv run heph profile list
 uv run heph runs
@@ -230,6 +266,8 @@ history with `mode=benchmark`. Outcome learning commands use the same database
 and never require paid APIs. Active decision quality profiles in the same
 database are applied to benchmark and optimize runs, with application records
 shown in reports and explanations.
+Pareto frontiers are also persisted in the same database and appear in
+benchmark reports and `heph explain <run_id>` when generated.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -283,6 +321,8 @@ Built:
   drafts, and policy update suggestions.
 - Decision quality profiles, profile persistence, explicit activation/archive,
   profile application records, and profile-aware benchmark/explain integration.
+- Pareto candidate schemas, objective vectors, preference profiles, frontier
+  persistence, CLI comparison commands, and benchmark/explain integration.
 - Typer/Rich CLI.
 
 Not built yet:
@@ -292,3 +332,4 @@ Not built yet:
 - Full self-improving skill promotion.
 - Unsafe automatic self-modification.
 - Production sandbox execution.
+- QUBO/Ising formulation layer.
