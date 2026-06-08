@@ -162,12 +162,44 @@ Repo Intelligence -> Repo-Aware Task Graph -> Optimized Execution Plan -> Safe R
 The exported fixture gives the optimizer, Pareto layer, and QUBO layer real
 local task graphs without executing repository commands.
 
+## Release Planning Integration
+
+Phase 4B turns repo intelligence into a one-command release planning demo:
+
+```bash
+uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release plan <path>
+uv run heph release plan <path> --profile <profile_id>
+uv run heph release list
+uv run heph release show <release_run_id>
+```
+
+The flow is:
+
+```text
+Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
+```
+
+If `--profile <profile_id>` is supplied, release planning reuses an existing
+repo profile. Otherwise it inspects the path read-only and persists a new
+profile. `--latest-profile` can reuse the newest profile for a path when one is
+available.
+
+Release planning still does not execute validation commands. It converts
+detected validation, CI, env-file, script-risk, and approval signals into a
+conservative recommendation such as `needs_validation`. The recommendation
+links to `heph explain <run_id>`, `heph repo tasks <profile_id>`, `heph pareto
+show <frontier_id>`, and `heph qubo show <problem_id>` when those artifacts
+exist.
+
 ## Persistence
 
 Repo intelligence uses the local SQLite database:
 
 - `repo_profiles`
 - `repo_inspections`
+- `release_plans` for Phase 4B release planning results linked back to repo
+  profiles.
 
 Rows store the repo path, repo name, stack summary, validation plan, generated
 tasks, risk summary, full report JSON, and inspection timestamp.
@@ -180,4 +212,4 @@ tasks, risk summary, full report JSON, and inspection timestamp.
   frameworks.
 - Validation plans are suggestions, not proof that commands will pass.
 - No dashboard, daemon, browser automation, voice, Telegram, or autonomous code
-  editing is included in Phase 4A.
+  editing is included in Phase 4A or 4B.

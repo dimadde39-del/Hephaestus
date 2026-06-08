@@ -82,12 +82,18 @@ uv run heph pareto compare benchmarks/task_graphs/context_overload.json --prefer
 uv run heph pareto list
 uv run heph pareto show <frontier_id>
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
+uv run heph release plan . --pareto --qubo --evaluate
 uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
 ```
 
 `heph explain <run_id>` shows persisted Pareto selections when present.
 `--summary` includes frontier count, dominated candidate count, selected
 candidate count, and preference profiles used.
+
+In Phase 4B, `heph release plan . --pareto` generates Pareto frontiers from
+repo-aware release tasks before producing the release recommendation. This keeps
+the public demo honest: the user can inspect which tradeoffs were considered
+instead of only seeing one scalar readiness score.
 
 ## Persistence
 

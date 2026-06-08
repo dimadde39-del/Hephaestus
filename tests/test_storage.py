@@ -38,13 +38,17 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         repo_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'repo_profiles'"
         ).fetchone()
+        release_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'release_plans'"
+        ).fetchone()
 
-    assert migration_count[0] == 8
+    assert migration_count[0] == 9
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
     assert pareto_table[0] == "pareto_frontiers"
     assert qubo_table[0] == "qubo_problems"
     assert repo_table[0] == "repo_profiles"
+    assert release_table[0] == "release_plans"
 
 
 def test_memory_persists_across_repository_instances(tmp_path) -> None:

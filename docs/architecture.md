@@ -25,6 +25,8 @@ always-on runtime without forcing paid APIs or a single model provider.
 - `repo`: read-only repository inspection, stack detection, command risk
   classification, validation plan generation, repo-aware tasks, persistence,
   Rich renderers, and benchmark export.
+- `release`: repo-aware release planning schemas, orchestration, readiness
+  analysis, SQLite persistence, and Rich demo renderers.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -58,6 +60,7 @@ User goal
   -> Pareto frontier / tradeoff selection
   -> QUBO formulation / local binary solve
   -> Repo-aware benchmark export
+  -> Release planning recommendation
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -99,6 +102,8 @@ history before any always-on process exists.
 - Inspect repositories before suggesting real development actions.
 - Keep repo intelligence read-only: commands are detected, classified, and
   suggested, not executed.
+- Keep release planning pre-execution: optimize, explain, evaluate simulated
+  outcomes, and learn before any command execution is allowed.
 
 ## Repo Intelligence Architecture
 
@@ -122,6 +127,34 @@ local repo path
 Hephaestus does not jump straight from prompt to action.
 It first inspects the repository, builds a project profile, generates repo-aware
 tasks, and then lets the decision engine optimize the plan.
+
+## Release Planning Architecture
+
+Phase 4B adds `release_plans` and `src/hephaestus/release/`. The release layer
+does not introduce a new optimizer. It composes existing systems:
+
+```text
+repo inspect/load profile
+  -> generate repo-aware release tasks
+  -> convert profile into BenchmarkCase
+  -> run optimizer proof with mode=release
+  -> optionally persist Pareto frontiers
+  -> optionally persist QUBO problems and solutions
+  -> persist decision traces
+  -> optionally evaluate simulated outcomes and learning signals
+  -> compute deterministic readiness score
+  -> persist ReleasePlanningResult
+```
+
+`release_plans` stores the release result ID, repo profile ID, goal, linked
+optimizer run ID, coarse readiness score, recommendation status/summary, JSON
+IDs for Pareto, QUBO, decision traces, outcomes, learning signals, full raw
+Pydantic JSON, and creation time.
+
+Hephaestus does not run blindly.
+It inspects the repository, builds a release plan, exposes tradeoffs, formulates
+optimizations, explains decisions, and records learning signals before execution
+is ever allowed.
 
 ## Decision Trace Architecture
 
@@ -255,3 +288,7 @@ that mention the selected tradeoff candidate.
 With `--qubo`, benchmark runs persist QUBO problems and solutions, add
 `phase=qubo` optimization traces, and include QUBO summaries in
 `heph explain <id>` and `heph explain <id> --summary`.
+
+Release planning reuses the same runner with `mode=release`, so `heph runs`,
+`heph run show <id>`, and `heph explain <id>` work without a separate release
+run-history schema.

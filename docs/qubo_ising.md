@@ -78,9 +78,15 @@ uv run heph qubo list
 uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
 uv run heph qubo convert-ising <problem_id>
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
+uv run heph release plan . --pareto --qubo --evaluate
 ```
 
 `heph qubo show` displays variables, objective terms, constraints, and the latest solution. `heph qubo compare` persists a run, formulates relevant problems, solves them, compares against baselines, and also creates Pareto reference records for comparison.
+
+In Phase 4B, `heph release plan . --qubo` formulates QUBO problems from the
+repo-aware release benchmark case and links their problem IDs into the persisted
+release plan. `heph release show <release_run_id>` suggests `heph qubo show
+<problem_id>` for deeper inspection.
 
 ## QUBO vs Greedy, Annealing, And Pareto
 
@@ -107,6 +113,9 @@ Problems and solutions are stored as full JSON roundtrips with queryable summary
 uv run heph explain <run_id>
 uv run heph explain <run_id> --summary
 ```
+
+Release runs use the same QUBO persistence and explain integration with
+`mode=release`.
 
 ## Limitations
 

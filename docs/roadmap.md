@@ -106,40 +106,60 @@ It first inspects the repository, builds a project profile, generates repo-aware
 
 ## v0.8 Repo-Aware Release Planning Demo
 
-- Connect repo inspection, repo planning, optimizer, Pareto, QUBO, explain, and
-  outcome learning into one polished local demo.
-- Keep execution safe and approval-gated.
-- Target flow:
+- Added `src/hephaestus/release/` with request/result/recommendation schemas,
+  planner helpers, orchestrator, repository, analysis, and Rich renderers.
+- Added SQLite persistence for `release_plans`.
+- Added `heph release plan/list/show`.
+- Connected repo inspection, repo planning, optimizer, Pareto, QUBO, explain,
+  simulated outcome evaluation, learning signals, and release recommendation
+  generation into one local demo.
+- Kept execution deferred: validation, deploy, publish, destructive, and
+  external side-effect commands are not run in this phase.
+- Public demo flow:
 
 ```bash
-heph repo inspect .
-heph repo plan <profile_id>
-heph optimize --repo-profile <profile_id> --pareto --qubo
-heph explain <run_id>
+heph release plan . --pareto --qubo --evaluate
+heph release show <release_run_id>
 ```
 
-## v0.9 Token Firewall
+- Preserved the principle:
+
+```text
+Hephaestus does not run blindly.
+It inspects the repository, builds a release plan, exposes tradeoffs, formulates optimizations, explains decisions, and records learning signals before execution is ever allowed.
+```
+
+## v0.9 Public Alpha Readiness Polish
+
+- Improve README hero and project identity.
+- Polish CLI copy and visual hierarchy.
+- Improve demo examples and onboarding flow.
+- Plan GitHub social preview and mascot direction.
+- Keep voice, Telegram, browser automation, dashboard, and autonomous editing
+  deferred until the core is mature.
+
+## v0.10 Token Firewall
 
 - Per-run and per-project budgets.
 - Cost ledgers.
 - Provider-specific model catalogs.
 - Quality regression checks.
 
-## v0.10 Memory Monster
+## v0.11 Memory Monster
 
 - Hybrid search.
 - Graph memory.
 - Verification and decay.
 - Failure-to-decision learning.
 
-## v0.11 Skill Growth
+## v0.12 Skill Growth
 
 - Skill registry.
 - Skill validation.
 - Promotion from repeated memories.
 - Safety review before using generated skills.
 
-## v0.12 Dashboard
+## v0.13 Dashboard
 
 - Local web dashboard.
 - Plan visualizations.

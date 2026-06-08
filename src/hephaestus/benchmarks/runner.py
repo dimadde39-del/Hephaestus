@@ -76,6 +76,8 @@ def run_all_benchmarks(
     pareto: bool = False,
     pareto_preference: str = "balanced",
     qubo: bool = False,
+    run_mode: str = "benchmark",
+    run_label: str = "Benchmark",
 ) -> list[BenchmarkResult]:
     """Run every benchmark fixture in the benchmark directory."""
 
@@ -90,6 +92,8 @@ def run_all_benchmarks(
             pareto=pareto,
             pareto_preference=pareto_preference,
             qubo=qubo,
+            run_mode=run_mode,
+            run_label=run_label,
         )
         for case in cases
     ]
@@ -104,6 +108,8 @@ def run_benchmark(
     pareto: bool = False,
     pareto_preference: str = "balanced",
     qubo: bool = False,
+    run_mode: str = "benchmark",
+    run_label: str = "Benchmark",
 ) -> BenchmarkResult:
     """Run one benchmark and optionally persist a benchmark-mode run."""
 
@@ -111,7 +117,7 @@ def run_benchmark(
     run = None
     if persist and run_repository is not None:
         run = run_repository.save_run(
-            RunRecord(goal=f"Benchmark {case.id}: {case.goal or case.title}", mode="benchmark")
+            RunRecord(goal=f"{run_label} {case.id}: {case.goal or case.title}", mode=run_mode)
         )
 
     profile_store = _profile_store_for_run(run_repository, profile_ids)

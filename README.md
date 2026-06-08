@@ -17,7 +17,8 @@ typed, testable Python core for spec-driven planning, persistent local memory,
 model routing, context packing, token budgeting, safe tool gating, benchmark
 proof reports, explainable decision traces, outcome learning, decision quality
 profiles, Pareto tradeoff frontiers, QUBO/Ising-style binary formulations, and
-read-only repository intelligence for local development workflows.
+read-only repository intelligence plus repo-aware release planning for local
+development workflows.
 
 ## Core Loop
 
@@ -37,6 +38,7 @@ CLI
  |-- Pareto layer: candidates, objective vectors, frontiers, selections
  |-- QUBO layer: binary variables, penalties, solvers, Ising conversion
  |-- Repo layer: local repo inspection, stack detection, risk classification
+ |-- Release layer: repo-aware release planning demo and recommendations
  |-- Memory layer: episodic, semantic, project, failure, decision records
  |-- Optimization core
  |    |-- central objective function
@@ -279,6 +281,36 @@ CI signals. Commands such as tests, lint, builds, deploys, publishes, database
 migrations, `curl | sh`, `.env` access, and destructive deletes are classified
 before any future execution phase can consider them.
 
+## Repo-Aware Release Planning Demo
+
+Phase 4B connects the existing systems into the first credible local public-demo
+flow:
+
+```text
+Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
+```
+
+```bash
+uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release list
+uv run heph release show <release_run_id>
+```
+
+Hephaestus inspected the repo, generated release-readiness tasks, compared
+tradeoffs, formulated QUBO problems, explained decisions, evaluated simulated
+outcomes, and produced learning signals. It does not execute repo commands in
+this phase and does not claim the repository is actually release-ready.
+
+```text
+Hephaestus does not run blindly.
+It inspects the repository, builds a release plan, exposes tradeoffs, formulates optimizations, explains decisions, and records learning signals before execution is ever allowed.
+```
+
+The release recommendation is intentionally conservative. A typical result is
+`needs_validation` when lint/build/test commands are detected but have not been
+run yet, env files or risky scripts require review, CI is only detected by file
+path, or approval-gated publish/deploy commands are present.
+
 ## Quickstart
 
 ```bash
@@ -296,6 +328,8 @@ uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
 uv run heph repo inspect .
 uv run heph repo list
+uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release list
 uv run heph pareto profiles
 uv run heph pareto compare benchmarks/task_graphs/model_quality_threshold.json
 uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
@@ -333,6 +367,9 @@ QUBO problems and solutions are persisted in the same database and appear in
 benchmark reports and `heph explain <run_id>` when generated with `--qubo`.
 Repo intelligence profiles and inspection reports are persisted in the same
 database through `repo_profiles` and `repo_inspections`.
+Release planning results are persisted in the same database through
+`release_plans` and link to repo profiles, optimizer runs, decision traces,
+Pareto frontiers, QUBO problems, outcomes, and learning signals.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -362,6 +399,7 @@ uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
 uv run heph repo inspect .
+uv run heph release plan . --pareto --qubo --evaluate
 uv run heph profile suggest
 uv run heph profile active
 uv run heph explain stats
@@ -396,6 +434,10 @@ Built:
 - Repo intelligence schemas, read-only stack detection, command risk
   classification, validation plan generation, repo-aware task generation,
   SQLite persistence, CLI commands, and benchmark export integration.
+- Repo-aware release planning schemas, orchestrator, SQLite persistence, Rich
+  CLI demo, conservative recommendation generation, and links across repo
+  profiles, optimizer runs, explain traces, Pareto frontiers, QUBO problems,
+  simulated outcomes, and learning signals.
 - Typer/Rich CLI.
 
 Not built yet:

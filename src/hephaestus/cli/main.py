@@ -110,6 +110,17 @@ from hephaestus.qubo.renderer import (
 from hephaestus.qubo.repository import QuboRepository
 from hephaestus.qubo.schemas import QuboProblemType
 from hephaestus.qubo.solver import solve as solve_qubo
+from hephaestus.release import (
+    ReleasePlanningError,
+    ReleasePlanningOrchestrator,
+    ReleasePlanningRequest,
+    ReleasePlanRepository,
+)
+from hephaestus.release.renderer import (
+    build_release_demo_renderable,
+    build_release_list_table,
+    build_release_show_renderable,
+)
 from hephaestus.repo import (
     RepoProfile,
     RepoProfileRepository,
@@ -155,6 +166,7 @@ profile_app = typer.Typer(help="Decision quality profile commands.", no_args_is_
 pareto_app = typer.Typer(help="Pareto decision frontier commands.", no_args_is_help=True)
 qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_help=True)
 repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
+release_app = typer.Typer(help="Repo-aware release planning demo commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -166,6 +178,7 @@ app.add_typer(profile_app, name="profile")
 app.add_typer(pareto_app, name="pareto")
 app.add_typer(qubo_app, name="qubo")
 app.add_typer(repo_app, name="repo")
+app.add_typer(release_app, name="release")
 
 
 class DemoScenario(BaseModel):
@@ -326,6 +339,83 @@ def repo_export_benchmark(
     output.write_text(case.model_dump_json(indent=2), encoding="utf-8")
     console.print(f"Exported repo benchmark: {output}")
     console.print(f"Run with: heph benchmark run {output} --pareto --qubo")
+
+
+@release_app.command("plan")
+def release_plan(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Repository path to inspect for release planning."),
+    ] = Path("."),
+    profile: Annotated[
+        str | None,
+        typer.Option("--profile", help="Existing repo profile ID to use instead of inspecting."),
+    ] = None,
+    preference: Annotated[
+        str,
+        typer.Option("--preference", help="Pareto preference profile when --pareto is enabled."),
+    ] = "balanced",
+    pareto: Annotated[
+        bool,
+        typer.Option("--pareto", help="Generate Pareto tradeoff frontiers."),
+    ] = False,
+    qubo: Annotated[
+        bool,
+        typer.Option("--qubo", help="Formulate and solve local QUBO problems."),
+    ] = False,
+    evaluate: Annotated[
+        bool,
+        typer.Option("--evaluate", help="Generate simulated outcomes and learning signals."),
+    ] = False,
+    latest_profile: Annotated[
+        bool,
+        typer.Option("--latest-profile", help="Reuse the latest profile for this path if available."),
+    ] = False,
+) -> None:
+    """Plan a repo-aware release demo flow without executing repository commands."""
+
+    request = ReleasePlanningRequest(
+        path=str(path),
+        profile_id=profile,
+        preference=preference,
+        pareto=pareto,
+        qubo=qubo,
+        evaluate=evaluate,
+        use_latest_profile=latest_profile,
+    )
+    try:
+        demo = ReleasePlanningOrchestrator().plan(request)
+    except (ReleasePlanningError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_release_demo_renderable(demo))
+    console.print(f"Saved repo profile: {demo.repo_profile.id}")
+    console.print(f"Saved release plan: {demo.result.id}")
+    console.print(f"Explain with: heph explain {demo.result.optimizer_run_id}")
+
+
+@release_app.command("list")
+def release_list(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum plans to show.")] = 20,
+) -> None:
+    """List persisted release planning results."""
+
+    repository = ReleasePlanRepository()
+    console.print(build_release_list_table(repository.list_release_plans(limit=limit)))
+
+
+@release_app.command("show")
+def release_show(
+    release_run_id: Annotated[str, typer.Argument(help="Release planning result ID.")],
+) -> None:
+    """Show one persisted release planning result and linked inspection commands."""
+
+    repository = ReleasePlanRepository()
+    plan_result = repository.get_release_plan(release_run_id)
+    if plan_result is None:
+        console.print(f"[red]Release plan not found: {release_run_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_release_show_renderable(plan_result))
 
 
 @app.command()

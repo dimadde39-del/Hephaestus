@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -428,6 +428,34 @@ CREATE INDEX IF NOT EXISTS idx_repo_inspections_path
 ON repo_inspections(repo_path, inspected_at DESC);
 """
 
+MIGRATION_9 = """
+CREATE TABLE IF NOT EXISTS release_plans (
+    id TEXT PRIMARY KEY,
+    repo_profile_id TEXT NOT NULL REFERENCES repo_profiles(id) ON DELETE CASCADE,
+    goal TEXT NOT NULL,
+    optimizer_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    readiness_score INTEGER NOT NULL DEFAULT 0,
+    recommendation_status TEXT NOT NULL DEFAULT 'unknown',
+    recommendation_summary TEXT NOT NULL DEFAULT '',
+    pareto_frontier_ids_json TEXT NOT NULL DEFAULT '[]',
+    qubo_problem_ids_json TEXT NOT NULL DEFAULT '[]',
+    decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    outcome_ids_json TEXT NOT NULL DEFAULT '[]',
+    learning_signal_ids_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_release_plans_repo_profile
+ON release_plans(repo_profile_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_release_plans_optimizer_run
+ON release_plans(optimizer_run_id);
+
+CREATE INDEX IF NOT EXISTS idx_release_plans_created
+ON release_plans(created_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -506,6 +534,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (8, datetime.now(UTC).isoformat()),
+        )
+    if 9 not in applied_versions:
+        connection.executescript(MIGRATION_9)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (9, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

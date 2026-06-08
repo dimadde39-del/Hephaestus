@@ -145,6 +145,22 @@ uv run heph repo export-benchmark <profile_id> --output benchmarks/repo/<name>.j
 uv run heph benchmark run benchmarks/repo/<name>.json --pareto --qubo
 ```
 
+Phase 4B makes that bridge first-class:
+
+```bash
+uv run heph release plan . --pareto --qubo --evaluate
+```
+
+This command inspects or loads a repo profile, generates release-readiness
+tasks, runs the optimizer with `mode=release`, optionally compares Pareto
+frontiers, optionally formulates and solves QUBO problems, persists explainable
+decision traces, optionally evaluates simulated outcomes, and stores a release
+recommendation.
+
+The readiness score is deterministic and coarse. It measures planning evidence,
+not actual release success, because repository commands are not executed in
+Phase 4B.
+
 ## Run History
 
 `heph optimize <scenario.json>` now saves each optimization run to local SQLite
@@ -202,6 +218,10 @@ With `--pareto`, reports also include selected frontier candidates and tradeoff
 explanations.
 With `--qubo`, reports include baseline versus QUBO selections, objective
 delta, feasibility, and persisted QUBO problem/solution IDs.
+
+Release planning uses the same report machinery but saves the linked optimizer
+proof as `mode=release`. `heph release show <release_run_id>` points back to
+`heph run show <optimizer_run_id>` and `heph explain <optimizer_run_id>`.
 
 ## Explainability
 

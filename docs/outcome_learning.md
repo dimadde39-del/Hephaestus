@@ -76,6 +76,7 @@ does not require DeepSeek or any paid API.
 
 ```bash
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
+uv run heph release plan . --pareto --qubo --evaluate
 uv run heph outcome add <decision_trace_id> --status success --summary "Worked after review"
 uv run heph outcome list
 uv run heph outcome show <outcome_id>
@@ -89,6 +90,12 @@ uv run heph learn promote-failure <failure_draft_id>
 `heph reflect <run_id>` evaluates missing benchmark outcomes, ensures
 reflections exist, and lists successes, failures, partials, learning signals,
 failure memory drafts, and policy suggestions.
+
+Phase 4B uses the same evaluator when `heph release plan . --evaluate` is
+enabled. These are simulated outcomes over decision traces, not proof that repo
+commands passed. They create learning signals about task ordering, model
+routing, context, budget, safety, Pareto/QUBO-style optimization traces, and
+other explainable decisions that the release run produced.
 
 ## Failure Drafts Are Not Automatic Memory
 
