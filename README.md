@@ -17,7 +17,7 @@ typed, testable Python core for spec-driven planning, persistent local memory,
 model routing, context packing, token budgeting, safe tool gating, benchmark
 proof reports, explainable decision traces, outcome learning, decision quality
 profiles, Pareto tradeoff frontiers, QUBO/Ising-style binary formulations, and
-a working CLI demo.
+read-only repository intelligence for local development workflows.
 
 ## Core Loop
 
@@ -36,6 +36,7 @@ CLI
  |-- Policy learning layer: draft/active profiles and profile applications
  |-- Pareto layer: candidates, objective vectors, frontiers, selections
  |-- QUBO layer: binary variables, penalties, solvers, Ising conversion
+ |-- Repo layer: local repo inspection, stack detection, risk classification
  |-- Memory layer: episodic, semantic, project, failure, decision records
  |-- Optimization core
  |    |-- central objective function
@@ -250,6 +251,34 @@ uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --
 QUBO does not replace Pareto. Pareto exposes a tradeoff frontier; QUBO encodes a
 chosen decision problem into binary optimization energy.
 
+## Repo Intelligence
+
+Phase 4A moves Hephaestus from synthetic fixtures toward real local development
+workflows. It inspects a repository read-only, detects stack signals, classifies
+package scripts and validation commands, persists a repo profile, generates
+repo-aware release-readiness tasks, and can export those tasks as a benchmark
+fixture for the existing optimizer/Pareto/QUBO stack.
+
+```text
+Hephaestus does not jump straight from prompt to action.
+It first inspects the repository, builds a project profile, generates repo-aware tasks, and then lets the decision engine optimize the plan.
+```
+
+```bash
+uv run heph repo inspect .
+uv run heph repo list
+uv run heph repo show <profile_id>
+uv run heph repo tasks <profile_id>
+uv run heph repo plan <profile_id>
+uv run heph repo export-benchmark <profile_id> --output benchmarks/repo/hephaestus_self.json
+uv run heph benchmark run benchmarks/repo/hephaestus_self.json --pareto --qubo
+```
+
+Repo intelligence detects common Node/TypeScript, Python, Rust, Go, Docker, and
+CI signals. Commands such as tests, lint, builds, deploys, publishes, database
+migrations, `curl | sh`, `.env` access, and destructive deletes are classified
+before any future execution phase can consider them.
+
 ## Quickstart
 
 ```bash
@@ -265,6 +294,8 @@ uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
+uv run heph repo inspect .
+uv run heph repo list
 uv run heph pareto profiles
 uv run heph pareto compare benchmarks/task_graphs/model_quality_threshold.json
 uv run heph qubo compare benchmarks/task_graphs/model_quality_threshold.json
@@ -300,6 +331,8 @@ Pareto frontiers are also persisted in the same database and appear in
 benchmark reports and `heph explain <run_id>` when generated.
 QUBO problems and solutions are persisted in the same database and appear in
 benchmark reports and `heph explain <run_id>` when generated with `--qubo`.
+Repo intelligence profiles and inspection reports are persisted in the same
+database through `repo_profiles` and `repo_inspections`.
 
 Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set:
 
@@ -328,6 +361,7 @@ uv run heph optimize examples/repo_release_demo.json
 uv run heph benchmark run benchmarks/task_graphs/simple_release.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
+uv run heph repo inspect .
 uv run heph profile suggest
 uv run heph profile active
 uv run heph explain stats
@@ -359,6 +393,9 @@ Built:
 - QUBO schemas, practical binary formulations, local exhaustive/greedy/annealing
   solvers, Ising conversion, SQLite persistence, CLI commands, and
   benchmark/explain/Pareto comparison integration.
+- Repo intelligence schemas, read-only stack detection, command risk
+  classification, validation plan generation, repo-aware task generation,
+  SQLite persistence, CLI commands, and benchmark export integration.
 - Typer/Rich CLI.
 
 Not built yet:

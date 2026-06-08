@@ -22,6 +22,9 @@ always-on runtime without forcing paid APIs or a single model provider.
 - `qubo`: binary variables, QUBO terms, constraints, practical formulations,
   local solvers, Ising conversion, SQLite persistence, comparison helpers, and
   Rich renderers.
+- `repo`: read-only repository inspection, stack detection, command risk
+  classification, validation plan generation, repo-aware tasks, persistence,
+  Rich renderers, and benchmark export.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -36,6 +39,7 @@ always-on runtime without forcing paid APIs or a single model provider.
 
 ```text
 User goal
+  -> Optional RepoProfile from read-only local inspection
   -> GoalSpec
   -> Task graph
   -> Remembered context
@@ -53,6 +57,7 @@ User goal
   -> Profile suggestion / active profile bias
   -> Pareto frontier / tradeoff selection
   -> QUBO formulation / local binary solve
+  -> Repo-aware benchmark export
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -91,6 +96,32 @@ history before any always-on process exists.
   quantum hardware acceleration.
 - Treat benchmark reports as designed optimizer probes, not real-world AGI
   performance claims.
+- Inspect repositories before suggesting real development actions.
+- Keep repo intelligence read-only: commands are detected, classified, and
+  suggested, not executed.
+
+## Repo Intelligence Architecture
+
+Phase 4A adds `repo_profiles` and `repo_inspections` tables. Profiles store the
+full Pydantic JSON plus summary columns for repo path, repo name, detected
+stack, validation plan, generated tasks, risk summary, and inspection time.
+
+The repo flow is:
+
+```text
+local repo path
+  -> read manifests and config filenames
+  -> detect languages, frameworks, package managers, scripts, Docker, and CI
+  -> classify commands as safe validation, medium risk, high risk, destructive, or external side effect
+  -> generate a ValidationPlan
+  -> generate RepoTask records compatible with spec.Task
+  -> persist RepoProfile / RepoInspectionReport
+  -> optionally export a BenchmarkCase
+```
+
+Hephaestus does not jump straight from prompt to action.
+It first inspects the repository, builds a project profile, generates repo-aware
+tasks, and then lets the decision engine optimize the plan.
 
 ## Decision Trace Architecture
 

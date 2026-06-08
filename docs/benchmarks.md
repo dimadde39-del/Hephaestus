@@ -17,6 +17,8 @@ uv run heph benchmark run benchmarks/task_graphs/dependency_trap.json
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --evaluate
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --pareto
 uv run heph benchmark run benchmarks/task_graphs/model_quality_threshold.json --qubo
+uv run heph repo export-benchmark <profile_id> --output benchmarks/repo/<name>.json
+uv run heph benchmark run benchmarks/repo/<name>.json --pareto --qubo
 uv run heph benchmark run --json
 ```
 
@@ -43,6 +45,8 @@ Passing an id, stem, filename, or path runs one fixture.
 - QUBO comparison with `--qubo`: formulated problem types, baseline selections,
   QUBO selections, objective deltas, feasibility, and persisted problem/solution
   records.
+- Repo-derived fixtures: real local repo profiles converted into optimizer-ready
+  release-readiness task graphs.
 
 Greedy is included because it is a clear baseline. Simulated annealing explores
 more schedules, but it is not automatically better; reports show cases where it
@@ -115,6 +119,24 @@ approval-gate fixtures preserve safety decisions.
 QUBO benchmark traces preserve the binary formulation evidence: variables,
 objective terms, constraints, solver, selected variables, feasibility, and
 objective value.
+
+## Repo-Derived Fixtures
+
+`heph repo export-benchmark <profile_id>` converts a persisted read-only repo
+profile into the same `BenchmarkCase` schema as `benchmarks/task_graphs`.
+Generated fixtures include repo-aware tasks, context candidates for stack,
+validation, risk, and the repo-intelligence principle, plus constraints that
+keep risky commands approval-gated.
+
+This connects:
+
+```text
+Repo Intelligence -> Repo-Aware Task Graph -> Optimized Execution Plan -> Safe Real Agent Demo
+```
+
+The export is intentionally simple. It does not execute validation commands,
+parse full CI semantics, or prove production readiness. It gives Pareto and
+QUBO layers real local task graphs to optimize.
 
 ## Deterministic Outcome Evaluation
 

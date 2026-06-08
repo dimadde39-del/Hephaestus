@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -389,6 +389,45 @@ CREATE INDEX IF NOT EXISTS idx_qubo_solutions_run_id
 ON qubo_solutions(run_id, created_at);
 """
 
+MIGRATION_8 = """
+CREATE TABLE IF NOT EXISTS repo_profiles (
+    id TEXT PRIMARY KEY,
+    repo_path TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    detected_stack_summary TEXT NOT NULL DEFAULT '',
+    validation_plan_json TEXT NOT NULL DEFAULT '{}',
+    generated_tasks_json TEXT NOT NULL DEFAULT '[]',
+    risk_summary_json TEXT NOT NULL DEFAULT '[]',
+    inspected_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_repo_profiles_path_inspected
+ON repo_profiles(repo_path, inspected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_repo_profiles_inspected
+ON repo_profiles(inspected_at DESC);
+
+CREATE TABLE IF NOT EXISTS repo_inspections (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES repo_profiles(id) ON DELETE CASCADE,
+    repo_path TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    inspected_at TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    detected_stack_summary TEXT NOT NULL DEFAULT '',
+    validation_summary TEXT NOT NULL DEFAULT '',
+    risk_summary TEXT NOT NULL DEFAULT '',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_repo_inspections_profile_id
+ON repo_inspections(profile_id, inspected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_repo_inspections_path
+ON repo_inspections(repo_path, inspected_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -461,6 +500,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (7, datetime.now(UTC).isoformat()),
+        )
+    if 8 not in applied_versions:
+        connection.executescript(MIGRATION_8)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (8, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

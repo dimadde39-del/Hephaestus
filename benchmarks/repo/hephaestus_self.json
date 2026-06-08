@@ -1,0 +1,267 @@
+{
+  "id": "repo_hephaestus",
+  "title": "Hephaestus Repo Release Readiness",
+  "description": "Repo-aware benchmark exported from read-only repository intelligence. The fixture optimizes release-readiness tasks without executing repository commands.",
+  "goal": "Prepare Hephaestus for release using repo-aware validation and risk gates.",
+  "tasks": [
+    {
+      "id": "inspect_repo_structure",
+      "title": "Inspect repo structure",
+      "description": "Review detected manifests, config files, CI files, Docker files, and stack signals.",
+      "priority": 9,
+      "dependencies": [],
+      "risk": 0.04,
+      "expected_value": 8.5,
+      "uncertainty": 0.12,
+      "required_capabilities": [
+        "repository-inspection"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 350,
+      "allowed_tools": [
+        "filesystem"
+      ],
+      "requires_approval": false,
+      "metadata": {
+        "rationale": "Repo profile was generated through read-only file inspection."
+      }
+    },
+    {
+      "id": "review_package_scripts",
+      "title": "Review package scripts",
+      "description": "Inspect detected scripts and classify safe validation versus risky side-effect commands.",
+      "priority": 8,
+      "dependencies": [
+        "inspect_repo_structure"
+      ],
+      "risk": 0.08,
+      "expected_value": 8.0,
+      "uncertainty": 0.18,
+      "required_capabilities": [
+        "safety",
+        "repository-inspection"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 850,
+      "estimated_output_tokens": 350,
+      "allowed_tools": [
+        "filesystem"
+      ],
+      "requires_approval": false,
+      "metadata": {
+        "rationale": "0 package scripts were classified."
+      }
+    },
+    {
+      "id": "inspect_ci",
+      "title": "Inspect CI",
+      "description": "Record that no CI provider was detected and local validation carries more weight.",
+      "priority": 6,
+      "dependencies": [
+        "inspect_repo_structure"
+      ],
+      "risk": 0.08,
+      "expected_value": 6.5,
+      "uncertainty": 0.28,
+      "required_capabilities": [
+        "repository-inspection",
+        "planning"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 500,
+      "estimated_output_tokens": 250,
+      "allowed_tools": [
+        "filesystem"
+      ],
+      "requires_approval": false,
+      "metadata": {
+        "rationale": "No GitHub Actions or GitLab CI configuration was detected."
+      }
+    },
+    {
+      "id": "check_env_risks",
+      "title": "Check environment risks",
+      "description": "Account for environment files, secrets-adjacent commands, and release/deploy script risks.",
+      "priority": 8,
+      "dependencies": [
+        "inspect_repo_structure",
+        "review_package_scripts"
+      ],
+      "risk": 0.22,
+      "expected_value": 7.8,
+      "uncertainty": 0.24,
+      "required_capabilities": [
+        "safety",
+        "repository-inspection"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 780,
+      "estimated_output_tokens": 360,
+      "allowed_tools": [
+        "filesystem"
+      ],
+      "requires_approval": false,
+      "metadata": {
+        "rationale": "No CI provider was detected."
+      }
+    },
+    {
+      "id": "run_lint",
+      "title": "Run lint",
+      "description": "Suggested validation command(s): uv run ruff check .; uv run mypy",
+      "priority": 8,
+      "dependencies": [
+        "review_package_scripts"
+      ],
+      "risk": 0.16,
+      "expected_value": 8.2,
+      "uncertainty": 0.22,
+      "required_capabilities": [
+        "shell",
+        "testing",
+        "safety"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 500,
+      "allowed_tools": [
+        "shell"
+      ],
+      "requires_approval": false,
+      "metadata": {
+        "repo_command": "uv run ruff check .; uv run mypy",
+        "command_classification": "safe_validation",
+        "rationale": "Command is suggested only; Phase 4A does not execute repository validation."
+      }
+    },
+    {
+      "id": "run_tests",
+      "title": "Run tests",
+      "description": "Suggested validation command(s): uv run pytest",
+      "priority": 9,
+      "dependencies": [
+        "run_lint"
+      ],
+      "risk": 0.16,
+      "expected_value": 9.0,
+      "uncertainty": 0.28,
+      "required_capabilities": [
+        "shell",
+        "testing",
+        "safety"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 900,
+      "estimated_output_tokens": 500,
+      "allowed_tools": [
+        "shell"
+      ],
+      "requires_approval": false,
+      "metadata": {
+        "repo_command": "uv run pytest",
+        "command_classification": "safe_validation",
+        "rationale": "Command is suggested only; Phase 4A does not execute repository validation."
+      }
+    },
+    {
+      "id": "prepare_release_summary",
+      "title": "Prepare release summary",
+      "description": "Summarize stack, validation plan, unresolved risks, and recommended next release-readiness steps.",
+      "priority": 7,
+      "dependencies": [
+        "run_tests",
+        "inspect_ci",
+        "check_env_risks"
+      ],
+      "risk": 0.06,
+      "expected_value": 8.8,
+      "uncertainty": 0.16,
+      "required_capabilities": [
+        "planning",
+        "writing",
+        "analysis"
+      ],
+      "privacy_level": "private",
+      "estimated_input_tokens": 1100,
+      "estimated_output_tokens": 800,
+      "allowed_tools": [],
+      "requires_approval": false,
+      "metadata": {
+        "rationale": "Final task translates inspection and optimized validation order into a release-readiness narrative."
+      }
+    }
+  ],
+  "model_profiles": [],
+  "context_candidates": [
+    {
+      "id": "repo-stack-profile",
+      "content": "Python; no framework detected; python:uv",
+      "relevance": 0.94,
+      "importance": 0.9,
+      "token_cost": 260,
+      "critical": true,
+      "metadata": {
+        "repo_name": "Hephaestus"
+      }
+    },
+    {
+      "id": "repo-validation-plan",
+      "content": "uv run ruff check .; uv run mypy; uv run pytest",
+      "relevance": 0.92,
+      "importance": 0.88,
+      "token_cost": 320,
+      "critical": true,
+      "metadata": {
+        "validation_commands": [
+          "uv run ruff check .",
+          "uv run mypy",
+          "uv run pytest"
+        ]
+      }
+    },
+    {
+      "id": "repo-risk-signals",
+      "content": "No CI provider was detected.",
+      "relevance": 0.88,
+      "importance": 0.86,
+      "token_cost": 360,
+      "critical": true,
+      "metadata": {
+        "risk_count": 1
+      }
+    },
+    {
+      "id": "repo-intelligence-principle",
+      "content": "Hephaestus does not jump straight from prompt to action. It inspects, profiles, generates tasks, and optimizes before execution.",
+      "relevance": 0.86,
+      "importance": 0.9,
+      "token_cost": 260,
+      "critical": true,
+      "metadata": {}
+    }
+  ],
+  "context_token_budget": 1800,
+  "token_budget": {
+    "max_input_tokens": 14000,
+    "max_output_tokens": 4000,
+    "max_cost": 0.25,
+    "quality_threshold": 0.78
+  },
+  "quality_threshold": 0.78,
+  "quality_thresholds": {},
+  "expected_constraints": [
+    "Do not execute repo commands during inspection.",
+    "Prioritize safe validation commands before release summary.",
+    "Approval-gate risky scripts, deploys, publishes, and environment-file access."
+  ],
+  "notes": [
+    "Generated by heph repo export-benchmark.",
+    "Repo commands are suggestions for future execution phases."
+  ],
+  "tags": [
+    "repo-intelligence",
+    "release-readiness",
+    "python"
+  ]
+}

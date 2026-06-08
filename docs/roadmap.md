@@ -85,34 +85,61 @@ Hephaestus uses QUBO/Ising-style formulations to make agent decision problems ex
 
 ## v0.7 Repo Intelligence
 
-- Inspect real local repositories.
-- Detect project structure, package managers, scripts, test commands, and risk
-  areas.
-- Generate repo-aware task graphs for future real agent execution.
-- Keep detected repo facts explainable and overridable.
+- Added read-only local repository inspection.
+- Added Node/TypeScript/JavaScript, Python, Rust, Go, Docker, GitHub Actions,
+  and GitLab CI signal detection.
+- Added package manager, script, validation command, environment file, and risk
+  signal schemas.
+- Added safe command classification for validation, medium risk, high risk,
+  destructive commands, and external side effects.
+- Added validation plan generation and repo-aware release-readiness task graphs.
+- Added SQLite persistence for `repo_profiles` and `repo_inspections`.
+- Added `heph repo inspect/list/show/tasks/plan/export-benchmark`.
+- Added benchmark export so real repo tasks can run through optimizer, Pareto,
+  and QUBO proof reports.
+- Preserved the principle:
 
-## v0.8 Token Firewall
+```text
+Hephaestus does not jump straight from prompt to action.
+It first inspects the repository, builds a project profile, generates repo-aware tasks, and then lets the decision engine optimize the plan.
+```
+
+## v0.8 Repo-Aware Release Planning Demo
+
+- Connect repo inspection, repo planning, optimizer, Pareto, QUBO, explain, and
+  outcome learning into one polished local demo.
+- Keep execution safe and approval-gated.
+- Target flow:
+
+```bash
+heph repo inspect .
+heph repo plan <profile_id>
+heph optimize --repo-profile <profile_id> --pareto --qubo
+heph explain <run_id>
+```
+
+## v0.9 Token Firewall
 
 - Per-run and per-project budgets.
 - Cost ledgers.
 - Provider-specific model catalogs.
 - Quality regression checks.
 
-## v0.9 Memory Monster
+## v0.10 Memory Monster
 
 - Hybrid search.
 - Graph memory.
 - Verification and decay.
 - Failure-to-decision learning.
 
-## v0.10 Skill Growth
+## v0.11 Skill Growth
 
 - Skill registry.
 - Skill validation.
 - Promotion from repeated memories.
 - Safety review before using generated skills.
 
-## v0.11 Dashboard
+## v0.12 Dashboard
 
 - Local web dashboard.
 - Plan visualizations.

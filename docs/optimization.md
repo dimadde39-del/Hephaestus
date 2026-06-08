@@ -113,6 +113,7 @@ QUBO encodes a chosen decision surface as binary optimization energy.
 ## Where Optimization Applies
 
 - Task order.
+- Repo-aware release-readiness task graphs.
 - Model routing.
 - Context packing.
 - Tool choice.
@@ -121,8 +122,28 @@ QUBO encodes a chosen decision surface as binary optimization energy.
 - Active decision quality profile application.
 - Pareto frontier selection across competing objectives.
 - QUBO formulation and local binary solving.
+- Exported repo benchmarks from local repository profiles.
 - Future multi-agent task allocation.
 - Future skill promotion.
+
+## Repo-Aware Planning
+
+Phase 4A lets the optimizer consume tasks generated from real local repository
+inspection. `heph repo inspect .` creates a `RepoProfile` with stack signals,
+safe validation commands, risk signals, and generated `RepoTask` records.
+`heph repo plan <profile_id>` converts those tasks into the existing `Task`
+schema and runs the same scheduler comparison used elsewhere.
+
+The plan does not execute repository commands. It orders suggested work such as
+repo structure review, package script review, lint, tests, builds, CI
+inspection, environment risk review, approval gates, and release summary.
+
+The bridge into benchmarks is:
+
+```bash
+uv run heph repo export-benchmark <profile_id> --output benchmarks/repo/<name>.json
+uv run heph benchmark run benchmarks/repo/<name>.json --pareto --qubo
+```
 
 ## Run History
 

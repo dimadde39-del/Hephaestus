@@ -110,6 +110,20 @@ from hephaestus.qubo.renderer import (
 from hephaestus.qubo.repository import QuboRepository
 from hephaestus.qubo.schemas import QuboProblemType
 from hephaestus.qubo.solver import solve as solve_qubo
+from hephaestus.repo import (
+    RepoProfile,
+    RepoProfileRepository,
+    inspect_repository,
+    repo_profile_to_benchmark_case,
+    repo_tasks_to_optimizer_tasks,
+)
+from hephaestus.repo.renderer import (
+    build_repo_inspection_renderable,
+    build_repo_plan_renderable,
+    build_repo_profile_list_table,
+    build_repo_show_renderable,
+    build_repo_tasks_table,
+)
 from hephaestus.spec.goal import build_goal_spec
 from hephaestus.spec.tasks import Task, generate_initial_tasks
 from hephaestus.storage import (
@@ -140,6 +154,7 @@ learn_app = typer.Typer(help="Outcome-derived learning artifact commands.", no_a
 profile_app = typer.Typer(help="Decision quality profile commands.", no_args_is_help=True)
 pareto_app = typer.Typer(help="Pareto decision frontier commands.", no_args_is_help=True)
 qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_help=True)
+repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -150,6 +165,7 @@ app.add_typer(learn_app, name="learn")
 app.add_typer(profile_app, name="profile")
 app.add_typer(pareto_app, name="pareto")
 app.add_typer(qubo_app, name="qubo")
+app.add_typer(repo_app, name="repo")
 
 
 class DemoScenario(BaseModel):
@@ -230,6 +246,86 @@ def db_path() -> None:
     """Show the default local SQLite database path."""
 
     console.print(str(get_default_database_path()))
+
+
+@repo_app.command("inspect")
+def repo_inspect(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Repository path to inspect read-only."),
+    ] = Path("."),
+) -> None:
+    """Inspect a local repository, generate tasks, and persist a repo profile."""
+
+    try:
+        report = inspect_repository(path)
+    except (FileNotFoundError, NotADirectoryError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    RepoProfileRepository().save_inspection(report)
+    console.print(build_repo_inspection_renderable(report))
+    console.print(f"Saved repo profile: {report.profile.id}")
+    console.print(f"Plan with: heph repo plan {report.profile.id}")
+
+
+@repo_app.command("list")
+def repo_list(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum profiles to show.")] = 20,
+) -> None:
+    """List persisted repository profiles."""
+
+    repository = RepoProfileRepository()
+    console.print(build_repo_profile_list_table(repository.list_profiles(limit=limit)))
+
+
+@repo_app.command("show")
+def repo_show(
+    profile_id: Annotated[str, typer.Argument(help="Repo profile ID to inspect.")],
+) -> None:
+    """Show one persisted repository profile."""
+
+    profile = _get_repo_profile_or_exit(profile_id)
+    console.print(build_repo_show_renderable(profile))
+
+
+@repo_app.command("tasks")
+def repo_tasks(
+    profile_id: Annotated[str, typer.Argument(help="Repo profile ID to inspect.")],
+) -> None:
+    """Show generated repo-aware tasks and dependencies."""
+
+    profile = _get_repo_profile_or_exit(profile_id)
+    console.print(build_repo_tasks_table(profile))
+
+
+@repo_app.command("plan")
+def repo_plan(
+    profile_id: Annotated[str, typer.Argument(help="Repo profile ID to turn into a task graph.")],
+) -> None:
+    """Turn a repo profile into an optimization-ready task graph."""
+
+    profile = _get_repo_profile_or_exit(profile_id)
+    tasks = repo_tasks_to_optimizer_tasks(profile)
+    comparison = compare_schedulers(tasks, DEFAULT_CONFIG.objective_weights)
+    console.print(build_repo_plan_renderable(profile, comparison.best_order, comparison.explanation))
+
+
+@repo_app.command("export-benchmark")
+def repo_export_benchmark(
+    profile_id: Annotated[str, typer.Argument(help="Repo profile ID to export.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="Output benchmark JSON path."),
+    ],
+) -> None:
+    """Export repo-aware tasks to a benchmark fixture."""
+
+    profile = _get_repo_profile_or_exit(profile_id)
+    case = repo_profile_to_benchmark_case(profile)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(case.model_dump_json(indent=2), encoding="utf-8")
+    console.print(f"Exported repo benchmark: {output}")
+    console.print(f"Run with: heph benchmark run {output} --pareto --qubo")
 
 
 @app.command()
@@ -1694,6 +1790,15 @@ def _profile_demo_tasks() -> list[Task]:
             estimated_output_tokens=400,
         ),
     ]
+
+
+def _get_repo_profile_or_exit(profile_id: str) -> RepoProfile:
+    repository = RepoProfileRepository()
+    profile = repository.get_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Repo profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    return profile
 
 
 def _print_memory_table(title: str, memories: list[MemoryItem]) -> None:
