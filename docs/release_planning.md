@@ -32,6 +32,19 @@ The public demo command is:
 uv run heph release plan . --pareto --qubo --evaluate
 ```
 
+## Demo Assets
+
+The soft reveal assets live in:
+
+- [docs/assets/demo](assets/demo/README.md) for curated CLI screenshots.
+- [docs/demo_script.md](demo_script.md) for the 60-90 second demo script.
+- [docs/terminal_recording_plan.md](terminal_recording_plan.md) for recording
+  dimensions, pacing, and command order.
+
+Primary screenshot:
+
+![Release planning demo terminal screenshot](assets/demo/release-plan-demo.png)
+
 ## What Is Real
 
 Phase 4B uses real local repository inspection data. It reads manifests,

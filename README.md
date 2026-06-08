@@ -37,6 +37,8 @@ Outcomes evaluated
 Learning signals created
 ```
 
+![Hephaestus release planning demo terminal screenshot](docs/assets/demo/release-plan-demo.png)
+
 Then inspect the artifacts:
 
 ```bash
@@ -48,9 +50,11 @@ uv run heph pareto list
 uv run heph qubo list
 ```
 
-The walkthrough in [examples/release_plan_demo.md](examples/release_plan_demo.md)
-explains what each stage means, which parts are real, and which parts are
-simulated in the current alpha.
+See the full [release plan walkthrough](examples/release_plan_demo.md), the
+[demo screenshot pack](docs/assets/demo/README.md), and the
+[60-90 second demo script](docs/demo_script.md) for a concise tour of what each
+stage means, which parts are real, and which parts are simulated in the current
+alpha.
 
 ## What It Is
 
@@ -147,6 +151,9 @@ CLI
 
 For the deeper module map, see [docs/architecture.md](docs/architecture.md).
 For phase history and upcoming work, see [docs/roadmap.md](docs/roadmap.md).
+For the soft reveal materials, see [docs/public_launch_notes.md](docs/public_launch_notes.md),
+[docs/reveal_strategy.md](docs/reveal_strategy.md), and
+[docs/soft_reveal_checklist.md](docs/soft_reveal_checklist.md).
 
 ## Useful Commands
 

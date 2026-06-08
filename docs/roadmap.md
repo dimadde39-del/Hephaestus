@@ -108,15 +108,26 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Soft reveal launch copy drafts.
 - GitHub metadata suggestions.
 
-## Upcoming
-
 ### Phase 4D: Soft Reveal Pack
 
 - Polished screenshots of the current CLI demo.
-- Short terminal recording plan.
+- Demo screenshot pack linked from README and walkthrough docs.
 - One-minute demo script.
-- Final first posts for X/Twitter, Reddit, and Telegram/Discord communities.
-- Social preview image brief.
+- Terminal recording plan.
+- Final first posts for X/Twitter, Reddit, Telegram/Discord, and GitHub
+  Discussions.
+- Reveal strategy notes and launch checklist.
+- GitHub setup guidance tied to the actual brand and demo assets.
+
+## Upcoming
+
+### Soft Reveal Execution
+
+- Post the first X/Twitter soft reveal.
+- Prepare one Reddit feedback post.
+- Prepare one or two Telegram/Discord community messages.
+- Observe responses and repeated objections.
+- Gather feedback into roadmap notes before the larger public alpha push.
 
 ### Safe Validation Execution
 

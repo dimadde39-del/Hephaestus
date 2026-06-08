@@ -14,6 +14,27 @@ uv run heph release plan . --pareto --qubo --evaluate
 Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
 ```
 
+## Visual Walkthrough
+
+The screenshot pack in [docs/assets/demo](../docs/assets/demo/README.md) uses
+real local CLI output captured from this repository.
+
+### End-To-End Release Plan
+
+![Release planning demo terminal screenshot](../docs/assets/demo/release-plan-demo.png)
+
+### Repo Inspection
+
+![Repo inspection terminal screenshot](../docs/assets/demo/repo-inspect-demo.png)
+
+### Pareto, QUBO, And Explanation
+
+![Pareto tradeoff terminal screenshot](../docs/assets/demo/pareto-demo.png)
+
+![QUBO formulation terminal screenshot](../docs/assets/demo/qubo-demo.png)
+
+![Explain summary terminal screenshot](../docs/assets/demo/explain-demo.png)
+
 At a high level, expect:
 
 ```text
@@ -141,6 +162,9 @@ Explain the decision trace:
 uv run heph explain <optimizer_run_id>
 uv run heph explain <optimizer_run_id> --summary
 ```
+
+Use `--summary` for short recordings and social clips. Use the full command
+when you want the detailed decision table.
 
 List persisted Pareto frontiers:
 
