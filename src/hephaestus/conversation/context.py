@@ -20,6 +20,9 @@ from hephaestus.repo import (
     validation_summary,
 )
 from hephaestus.storage import SqliteMemoryRepository
+from hephaestus.strategic_memory.repository import StrategicMemoryRepository
+from hephaestus.strategic_memory.retriever import retrieve_strategic_memories
+from hephaestus.strategic_memory.schemas import StrategicMemoryItem
 
 _INTENT_TAGS: dict[ConversationIntent, tuple[str, ...]] = {
     ConversationIntent.ARCHITECTURE_DISCUSSION: ("architecture", "decision"),
@@ -41,12 +44,16 @@ def retrieve_conversation_context(
     intent: ConversationIntent,
     *,
     memory_repository: SqliteMemoryRepository,
+    strategic_memory_repository: StrategicMemoryRepository,
     repo_repository: RepoProfileRepository,
     memory_limit: int = 6,
+    strategic_memory_limit: int = 6,
 ) -> RetrievedConversationContext:
     """Retrieve relevant memory and optional repo context for one turn."""
 
+    repo_profile = _resolve_repo_profile(request.repo_path, repo_repository)
     memories: list[MemoryItem] = []
+    strategic_memories: list[StrategicMemoryItem] = []
     if request.use_memory:
         memories = _retrieve_memories(
             memory_repository,
@@ -55,16 +62,25 @@ def retrieve_conversation_context(
             project=request.project,
             limit=memory_limit,
         )
-
-    repo_profile = _resolve_repo_profile(request.repo_path, repo_repository)
+        strategic_recall = retrieve_strategic_memories(
+            request.prompt,
+            intent,
+            repository=strategic_memory_repository,
+            project=request.project,
+            repo_profile_id=repo_profile.id if repo_profile is not None else None,
+            limit=strategic_memory_limit,
+        )
+        strategic_memories = strategic_recall.memories
     context_items = [
         *_memory_context_items(memories),
+        *_strategic_memory_context_items(strategic_memories),
         *(_repo_context_items(repo_profile) if repo_profile is not None else []),
     ]
     return RetrievedConversationContext(
         query=request.prompt,
         intent=intent,
         memories=memories,
+        strategic_memories=strategic_memories,
         repo_profile=repo_profile,
         context_items=context_items,
     )
@@ -122,6 +138,30 @@ def _memory_context_items(memories: list[MemoryItem]) -> list[ConversationContex
                     "type": memory.type.value,
                     "tags": memory.tags,
                     "project": memory.project,
+                },
+            )
+        )
+    return items
+
+
+def _strategic_memory_context_items(
+    memories: list[StrategicMemoryItem],
+) -> list[ConversationContextItem]:
+    items: list[ConversationContextItem] = []
+    for memory in memories:
+        items.append(
+            ConversationContextItem(
+                id=memory.id,
+                source="strategic_memory",
+                summary=memory.summary or memory.content,
+                content=memory.content,
+                relevance=min(1.0, 0.5 + memory.importance * 0.35),
+                metadata={
+                    "type": memory.type.value,
+                    "scope": memory.scope.value,
+                    "tags": memory.tags,
+                    "project": memory.project,
+                    "repo_profile_id": memory.repo_profile_id,
                 },
             )
         )

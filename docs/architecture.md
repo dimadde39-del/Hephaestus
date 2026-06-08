@@ -15,6 +15,12 @@ Phase 5A adds a second, text-first loop:
 Input -> Intent Classification -> Context Retrieval -> Deliberation Passes -> Final Response -> Memory Update
 ```
 
+Phase 5B expands that loop:
+
+```text
+Input -> Intent Classification -> Regular + Strategic Memory Recall -> Rubric-Aware Deliberation -> Research Plan or Recommendation -> Strategic Memory Suggestions -> Decision Trace
+```
+
 The current system stops before execution. It inspects, plans, optimizes,
 explains, evaluates deterministic simulated outcomes, and creates reviewable
 learning artifacts. Future phases can add safe command execution without
@@ -48,6 +54,13 @@ changing the core decision trail.
   memory/repo context retrieval, internal deliberation passes, prompts, session
   orchestration, SQLite persistence, Rich renderers, and high-impact trace
   integration.
+- `strategic_memory`: typed strategic memories for goals, ambitions,
+  constraints, preferences, principles, assumptions, decisions, rejected paths,
+  lessons, and open questions, plus SQLite persistence, recall, conflict
+  detection, extraction, and rendering.
+- `discussion_quality`: rubrics and deterministic evaluation for idea stress
+  tests, business strategy, product strategy, technical architecture, roadmap
+  decisions, research planning, and risk analysis.
 - `benchmarks`: fixture loading, optimizer execution, report models, Rich output,
   and JSON output.
 - `memory`: typed memory records and lexical retrieval behavior.
@@ -128,15 +141,21 @@ history before any daemon process exists.
 - Keep conversation text-only in Phase 5A: reason about code, architecture,
   strategy, research, and product decisions without editing files, executing
   commands, browsing, or pretending autonomy exists.
+- Keep strategic memory explicit: suggest conversation-derived memories, but
+  save them only when the user passes `--save-memory`, `--save-strategy`, or
+  uses chat `/save-memory`.
+- Keep research planning honest: plan what to verify, but do not claim live
+  research or current web facts.
 
 ## Conversation Architecture
 
 Phase 5A adds `conversation_sessions`, `conversation_messages`, and
-`conversation_memory_updates`. The package keeps the external UX as one
-Hephaestus while using lightweight internal roles:
+`conversation_memory_updates`. Phase 5B adds `strategic_memories`,
+`strategic_memory_conflicts`, and `strategic_memory_recalls`. The package keeps
+the external UX as one Hephaestus while using lightweight internal roles:
 
 ```text
-ContextScout -> MemoryRetriever -> AssumptionMapper -> Critic -> Strategist -> Synthesizer
+ContextScout -> MemoryRetriever -> AssumptionMapper -> EvidenceChecker -> SecondOrderThinker -> OptionGenerator -> Critic -> RecommendationSynthesizer
 ```
 
 These are structured deliberation passes, not external sub-agent swarms. The
@@ -146,10 +165,11 @@ assumptions, considers options, critiques risks, synthesizes a final response,
 and proposes memory updates.
 
 High-impact intents such as product strategy, business strategy, architecture
-discussion, roadmap decisions, and idea stress tests create conversation-linked
-optimization traces. The trace records assumptions, options, recommendation,
-confidence, and next move so later outcome learning can evaluate discussion
-quality.
+discussion, roadmap decisions, idea stress tests, research planning, and risk
+analysis create conversation-linked optimization traces. The trace records
+assumptions, options, recommendation, confidence, next move, memory used,
+strategic memory used, strategic memories suggested, rubric name, and rubric
+score so later outcome learning can evaluate discussion quality.
 
 ## Repo Intelligence Architecture
 

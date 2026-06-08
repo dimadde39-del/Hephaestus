@@ -9,9 +9,11 @@ from hephaestus.conversation.schemas import (
     ConversationIntent,
     ConversationMemoryCandidate,
     DeliberationResult,
+    RetrievedConversationContext,
 )
 from hephaestus.decision import DecisionAlternative, OptimizationDecision, metric
 from hephaestus.memory import MemoryType
+from hephaestus.strategic_memory.schemas import StrategicMemoryExtractionResult
 
 HIGH_IMPACT_INTENTS: set[ConversationIntent] = {
     ConversationIntent.ARCHITECTURE_DISCUSSION,
@@ -19,6 +21,8 @@ HIGH_IMPACT_INTENTS: set[ConversationIntent] = {
     ConversationIntent.BUSINESS_STRATEGY,
     ConversationIntent.IDEA_STRESS_TEST,
     ConversationIntent.ROADMAP_DECISION,
+    ConversationIntent.RESEARCH_PLANNING,
+    ConversationIntent.RISK_ANALYSIS,
 }
 
 
@@ -108,6 +112,8 @@ def propose_memory_candidates(
 def build_conversation_decision_trace(
     session_id: str,
     result: DeliberationResult,
+    context: RetrievedConversationContext,
+    strategic_extraction: StrategicMemoryExtractionResult | None = None,
 ) -> ConversationDecisionTrace:
     """Create the conversation-facing decision trace summary."""
 
@@ -120,6 +126,21 @@ def build_conversation_decision_trace(
         recommendation=result.recommendation or "No strong recommendation.",
         confidence=result.confidence,
         suggested_next_move=result.next_moves[0] if result.next_moves else "",
+        memory_used=context.selected_memory_ids,
+        strategic_memory_used=context.selected_strategic_memory_ids,
+        strategic_memories_suggested=[
+            item.id for item in strategic_extraction.items
+        ]
+        if strategic_extraction is not None
+        else [],
+        discussion_quality_rubric=(
+            result.quality_evaluation.rubric_name
+            if result.quality_evaluation is not None
+            else None
+        ),
+        discussion_quality_score=(
+            result.quality_evaluation.score if result.quality_evaluation is not None else None
+        ),
     )
 
 
@@ -148,6 +169,14 @@ def build_persisted_decision_trace(
             metric("option_count", len(summary.options_considered)),
             metric("intent", summary.intent.value),
             metric("mode", summary.mode.value),
+            metric("memory_used_count", len(summary.memory_used)),
+            metric("strategic_memory_used_count", len(summary.strategic_memory_used)),
+            metric(
+                "strategic_memory_suggestion_count",
+                len(summary.strategic_memories_suggested),
+            ),
+            metric("discussion_quality_rubric", summary.discussion_quality_rubric),
+            metric("discussion_quality_score", summary.discussion_quality_score),
         ],
         objective_score=summary.confidence,
         confidence=summary.confidence,
@@ -156,10 +185,21 @@ def build_persisted_decision_trace(
             "non-patronizing usefulness",
             "uncertainty",
             "decision quality",
+            f"rubric:{summary.discussion_quality_rubric or 'none'}",
         ],
-        tags=["conversation", summary.intent.value, summary.mode.value],
-        caused_by=[summary.session_id],
-        will_affect=["memory_updates", "roadmap_reasoning", "future_discussions"],
+        tags=[
+            "conversation",
+            summary.intent.value,
+            summary.mode.value,
+            f"rubric:{summary.discussion_quality_rubric or 'none'}",
+        ],
+        caused_by=[summary.session_id, *summary.memory_used, *summary.strategic_memory_used],
+        will_affect=[
+            "memory_updates",
+            "strategic_memory",
+            "roadmap_reasoning",
+            "future_discussions",
+        ],
         learning_hooks=["conversation_outcome", "strategic_recommendation_quality"],
     )
 

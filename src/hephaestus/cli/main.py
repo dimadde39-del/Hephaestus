@@ -159,6 +159,21 @@ from hephaestus.storage import (
     get_default_database_path,
     init_database,
 )
+from hephaestus.strategic_memory import (
+    StrategicMemoryEvidence,
+    StrategicMemoryItem,
+    StrategicMemoryRepository,
+    StrategicMemoryScope,
+    StrategicMemorySource,
+    StrategicMemoryStability,
+    StrategicMemoryType,
+)
+from hephaestus.strategic_memory.renderer import (
+    build_conflict_table,
+    build_strategic_context_renderable,
+    build_strategic_memory_detail,
+    build_strategic_memory_table,
+)
 
 console = Console()
 
@@ -180,6 +195,9 @@ qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_h
 repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
 release_app = typer.Typer(help="Repo-aware release planning demo commands.", no_args_is_help=True)
 conversation_app = typer.Typer(help="Conversation session commands.", no_args_is_help=True)
+strategy_app = typer.Typer(help="Strategic context and memory commands.", no_args_is_help=True)
+strategy_memory_app = typer.Typer(help="Strategic memory commands.", no_args_is_help=True)
+strategy_app.add_typer(strategy_memory_app, name="memory")
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -193,6 +211,7 @@ app.add_typer(qubo_app, name="qubo")
 app.add_typer(repo_app, name="repo")
 app.add_typer(release_app, name="release")
 app.add_typer(conversation_app, name="conversation")
+app.add_typer(strategy_app, name="strategy")
 
 
 class DemoScenario(BaseModel):
@@ -445,7 +464,15 @@ def ask(
     ] = None,
     save_memory: Annotated[
         bool,
-        typer.Option("--save-memory", help="Persist suggested conversation memories."),
+        typer.Option("--save-memory", help="Persist suggested conversation and strategic memories."),
+    ] = False,
+    save_strategy: Annotated[
+        bool,
+        typer.Option("--save-strategy", help="Persist suggested strategic memories only."),
+    ] = False,
+    show_context: Annotated[
+        bool,
+        typer.Option("--show-context", help="Show selected memory and strategic context."),
     ] = False,
     no_memory: Annotated[
         bool,
@@ -459,7 +486,9 @@ def ask(
         mode=mode,
         repo=repo,
         save_memory=save_memory,
+        save_strategy=save_strategy,
         use_memory=not no_memory,
+        show_context=show_context,
         discussion=False,
     )
 
@@ -477,7 +506,15 @@ def discuss(
     ] = None,
     save_memory: Annotated[
         bool,
-        typer.Option("--save-memory", help="Persist suggested conversation memories."),
+        typer.Option("--save-memory", help="Persist suggested conversation and strategic memories."),
+    ] = False,
+    save_strategy: Annotated[
+        bool,
+        typer.Option("--save-strategy", help="Persist suggested strategic memories only."),
+    ] = False,
+    show_context: Annotated[
+        bool,
+        typer.Option("--show-context", help="Show selected memory and strategic context."),
     ] = False,
     no_memory: Annotated[
         bool,
@@ -491,7 +528,9 @@ def discuss(
         mode=mode,
         repo=repo,
         save_memory=save_memory,
+        save_strategy=save_strategy,
         use_memory=not no_memory,
+        show_context=show_context,
         discussion=True,
     )
 
@@ -572,6 +611,7 @@ def chat(
                 console.print("No suggested memories yet.")
                 continue
             saved_count = 0
+            saved_strategy_count = 0
             for candidate in last_response.memory_candidates:
                 memory = service.memory_repository.add(candidate.to_memory_item())
                 service.repository.save_memory_update(
@@ -584,7 +624,13 @@ def chat(
                     )
                 )
                 saved_count += 1
-            console.print(f"Saved {saved_count} memory update(s).")
+            for strategic_candidate in last_response.strategic_memory_candidates:
+                service.strategic_memory_repository.save_memory(strategic_candidate)
+                saved_strategy_count += 1
+            console.print(
+                f"Saved {saved_count} memory update(s) and "
+                f"{saved_strategy_count} strategic memory update(s)."
+            )
             continue
 
         try:
@@ -1481,6 +1527,165 @@ def memory_list(
     _print_memory_table("Memory List", store.list(project=project))
 
 
+@strategy_memory_app.command("add")
+def strategy_memory_add(
+    type_: Annotated[StrategicMemoryType, typer.Option("--type", help="Strategic memory type.")],
+    content: Annotated[str, typer.Option("--content", help="Strategic memory content.")],
+    summary: Annotated[str, typer.Option("--summary", help="Short summary.")] = "",
+    scope: Annotated[
+        StrategicMemoryScope,
+        typer.Option("--scope", help="Memory scope."),
+    ] = StrategicMemoryScope.PROJECT,
+    tag: Annotated[list[str] | None, typer.Option("--tag", help="Repeatable tag.")] = None,
+    project: Annotated[str | None, typer.Option("--project", help="Project namespace.")] = "default",
+    repo_profile_id: Annotated[
+        str | None,
+        typer.Option("--repo-profile", help="Optional repo profile ID."),
+    ] = None,
+    confidence: Annotated[
+        float,
+        typer.Option("--confidence", min=0.0, max=1.0, help="Memory confidence."),
+    ] = 0.75,
+    importance: Annotated[
+        float,
+        typer.Option("--importance", min=0.0, max=1.0, help="Memory importance."),
+    ] = 0.7,
+    stability: Annotated[
+        StrategicMemoryStability,
+        typer.Option("--stability", help="Expected memory lifetime."),
+    ] = StrategicMemoryStability.MEDIUM_TERM,
+    source: Annotated[
+        StrategicMemorySource,
+        typer.Option("--source", help="Memory source."),
+    ] = StrategicMemorySource.MANUAL,
+) -> None:
+    """Add a strategic memory to the persistent local store."""
+
+    item = StrategicMemoryItem(
+        type=type_,
+        scope=scope,
+        project=project,
+        repo_profile_id=repo_profile_id,
+        content=content,
+        summary=summary,
+        evidence=[
+            StrategicMemoryEvidence(
+                source="cli",
+                content=content,
+                kind="manual",
+                confidence=confidence,
+            )
+        ],
+        confidence=confidence,
+        importance=importance,
+        stability=stability,
+        source=source,
+        tags=tag or [],
+    )
+    repository = StrategicMemoryRepository()
+    conflicts = repository.detect_simple_conflicts(item)
+    saved = repository.save_memory(item)
+    console.print(
+        f"Added strategic {saved.type.value} memory {saved.id} "
+        f"with tags: {', '.join(saved.tags) or '-'}"
+    )
+    console.print(f"[dim]Stored in {repository.database_path}[/dim]")
+    if conflicts:
+        console.print(build_conflict_table(conflicts))
+
+
+@strategy_memory_app.command("list")
+def strategy_memory_list(
+    project: Annotated[str | None, typer.Option("--project", help="Project namespace.")] = None,
+    type_: Annotated[
+        StrategicMemoryType | None,
+        typer.Option("--type", help="Filter by strategic memory type."),
+    ] = None,
+    scope: Annotated[
+        StrategicMemoryScope | None,
+        typer.Option("--scope", help="Filter by scope."),
+    ] = None,
+    include_archived: Annotated[
+        bool,
+        typer.Option("--include-archived", help="Include archived strategic memories."),
+    ] = False,
+) -> None:
+    """List strategic memories."""
+
+    repository = StrategicMemoryRepository()
+    console.print(
+        build_strategic_memory_table(
+            repository.list_memories(
+                project=project,
+                type_=type_,
+                scope=scope,
+                include_archived=include_archived,
+            ),
+            title="Strategic Memory List",
+        )
+    )
+
+
+@strategy_memory_app.command("search")
+def strategy_memory_search(
+    query: Annotated[str, typer.Argument(help="Text query.")],
+    project: Annotated[str | None, typer.Option("--project", help="Project namespace.")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum results.")] = 8,
+) -> None:
+    """Search strategic memories."""
+
+    repository = StrategicMemoryRepository()
+    console.print(
+        build_strategic_memory_table(
+            repository.search_memories(query, project=project, limit=limit),
+            title="Strategic Memory Search",
+        )
+    )
+
+
+@strategy_memory_app.command("show")
+def strategy_memory_show(
+    memory_id: Annotated[str, typer.Argument(help="Strategic memory ID.")],
+) -> None:
+    """Show one strategic memory."""
+
+    repository = StrategicMemoryRepository()
+    memory = repository.get_memory(memory_id)
+    if memory is None:
+        console.print(f"[red]Strategic memory not found: {memory_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_strategic_memory_detail(memory))
+
+
+@strategy_memory_app.command("archive")
+def strategy_memory_archive(
+    memory_id: Annotated[str, typer.Argument(help="Strategic memory ID.")],
+) -> None:
+    """Archive one strategic memory."""
+
+    repository = StrategicMemoryRepository()
+    memory = repository.archive_memory(memory_id)
+    if memory is None:
+        console.print(f"[red]Strategic memory not found: {memory_id}[/red]")
+        raise typer.Exit(1)
+    console.print(f"Archived strategic memory {memory.id}")
+
+
+@strategy_app.command("context")
+def strategy_context(
+    project: Annotated[str | None, typer.Option("--project", help="Project namespace.")] = "default",
+    include_archived: Annotated[
+        bool,
+        typer.Option("--include-archived", help="Include archived strategic memories."),
+    ] = False,
+) -> None:
+    """Show the currently known long-term strategic context."""
+
+    repository = StrategicMemoryRepository()
+    memories = repository.list_memories(project=project, include_archived=include_archived)
+    console.print(build_strategic_context_renderable(memories))
+
+
 @app.command("runs")
 def list_runs(
     limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum runs to show.")] = 10,
@@ -2108,7 +2313,9 @@ def _run_conversation_turn(
     mode: DeliberationMode,
     repo: Path | None,
     save_memory: bool,
+    save_strategy: bool,
     use_memory: bool,
+    show_context: bool,
     discussion: bool,
 ) -> None:
     service = ConversationService()
@@ -2119,13 +2326,17 @@ def _run_conversation_turn(
                 mode=mode,
                 repo_path=str(repo) if repo is not None else None,
                 save_memory=save_memory,
+                save_strategy=save_strategy,
                 use_memory=use_memory,
+                show_context=show_context,
                 discussion=discussion,
             )
         )
     except (FileNotFoundError, NotADirectoryError, ValueError) as error:
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(1) from error
+    if show_context:
+        _print_chat_context(response)
     console.print(build_conversation_response_renderable(response))
 
 

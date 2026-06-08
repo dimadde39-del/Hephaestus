@@ -26,11 +26,19 @@ from hephaestus.conversation.schemas import (
     ConversationSession,
     DeliberationMode,
     DeliberationResult,
+    RetrievedConversationContext,
 )
 from hephaestus.decision import DecisionTraceRepository
 from hephaestus.models import ModelProvider
 from hephaestus.repo import RepoProfileRepository
 from hephaestus.storage import RunRecord, RunRepository, SqliteMemoryRepository
+from hephaestus.strategic_memory.extractor import extract_strategic_memories
+from hephaestus.strategic_memory.repository import StrategicMemoryRepository
+from hephaestus.strategic_memory.schemas import (
+    StrategicMemoryConflict,
+    StrategicMemoryExtractionResult,
+    StrategicMemoryItem,
+)
 
 
 class ConversationService:
@@ -45,6 +53,7 @@ class ConversationService:
         self.repository = ConversationRepository(database_path)
         self.database_path = self.repository.database_path
         self.memory_repository = SqliteMemoryRepository(self.database_path)
+        self.strategic_memory_repository = StrategicMemoryRepository(self.database_path)
         self.repo_repository = RepoProfileRepository(self.database_path)
         self.run_repository = RunRepository(self.database_path)
         self.trace_repository = DecisionTraceRepository(self.database_path)
@@ -74,6 +83,7 @@ class ConversationService:
             effective_request,
             intent,
             memory_repository=self.memory_repository,
+            strategic_memory_repository=self.strategic_memory_repository,
             repo_repository=self.repo_repository,
         )
         if context.repo_profile is not None:
@@ -90,7 +100,18 @@ class ConversationService:
             deliberation,
             project=effective_request.project,
         )
-        decision_trace = self._maybe_create_decision_trace(session.id, deliberation)
+        strategic_extraction = self._extract_strategic_memory_updates(
+            effective_request,
+            deliberation,
+            session_id=session.id,
+            repo_profile_id=context.repo_profile.id if context.repo_profile is not None else None,
+        )
+        decision_trace = self._maybe_create_decision_trace(
+            session.id,
+            deliberation,
+            context,
+            strategic_extraction,
+        )
 
         assistant_message = ConversationMessage(
             session_id=session.id,
@@ -122,6 +143,10 @@ class ConversationService:
             memory_candidates,
             save_memory=effective_request.save_memory,
         )
+        strategic_memory_updates = self._save_strategic_memory_updates(
+            strategic_extraction,
+            save_memory=effective_request.save_memory or effective_request.save_strategy,
+        )
 
         return ConversationResponse(
             session_id=session.id,
@@ -131,9 +156,13 @@ class ConversationService:
             answer=deliberation.final_response,
             deliberation=deliberation,
             selected_memory_ids=context.selected_memory_ids,
+            selected_strategic_memory_ids=context.selected_strategic_memory_ids,
             selected_context=context.context_items,
             memory_candidates=memory_candidates,
             memory_updates=memory_updates,
+            strategic_memory_extraction=strategic_extraction,
+            strategic_memory_candidates=strategic_extraction.items,
+            strategic_memory_updates=strategic_memory_updates,
             decision_trace=decision_trace,
             provider_model=deliberation.provider_model,
             input_tokens=deliberation.input_tokens,
@@ -190,11 +219,18 @@ class ConversationService:
         self,
         session_id: str,
         result: DeliberationResult,
+        context: RetrievedConversationContext,
+        strategic_extraction: StrategicMemoryExtractionResult,
     ) -> ConversationDecisionTrace | None:
         if not should_create_decision_trace(result.intent):
             return None
 
-        summary = build_conversation_decision_trace(session_id, result)
+        summary = build_conversation_decision_trace(
+            session_id,
+            result,
+            context,
+            strategic_extraction,
+        )
         run = self.run_repository.save_run(
             RunRecord(
                 goal=f"Conversation: {summary.intent.value}",
@@ -218,6 +254,26 @@ class ConversationService:
                 "decision_trace_id": trace.id,
             }
         )
+
+    def _extract_strategic_memory_updates(
+        self,
+        request: ConversationRequest,
+        result: DeliberationResult,
+        *,
+        session_id: str,
+        repo_profile_id: str | None,
+    ) -> StrategicMemoryExtractionResult:
+        extraction = extract_strategic_memories(
+            request.prompt,
+            result,
+            project=request.project,
+            repo_profile_id=repo_profile_id,
+            conversation_id=session_id,
+        )
+        conflicts: list[StrategicMemoryConflict] = []
+        for item in extraction.items:
+            conflicts.extend(self.strategic_memory_repository.detect_simple_conflicts(item))
+        return extraction.model_copy(update={"conflicts": conflicts})
 
     def _save_memory_updates(
         self,
@@ -246,3 +302,16 @@ class ConversationService:
             )
             updates.append(update)
         return updates
+
+    def _save_strategic_memory_updates(
+        self,
+        extraction: StrategicMemoryExtractionResult,
+        *,
+        save_memory: bool,
+    ) -> list[StrategicMemoryItem]:
+        if not save_memory:
+            return []
+        saved: list[StrategicMemoryItem] = []
+        for item in extraction.items:
+            saved.append(self.strategic_memory_repository.save_memory(item))
+        return saved

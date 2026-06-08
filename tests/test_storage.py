@@ -44,8 +44,17 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         conversation_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'conversation_sessions'"
         ).fetchone()
+        strategic_memory_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'strategic_memories'"
+        ).fetchone()
+        strategic_conflict_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'strategic_memory_conflicts'"
+        ).fetchone()
+        strategic_recall_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'strategic_memory_recalls'"
+        ).fetchone()
 
-    assert migration_count[0] == 10
+    assert migration_count[0] == 11
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
     assert pareto_table[0] == "pareto_frontiers"
@@ -53,6 +62,9 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
     assert repo_table[0] == "repo_profiles"
     assert release_table[0] == "release_plans"
     assert conversation_table[0] == "conversation_sessions"
+    assert strategic_memory_table[0] == "strategic_memories"
+    assert strategic_conflict_table[0] == "strategic_memory_conflicts"
+    assert strategic_recall_table[0] == "strategic_memory_recalls"
 
 
 def test_memory_persists_across_repository_instances(tmp_path) -> None:

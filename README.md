@@ -45,6 +45,9 @@ Then inspect the artifacts:
 ```bash
 uv run heph ask "What is Hephaestus trying to become?"
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
+uv run heph discuss "Research plan: compare Hephaestus positioning against open-source agent frameworks." --mode research
+uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
+uv run heph strategy context
 uv run heph release list
 uv run heph release show <release_run_id>
 uv run heph runs
@@ -101,6 +104,14 @@ Hephaestus learns decision quality.
 - **Conversation is deliberative.** `ask`, `discuss`, and `chat` classify the
   discussion, retrieve memory/repo context, run internal deliberation passes,
   suggest memory updates, and trace high-impact strategy or architecture calls.
+- **Strategic memory is explicit.** Goals, ambitions, principles, roadmap
+  decisions, rejected paths, assumptions, and open questions can shape future
+  discussions, but conversation-derived updates are only saved with
+  `--save-memory`, `--save-strategy`, or chat `/save-memory`.
+- **Discussion quality is rubric-backed.** Stress tests, business strategy,
+  product strategy, architecture, roadmap, research planning, and risk analysis
+  use explicit checks so Hephaestus helps the user think better instead of just
+  replying.
 
 ## Current Status
 
@@ -119,6 +130,9 @@ Built:
 - Read-only repo intelligence and repo-aware release planning.
 - Conversational text interface with deliberation modes, memory suggestions,
   repo context, persisted sessions, and high-impact decision traces.
+- Strategic memory for durable goals, ambitions, principles, constraints,
+  assumptions, decisions, rejected paths, lessons, and open questions.
+- Discussion-quality rubrics and research planning mode.
 
 Not built yet:
 
@@ -146,6 +160,8 @@ Architecture at a glance:
 ```text
 CLI
  |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
+ |-- Strategic memory: long-term goals, principles, assumptions, decisions, and context
+ |-- Discussion quality: rubrics for stress tests, strategy, architecture, roadmap, and research
  |-- Repo intelligence: read-only local inspection and command risk classification
  |-- Release planning: demo orchestration and conservative recommendations
  |-- Optimization core: scheduling, routing, context packing, token budget checks
@@ -171,6 +187,11 @@ uv run heph --help
 uv run heph doctor
 uv run heph ask "What is Hephaestus trying to become?"
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
+uv run heph ask "What context is shaping this?" --show-context
+uv run heph discuss "Research plan: compare Hephaestus positioning against existing open-source agent frameworks." --mode research
+uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
+uv run heph strategy memory search "20k"
+uv run heph strategy context
 uv run heph ask "What are the release risks in this repo?" --repo .
 uv run heph conversations
 uv run heph repo inspect .

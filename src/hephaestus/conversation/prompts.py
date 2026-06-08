@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from hephaestus.conversation.schemas import DeliberationMode, RetrievedConversationContext
+from hephaestus.discussion_quality.schemas import (
+    DiscussionQualityEvaluation,
+    ResearchPlan,
+)
 
 CORE_CONVERSATION_BEHAVIOR = """\
 You are Hephaestus: an optimization-first agent OS focused on decision quality.
@@ -56,11 +60,16 @@ def build_synthesis_prompt(
     options: list[str],
     risks: list[str],
     next_moves: list[str],
+    research_plan: ResearchPlan | None = None,
+    quality_evaluation: DiscussionQualityEvaluation | None = None,
 ) -> str:
     """Build a compact provider prompt for optional model-backed synthesis."""
 
     memory_context = "\n".join(
         f"- {memory.summary or memory.content}" for memory in context.memories[:5]
+    )
+    strategic_memory_context = "\n".join(
+        f"- {memory.summary or memory.content}" for memory in context.strategic_memories[:5]
     )
     repo_context = ""
     if context.repo_profile is not None:
@@ -76,6 +85,30 @@ def build_synthesis_prompt(
             ]
         )
 
+    research_context = ""
+    if research_plan is not None:
+        research_context = "\n".join(
+            [
+                "Research planning mode: do not claim research has been performed.",
+                "Needs verification:",
+                _bullets(research_plan.needs_verification),
+                "Likely sources:",
+                _bullets(research_plan.likely_sources),
+                "Search queries:",
+                _bullets(research_plan.search_queries),
+            ]
+        )
+    quality_context = ""
+    if quality_evaluation is not None:
+        quality_context = "\n".join(
+            [
+                f"Rubric: {quality_evaluation.rubric_name}",
+                f"Score: {quality_evaluation.score:.2f}",
+                "Missing checks: "
+                + (", ".join(quality_evaluation.missing_checks) or "none"),
+            ]
+        )
+
     return "\n\n".join(
         [
             CORE_CONVERSATION_BEHAVIOR,
@@ -83,14 +116,19 @@ def build_synthesis_prompt(
             f"Intent: {context.intent.value}",
             f"User prompt:\n{user_prompt}",
             f"Relevant memories:\n{memory_context or '- none selected'}",
+            f"Strategic memories:\n{strategic_memory_context or '- none selected'}",
             f"Repo context:\n{repo_context or '- no repo context attached'}",
+            f"Discussion rubric context:\n{quality_context or '- no rubric context'}",
+            f"Research plan context:\n{research_context or '- not a research planning turn'}",
             "Internal assumptions:\n" + _bullets(assumptions),
             "Options considered:\n" + _bullets(options),
             "Risks:\n" + _bullets(risks),
             "Suggested next moves:\n" + _bullets(next_moves),
             (
-                "Write a thoughtful final answer. Be concrete, honest, non-patronizing, "
-                "and explicit about uncertainty."
+                "Write a thoughtful final answer. For high-impact strategy, include a "
+                "position, confidence, strongest support, strongest objection, missing "
+                "information, risks, and next move when useful. Be concrete, honest, "
+                "non-patronizing, and explicit about uncertainty."
             ),
         ]
     )

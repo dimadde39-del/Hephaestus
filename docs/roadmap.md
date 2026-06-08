@@ -134,16 +134,36 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - High-impact discussion traces linked to the decision engine.
 - Fake/local deterministic mode when no real provider is configured.
 
-## Upcoming
-
 ### Phase 5B: Strategic Memory + Research/Discussion Quality Framework
 
-- Deepen long-term memory for ambitions, project goals, strategic decisions,
-  failure patterns, and repeated objections.
-- Improve research planning, assumption challenge, and discussion-quality
-  evaluation across product, business, architecture, and roadmap work.
-- Add stronger review flows for promoting conversation insights into durable
-  memory.
+- Strategic memory package for goals, ambitions, constraints, fears, risk
+  patterns, preferences, principles, strategic decisions, roadmap decisions,
+  positioning decisions, launch decisions, business assumptions, technical
+  assumptions, rejected paths, lessons learned, and open questions.
+- SQLite persistence for strategic memories, simple conflicts, and recall
+  events.
+- `heph strategy memory add/list/search/show/archive` and `heph strategy context`.
+- Conversation recall of strategic memory for strategy, architecture, research,
+  roadmap, and risk discussions.
+- Save-controlled strategic memory suggestions through `--save-memory`,
+  `--save-strategy`, and chat `/save-memory`.
+- Discussion-quality rubrics for idea stress tests, business strategy, product
+  strategy, technical architecture, roadmap decisions, research planning, and
+  risk analysis.
+- Research planning mode that prepares verification without pretending live web
+  research has happened.
+- High-impact traces enriched with assumptions, options, recommendation,
+  confidence, memory used, strategic memories suggested, and rubric metadata.
+
+## Upcoming
+
+### Phase 5C: Real Model Provider Conversation Quality
+
+- Improve LLM-backed answers through provider routing.
+- Add OpenAI-compatible and DeepSeek conversation support without requiring paid
+  APIs by default.
+- Add response quality evaluation fixtures for conversation benchmarks.
+- Preserve deterministic local fixtures for tests.
 
 ### Soft Reveal Execution
 

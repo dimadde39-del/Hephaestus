@@ -32,6 +32,50 @@ Conversation memory updates are conservative. `heph ask` and `heph discuss`
 show suggested updates by default, but durable memories are saved only when
 `--save-memory` is passed or when `/save-memory` is used in chat.
 
+## Strategic Memory
+
+Phase 5B adds a separate strategic memory layer for long-term direction and
+non-code decision quality. Strategic memory types include:
+
+- `goal`
+- `ambition`
+- `constraint`
+- `fear`
+- `risk_pattern`
+- `preference`
+- `principle`
+- `strategic_decision`
+- `roadmap_decision`
+- `positioning_decision`
+- `launch_decision`
+- `business_assumption`
+- `technical_assumption`
+- `rejected_path`
+- `lesson_learned`
+- `open_question`
+
+Strategic memories have a scope: `global`, `project`, `repo`, or
+`conversation`. They also record confidence, importance, stability, source,
+tags, and evidence. Use:
+
+```bash
+uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
+uv run heph strategy memory list
+uv run heph strategy memory search "20k"
+uv run heph strategy memory show <memory_id>
+uv run heph strategy memory archive <memory_id>
+uv run heph strategy context
+```
+
+`heph strategy context` answers the question: what does Hephaestus currently
+know about the long-term direction?
+
+Conversation-derived strategic memories are suggestions unless explicitly
+saved with `--save-memory`, `--save-strategy`, or chat `/save-memory`.
+Project goals, roadmap decisions, technical preferences, and open-source
+strategy can be suggested normally. Potentially sensitive personal details are
+not auto-saved and should only be persisted by explicit user choice.
+
 ## CLI
 
 ```bash

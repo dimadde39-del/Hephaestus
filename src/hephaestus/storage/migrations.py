@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -516,6 +516,72 @@ CREATE INDEX IF NOT EXISTS idx_conversation_memory_updates_memory
 ON conversation_memory_updates(memory_id);
 """
 
+MIGRATION_11 = """
+CREATE TABLE IF NOT EXISTS strategic_memories (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    project TEXT,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+    content TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    evidence_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL NOT NULL DEFAULT 0.7,
+    importance REAL NOT NULL DEFAULT 0.6,
+    stability TEXT NOT NULL,
+    source TEXT NOT NULL,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    archived_at TEXT,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_strategic_memories_project_type
+ON strategic_memories(project, type, archived_at);
+
+CREATE INDEX IF NOT EXISTS idx_strategic_memories_scope
+ON strategic_memories(scope, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_strategic_memories_repo
+ON strategic_memories(repo_profile_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS strategic_memory_conflicts (
+    id TEXT PRIMARY KEY,
+    existing_memory_id TEXT NOT NULL REFERENCES strategic_memories(id) ON DELETE CASCADE,
+    candidate_memory_id TEXT,
+    conflict_type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    severity REAL NOT NULL DEFAULT 0.5,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_strategic_memory_conflicts_status
+ON strategic_memory_conflicts(status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_strategic_memory_conflicts_existing
+ON strategic_memory_conflicts(existing_memory_id, status);
+
+CREATE TABLE IF NOT EXISTS strategic_memory_recalls (
+    id TEXT PRIMARY KEY,
+    query TEXT NOT NULL DEFAULT '',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    types_json TEXT NOT NULL DEFAULT '[]',
+    scopes_json TEXT NOT NULL DEFAULT '[]',
+    selected_memory_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_strategic_memory_recalls_created
+ON strategic_memory_recalls(created_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -606,6 +672,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (10, datetime.now(UTC).isoformat()),
+        )
+    if 11 not in applied_versions:
+        connection.executescript(MIGRATION_11)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (11, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

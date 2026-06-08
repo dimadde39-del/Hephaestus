@@ -9,8 +9,16 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from hephaestus.discussion_quality.schemas import (
+    DiscussionQualityEvaluation,
+    ResearchPlan,
+)
 from hephaestus.memory.schemas import MemoryItem, MemoryType
 from hephaestus.repo.schemas import RepoProfile
+from hephaestus.strategic_memory.schemas import (
+    StrategicMemoryExtractionResult,
+    StrategicMemoryItem,
+)
 
 
 class ConversationIntent(StrEnum):
@@ -71,6 +79,7 @@ class RetrievedConversationContext(BaseModel):
     query: str
     intent: ConversationIntent
     memories: list[MemoryItem] = Field(default_factory=list)
+    strategic_memories: list[StrategicMemoryItem] = Field(default_factory=list)
     repo_profile: RepoProfile | None = None
     context_items: list[ConversationContextItem] = Field(default_factory=list)
 
@@ -79,6 +88,12 @@ class RetrievedConversationContext(BaseModel):
         """Return selected memory IDs in retrieval order."""
 
         return [memory.id for memory in self.memories]
+
+    @property
+    def selected_strategic_memory_ids(self) -> list[str]:
+        """Return selected strategic memory IDs in retrieval order."""
+
+        return [memory.id for memory in self.strategic_memories]
 
 
 class ConversationSession(BaseModel):
@@ -127,6 +142,8 @@ class ConversationRequest(BaseModel):
     repo_path: str | None = None
     use_memory: bool = True
     save_memory: bool = False
+    save_strategy: bool = False
+    show_context: bool = False
     discussion: bool = False
     project: str = "default"
 
@@ -158,6 +175,8 @@ class DeliberationResult(BaseModel):
     recommendation: str = ""
     next_moves: list[str] = Field(default_factory=list)
     final_response: str
+    quality_evaluation: DiscussionQualityEvaluation | None = None
+    research_plan: ResearchPlan | None = None
     confidence: float = Field(default=0.7, ge=0, le=1)
     provider_model: str = "local/deterministic"
     input_tokens: int = Field(default=0, ge=0)
@@ -232,6 +251,11 @@ class ConversationDecisionTrace(BaseModel):
     recommendation: str
     confidence: float = Field(default=0.7, ge=0, le=1)
     suggested_next_move: str = ""
+    memory_used: list[str] = Field(default_factory=list)
+    strategic_memory_used: list[str] = Field(default_factory=list)
+    strategic_memories_suggested: list[str] = Field(default_factory=list)
+    discussion_quality_rubric: str | None = None
+    discussion_quality_score: float | None = Field(default=None, ge=0, le=1)
 
 
 class ConversationResponse(BaseModel):
@@ -246,9 +270,13 @@ class ConversationResponse(BaseModel):
     answer: str
     deliberation: DeliberationResult
     selected_memory_ids: list[str] = Field(default_factory=list)
+    selected_strategic_memory_ids: list[str] = Field(default_factory=list)
     selected_context: list[ConversationContextItem] = Field(default_factory=list)
     memory_candidates: list[ConversationMemoryCandidate] = Field(default_factory=list)
     memory_updates: list[ConversationMemoryUpdate] = Field(default_factory=list)
+    strategic_memory_extraction: StrategicMemoryExtractionResult | None = None
+    strategic_memory_candidates: list[StrategicMemoryItem] = Field(default_factory=list)
+    strategic_memory_updates: list[StrategicMemoryItem] = Field(default_factory=list)
     decision_trace: ConversationDecisionTrace | None = None
     provider_model: str = "local/deterministic"
     input_tokens: int = Field(default=0, ge=0)

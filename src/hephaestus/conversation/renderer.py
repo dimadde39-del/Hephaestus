@@ -15,6 +15,14 @@ from hephaestus.conversation.schemas import (
     ConversationSession,
     RetrievedConversationContext,
 )
+from hephaestus.discussion_quality.renderer import (
+    build_discussion_quality_renderable,
+    build_research_plan_renderable,
+)
+from hephaestus.strategic_memory.renderer import (
+    build_strategic_memory_suggestions_table,
+    build_strategic_memory_table,
+)
 
 
 def build_conversation_response_renderable(response: ConversationResponse) -> RenderableType:
@@ -41,13 +49,32 @@ def build_conversation_response_renderable(response: ConversationResponse) -> Re
                         f"Confidence: {trace.confidence:.2f}",
                         f"Next: {trace.suggested_next_move or '-'}",
                         f"Decision trace: {trace.decision_trace_id or 'not persisted'}",
+                        "Memory used: " + (", ".join(trace.memory_used) or "-"),
+                        "Strategic memory used: "
+                        + (", ".join(trace.strategic_memory_used) or "-"),
+                        "Rubric: " + (trace.discussion_quality_rubric or "-"),
                     ]
                 ),
                 title="Conversation Decision Trace",
             )
         )
+    if response.deliberation.research_plan is not None:
+        parts.append(build_research_plan_renderable(response.deliberation.research_plan))
+    if response.deliberation.quality_evaluation is not None:
+        parts.append(build_discussion_quality_renderable(response.deliberation.quality_evaluation))
     if response.memory_candidates:
         parts.append(build_memory_candidate_table(response.memory_candidates))
+    if response.strategic_memory_extraction is not None and response.strategic_memory_candidates:
+        parts.append(
+            build_strategic_memory_suggestions_table(response.strategic_memory_extraction)
+        )
+    if response.strategic_memory_updates:
+        parts.append(
+            build_strategic_memory_table(
+                response.strategic_memory_updates,
+                title="Saved Strategic Memory Updates",
+            )
+        )
     if response.memory_updates:
         parts.append(build_memory_update_table(response.memory_updates))
     parts.append(
