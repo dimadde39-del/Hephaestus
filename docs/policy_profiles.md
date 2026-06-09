@@ -2,7 +2,8 @@
 
 Policy profiles are Hephaestus's configurable freedom boundary. They decide how
 the conversation layer treats benign work, approval-gated side effects, and
-genuinely harmful requests.
+genuinely harmful requests. Phase 5E also uses the active profile when local
+tool actions are classified.
 
 ## Profile Types
 
@@ -54,3 +55,12 @@ uv run heph policy benchmark run
 ```
 
 Use `developer` for the intended open-source power-user experience.
+
+## Tool Runtime Integration
+
+`heph tools` records the active profile on every action. The profile affects
+whether safe validation can run directly, whether medium/high-risk work needs
+approval, and whether external or destructive actions are blocked.
+
+The default remains practical: normal local development can move, while
+file-changing, external, and destructive actions stay explicit.

@@ -24,10 +24,10 @@ It does not mean:
 
 This distinction matters because Hephaestus is building toward an agent OS. If
 it over-refuses ordinary work, it will feel useless. If it executes side effects
-without approval, it will be unsafe. Phase 5D solves the first part and prepares
-the vocabulary for the second.
+without approval, it will be unsafe. Phase 5D solves the first part and Phase 5E
+turns the approval vocabulary into a local tool runtime.
 
-Safe Tool Execution Runtime is Phase 5E. Tools will need approval gates,
-checkpoints, rollback, observations, and outcome learning. Policy profiles come
-first so those execution gates are user-owned and explainable instead of bolted
-on later.
+Safe Tool Execution Runtime now supports read/list/search, dry-run command
+planning, safe command execution, patch proposals, checkpointed patch apply, and
+checkpoint restore. Conversations can propose tool commands, but they do not run
+them automatically.

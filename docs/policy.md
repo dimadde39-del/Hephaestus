@@ -3,7 +3,8 @@
 Hephaestus is local-first and user-owned. Phase 5D turns that from a prompt
 principle into a product layer: policy profiles, deterministic request
 evaluation, active-profile persistence, concise boundaries, over-refusal
-detection, and policy benchmarks.
+detection, and policy benchmarks. Phase 5E applies those profiles to local tool
+execution.
 
 The short version:
 
@@ -64,13 +65,18 @@ likely to over-refuse. If a provider refuses a clearly benign allowed request,
 Hephaestus flags over-refusal and falls back to local deterministic synthesis.
 
 Blocked prompts short-circuit locally with a concise refusal. Approval-gated
-prompts can still be discussed, but Hephaestus will not execute anything in
-Phase 5D.
+prompts can still be discussed. When execution happens through `heph tools`, the
+runtime records the active profile, risk level, approval decision, result, and
+observation.
 
 ## Why Before Tool Execution
 
-Safe Tool Execution Runtime comes next because tools need policy boundaries
-before they get hands. Phase 5D defines the user-owned freedom layer and the
-approval vocabulary. Phase 5E can then add controlled filesystem tools, shell
-wrappers, checkpoints, rollback, observations, and outcome learning without
-inventing policy in the middle of execution.
+Safe Tool Execution Runtime uses the Phase 5D approval vocabulary:
+
+- `developer`: benign local development stays direct; side effects need approval.
+- `research`: read-only analysis is easy; execution is approval-gated more often.
+- `local_power_user`: fewer clarifying pauses, same destructive/external gates.
+- `strict`: high-risk and external-side-effect actions are more likely blocked.
+
+This keeps the UX practically free for normal work while making local side
+effects explicit and auditable.

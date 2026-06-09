@@ -43,6 +43,7 @@ _VALIDATION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(test|pytest|vitest|jest|ruff|mypy|lint|eslint|clippy|check|fmt\s+--check|tsc|build)\b", re.IGNORECASE),
     re.compile(r"\bgo\s+(test|build)\b", re.IGNORECASE),
     re.compile(r"\bcargo\s+(test|build|check|clippy|fmt)\b", re.IGNORECASE),
+    re.compile(r"\b(python|node|npm|pnpm|uv|go|cargo)\s+--version\b", re.IGNORECASE),
 )
 
 _READONLY_PATTERNS: tuple[re.Pattern[str], ...] = (

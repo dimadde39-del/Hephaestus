@@ -27,10 +27,16 @@ Phase 5D inserts policy before synthesis:
 Input -> Policy Profile Evaluation -> Conversation / Benchmark / Boundary Response
 ```
 
-The current system stops before execution. It inspects, plans, optimizes,
-explains, evaluates deterministic simulated outcomes, and creates reviewable
-learning artifacts. Future phases can add safe command execution without
-changing the core decision trail.
+Phase 5E adds controlled local tools:
+
+```text
+Tool Intent -> Risk Classification -> Approval Gate -> Safe Execution -> Observation -> Trace / Outcome
+```
+
+The current system still stops before autonomous coding. It can inspect files,
+run safe validation commands, propose patches, apply approved checkpointed
+patches, restore checkpoints, and record observations. It does not let
+conversation turns execute tools automatically.
 
 ## Core Modules
 
@@ -57,6 +63,10 @@ changing the core decision trail.
 - `repo`: read-only repository inspection, stack detection, command risk
   classification, validation plan generation, repo-aware tasks, persistence,
   Rich renderers, and benchmark export.
+- `tool_runtime`: local filesystem reads/search, shell command classification
+  and execution, approval gates, patch proposals, checkpointed patch apply and
+  restore, SQLite tool audit records, tool observations, and trace/outcome
+  integration.
 - `release`: repo-aware release planning schemas, orchestration, readiness
   analysis, SQLite persistence, and Rich demo renderers.
 - `conversation`: `ask`, `discuss`, and `chat` schemas, intent classifier,
@@ -104,6 +114,7 @@ User goal
   -> QUBO formulation / local binary solve
   -> Repo-aware benchmark export
   -> Release planning recommendation
+  -> Optional safe tool runtime action
   -> Benchmark report / persisted run
   -> ExecutionPlan
 ```
@@ -111,7 +122,7 @@ User goal
 At the product level this is the current alpha loop expressed as:
 
 ```text
-Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Execute safely later
+Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Execute safely with approval
 ```
 
 Phase 1 intentionally avoids a long-running daemon. The CLI proves the module

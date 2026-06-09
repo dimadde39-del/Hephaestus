@@ -1,7 +1,8 @@
 # Repo Intelligence
 
 Repo intelligence is Hephaestus' bridge from synthetic optimizer fixtures to
-real local development workflows.
+real local development workflows. In Phase 5E its command classifier also feeds
+the safe tool execution runtime.
 
 ```text
 Hephaestus does not jump straight from prompt to action.
@@ -35,14 +36,15 @@ uv run heph ask "What are the release risks in this repo?" --repo .
 The conversation pipeline reuses the latest profile for the path when one
 exists, otherwise it performs the same read-only inspection used by
 `heph repo inspect`. The answer can reference detected stack, validation
-commands, generated repo tasks, and risk signals, but it still does not run
-validation, build, deploy, publish, or destructive commands.
+commands, generated repo tasks, and risk signals. With `--propose-tools`, it can
+also print exact `heph tools ...` commands for the user to run manually.
 
 ## Safety Model
 
-Phase 4A does not execute repository commands. It reads manifests, lockfiles,
-configuration filenames, CI filenames, and package metadata. Commands are
-classified and suggested only.
+Repo inspection remains read-only. It reads manifests, lockfiles, configuration
+filenames, CI filenames, and package metadata. Phase 5E can execute separately
+through `heph tools`, but only after the tool runtime classifies risk and
+applies approval policy.
 
 Command categories:
 
@@ -54,7 +56,8 @@ Command categories:
 - `external_side_effect`
 
 Examples of safe validation suggestions include `pnpm test`, `pnpm lint`,
-`pnpm build`, `uv run pytest`, `cargo test`, and `go test ./...`.
+`pnpm build`, `uv run pytest`, `python --version`, `node --version`,
+`cargo test`, and `go test ./...`.
 
 Examples of commands that are approval-gated or flagged include `rm -rf`,
 `git push`, package publish commands, Docker pushes, deploy scripts, `curl | sh`,

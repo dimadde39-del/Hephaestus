@@ -1,6 +1,9 @@
 # Repo-Aware Release Planning
 
-Phase 4B creates the first polished local demo candidate for Hephaestus.
+Phase 4B creates the first polished local demo candidate for Hephaestus. Phase
+5E adds a separate safe tool runtime that can execute approved validation
+commands, but release planning itself remains evidence-oriented and does not
+auto-run the plan.
 
 ```text
 Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
@@ -67,17 +70,17 @@ real local deterministic systems.
 
 ## What Is Simulated
 
-Outcome evaluation is simulated over decision traces. It can say a model route
-met its quality threshold or a safety trace preserved approval gates. It cannot
-say `pytest`, `pnpm build`, deployment, publishing, or any repository command
-actually succeeded, because Phase 4B does not execute those commands.
+Outcome evaluation in release planning is still simulated over decision traces.
+Tool runtime commands can now produce real outcomes separately, but Phase 5F is
+the planned bridge that will feed real validation results back into release
+planning automatically.
 
 Release readiness is therefore planning readiness, not release proof.
 
-## Why Command Execution Is Deferred
+## Why Command Execution Is Separate
 
-Release planning is intentionally pre-execution. The system should inspect,
-specify, optimize, expose tradeoffs, explain, and learn before tool execution is
+Release planning is intentionally not an autonomous executor. The system should
+inspect, specify, optimize, expose tradeoffs, explain, and learn before tool execution is
 ever allowed.
 
 Commands are detected and classified as:

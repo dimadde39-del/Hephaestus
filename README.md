@@ -4,7 +4,7 @@
 
 **Optimization-first agent OS with explainable decisions and learning memory.**
 
-Status: **early alpha, local-first, planning-only**. Hephaestus can inspect a
+Status: **early alpha, local-first, approval-gated**. Hephaestus can inspect a
 repository, build a release-readiness plan, expose tradeoffs, formulate decision
 problems, explain why choices were made, evaluate deterministic simulated
 outcomes, create learning signals, and answer text discussions through
@@ -12,9 +12,11 @@ outcomes, create learning signals, and answer text discussions through
 local mode by default and can use configured DeepSeek or OpenAI-compatible
 providers for one-call synthesis with budget visibility. User-owned policy
 profiles keep benign creative, development, research, and strategy work
-practically free while preserving approval gates for side effects. It does **not** execute
-repository commands, edit code autonomously, run as a daemon, or claim
-production-ready autonomy.
+practically free while preserving approval gates for side effects. Phase 5E adds
+a safe local tool runtime for file inspection, dry-run command planning, safe
+validation commands, patch proposals, checkpointed patch application, and
+rollback. It does **not** edit code autonomously, run as a daemon, deploy,
+publish, push, or claim production-ready autonomy.
 
 ```text
 The forge for agents that think before they act.
@@ -54,6 +56,10 @@ uv run heph policy evaluate "make a README banner for my AI project"
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
 uv run heph discuss "Research plan: compare Hephaestus positioning against open-source agent frameworks." --mode research
 uv run heph policy benchmark run
+uv run heph tools list .
+uv run heph tools run "python --version" --dry-run
+uv run heph tools run "python --version" --yes
+uv run heph discuss "Propose a safe validation plan for this repo." --repo . --propose-tools
 uv run heph conversation benchmark list
 uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
 uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
@@ -158,26 +164,30 @@ Built:
 - User-owned policy profiles with SQLite-backed active profile state,
   deterministic request evaluation, over-refusal detection, policy benchmarks,
   and `heph policy` commands.
+- Safe local tool runtime for file list/read/search, command dry-runs, safe
+  command execution, patch proposals, checkpointed patch application, rollback,
+  observations, approvals, and trace/outcome links.
 
 Not built yet:
 
 - Autonomous code edits.
-- Execution of repository validation, build, deploy, publish, or destructive
-  commands.
+- Autonomous execution of full repository validation plans.
+- Deploy, publish, push, or destructive command execution.
 - A long-running daemon.
 - A dashboard.
 - Browser, desktop, Telegram, or voice automation.
 - Production sandbox execution.
 - Quantum hardware integration.
 
-Current outcomes are deterministic simulations over decision traces. They are
-useful for testing the learning loop, but they do not prove that `pytest`,
-`ruff`, a build, a deploy, or a release actually succeeded.
+Release-planning outcomes are still deterministic simulations over decision
+traces. Tool runtime commands can now produce real command outcomes separately,
+but Phase 5F is the planned bridge that turns validation plans into
+evidence-backed release learning.
 
 ## Core Loop
 
 ```text
-Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Bias future decisions only after review
+Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Execute safely with approval
 ```
 
 Architecture at a glance:
@@ -189,6 +199,7 @@ CLI
  |-- Strategic memory: long-term goals, principles, assumptions, decisions, and context
  |-- Discussion quality: rubrics for stress tests, strategy, architecture, roadmap, and research
  |-- Repo intelligence: read-only local inspection and command risk classification
+ |-- Tool runtime: safe file tools, shell gates, patches, checkpoints, observations
  |-- Release planning: demo orchestration and conservative recommendations
  |-- Optimization core: scheduling, routing, context packing, token budget checks
  |-- Pareto layer: multi-objective candidate frontiers and selections

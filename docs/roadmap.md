@@ -189,17 +189,37 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
   destructive/local/external side effects.
 - Documentation for user-owned freedom and policy profiles.
 
-## Upcoming
-
 ### Phase 5E: Safe Tool Execution Runtime
 
-- Approval-gated command execution for safe validation.
-- Dry-run planning before execution.
-- Output observation and exit-code capture.
-- Rollback/checkpoint design for file-changing actions.
-- Real outcome learning from validation commands.
-- Continued refusal of destructive, deploy, publish, and external side-effect
-  commands without explicit approval boundaries.
+- First-class `hephaestus.tool_runtime` package with schemas, classifier,
+  approvals, filesystem tools, shell runtime, patch proposals, checkpoints,
+  SQLite repository, renderers, and analysis helpers.
+- SQLite tool tables for actions, approvals, results, observations, and
+  checkpoints.
+- `heph tools list/read/search/run`, `heph tools patch propose/apply`,
+  `heph tools actions`, `heph tools action show`, and
+  `heph tools checkpoint list/show/restore`.
+- Protected file detection for `.env`, credential, token, private-key, and SSH
+  key material.
+- Dry-run command planning, risk classification, approval gates, stdout/stderr
+  capture, timeouts, output truncation, and observations.
+- Checkpoint creation before patch application and restore for files changed by
+  Hephaestus.
+- Policy-profile-aware execution decisions and reuse of repo command risk
+  classification.
+- Minimal decision trace and outcome links for important tool actions.
+- `--propose-tools` on `heph ask` and `heph discuss` for manual next-step plans
+  without chat auto-execution.
+
+## Upcoming
+
+### Phase 5F: Real Validation Execution + Outcome Learning
+
+- Execute repo validation plans through the Phase 5E runtime.
+- Convert real command results into outcome records.
+- Update learning signals from repeated validation failures.
+- Make release planning evidence-based rather than simulated.
+- Keep deploy, publish, destructive, and external-side-effect commands gated.
 
 ### Soft Reveal Execution
 

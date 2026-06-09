@@ -22,6 +22,7 @@ Users and future runtime systems should be able to answer:
 - Was a Pareto tradeoff frontier generated, and which candidate was selected?
 - Was a QUBO formulation generated, what variables and penalties existed, and
   which binary solution was selected?
+- Why did a tool action run, pause for approval, or get blocked?
 
 ## Decision Types
 
@@ -33,6 +34,10 @@ Decision traces are Pydantic records in `hephaestus.decision.schemas`:
 - `BudgetDecision`
 - `SafetyDecision`
 - `OptimizationDecision`
+
+Phase 5E represents important tool runtime decisions as `SafetyDecision`
+records. These traces explain command risk, approval requirements, blocked
+actions, patch application, checkpoint restore, and observed execution status.
 
 Every trace includes:
 

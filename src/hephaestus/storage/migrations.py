@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -624,6 +624,112 @@ CREATE INDEX IF NOT EXISTS idx_policy_evaluations_decision
 ON policy_evaluations(decision_type, primary_category, created_at DESC);
 """
 
+MIGRATION_13 = """
+CREATE TABLE IF NOT EXISTS tool_actions (
+    id TEXT PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    workspace_path TEXT NOT NULL,
+    command_text TEXT NOT NULL DEFAULT '',
+    target_path TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    risk_level TEXT NOT NULL,
+    active_policy_profile TEXT NOT NULL DEFAULT '',
+    approval_status TEXT NOT NULL DEFAULT 'not_required',
+    execution_status TEXT NOT NULL DEFAULT 'planned',
+    stdout_summary TEXT NOT NULL DEFAULT '',
+    stderr_summary TEXT NOT NULL DEFAULT '',
+    exit_code INTEGER,
+    files_touched_json TEXT NOT NULL DEFAULT '[]',
+    checkpoint_id TEXT,
+    decision_trace_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    outcome_id TEXT REFERENCES outcomes(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    patch_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_actions_created
+ON tool_actions(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_tool_actions_workspace
+ON tool_actions(workspace_path, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_tool_actions_patch
+ON tool_actions(patch_id);
+
+CREATE TABLE IF NOT EXISTS tool_approvals (
+    id TEXT PRIMARY KEY,
+    action_id TEXT NOT NULL REFERENCES tool_actions(id) ON DELETE CASCADE,
+    risk_level TEXT NOT NULL,
+    policy_profile TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    approved INTEGER NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    decided_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_approvals_action
+ON tool_approvals(action_id, created_at);
+
+CREATE TABLE IF NOT EXISTS tool_execution_results (
+    id TEXT PRIMARY KEY,
+    action_id TEXT NOT NULL REFERENCES tool_actions(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    stdout_summary TEXT NOT NULL DEFAULT '',
+    stderr_summary TEXT NOT NULL DEFAULT '',
+    exit_code INTEGER,
+    files_touched_json TEXT NOT NULL DEFAULT '[]',
+    checkpoint_id TEXT,
+    decision_trace_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    outcome_id TEXT REFERENCES outcomes(id) ON DELETE SET NULL,
+    duration_seconds REAL NOT NULL DEFAULT 0,
+    timed_out INTEGER NOT NULL DEFAULT 0,
+    output_truncated INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_execution_results_action
+ON tool_execution_results(action_id, created_at);
+
+CREATE TABLE IF NOT EXISTS tool_observations (
+    id TEXT PRIMARY KEY,
+    action_id TEXT NOT NULL REFERENCES tool_actions(id) ON DELETE CASCADE,
+    result_id TEXT REFERENCES tool_execution_results(id) ON DELETE SET NULL,
+    observation_type TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    signal TEXT NOT NULL DEFAULT '',
+    severity REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_observations_action
+ON tool_observations(action_id, created_at);
+
+CREATE TABLE IF NOT EXISTS tool_checkpoints (
+    id TEXT PRIMARY KEY,
+    action_id TEXT REFERENCES tool_actions(id) ON DELETE SET NULL,
+    workspace_path TEXT NOT NULL,
+    files_touched_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    restored_at TEXT,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_checkpoints_created
+ON tool_checkpoints(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_tool_checkpoints_action
+ON tool_checkpoints(action_id, created_at);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -726,6 +832,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (12, datetime.now(UTC).isoformat()),
+        )
+    if 13 not in applied_versions:
+        connection.executescript(MIGRATION_13)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (13, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

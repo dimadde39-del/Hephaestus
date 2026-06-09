@@ -500,7 +500,9 @@ def _map_assumptions(
     if "before it can execute code" in lowered or "can't execute code" in lowered:
         assumptions.append("A planning-only launch can work if the demo makes the execution boundary explicit.")
     if context.repo_profile is not None:
-        assumptions.append("Repo-aware advice is based on read-only profile signals, not command execution.")
+        assumptions.append(
+            "Repo-aware advice is grounded in profile signals; tool execution stays explicit."
+        )
     if context.strategic_memories:
         assumptions.append("Strategic advice is conditioned on recalled long-term project context.")
     if intent == ConversationIntent.ARCHITECTURE_DISCUSSION:
@@ -525,7 +527,7 @@ def _generate_options(
         return [
             "Use the latest repo profile to reason about validation, stack, and release risk.",
             "Inspect the repo again if the profile may be stale.",
-            "Turn the risks into a release-readiness plan before execution features exist.",
+            "Turn the risks into approved `heph tools` validation steps.",
         ]
     if intent == ConversationIntent.IDEA_STRESS_TEST:
         return [
@@ -592,7 +594,7 @@ def _tradeoffs(
     if intent == ConversationIntent.REPO_QUESTION and context.repo_profile is not None:
         return [
             "Reusing the latest repo profile is fast, but re-inspection is safer after code changes.",
-            "Planning-only analysis is safe and explainable, but it cannot prove commands pass.",
+            "Tool proposals stay safe because the user runs dry-runs or approved commands explicitly.",
         ]
     if intent in {
         ConversationIntent.PRODUCT_STRATEGY,
@@ -637,7 +639,7 @@ def _next_moves(
         return [
             "Review detected validation commands and repo risk signals.",
             "Convert the highest-risk gap into the next roadmap task.",
-            "Keep execution deferred until an approval-gated command runner exists.",
+            "Dry-run safe validation through `heph tools run ... --dry-run` before execution.",
         ]
     if intent == ConversationIntent.IDEA_STRESS_TEST:
         return [
@@ -673,8 +675,8 @@ def _recommendation(
         )
     if intent == ConversationIntent.REPO_QUESTION and context.repo_profile is not None:
         return (
-            "Treat release risk as a profile-grounded planning problem first: validate the "
-            "detected stack, review risk signals, and do not imply command execution yet."
+            "Treat release risk as a profile-grounded validation problem: review risk signals, "
+            "dry-run the safe commands, then execute approved validation through `heph tools`."
         )
     if intent == ConversationIntent.IDEA_STRESS_TEST:
         return (

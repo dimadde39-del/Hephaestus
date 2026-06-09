@@ -4,7 +4,8 @@ Phase 5A adds a real text interface, Phase 5B makes it more useful for
 strategy, architecture, product, research, roadmap, and high-stakes decision
 discussions, Phase 5C makes provider-backed conversation quality explicit, and
 Phase 5D adds active policy profiles so benign user-owned work is helped
-directly while genuinely harmful requests stay bounded.
+directly while genuinely harmful requests stay bounded. Phase 5E lets
+conversation turns propose safe tool actions for the user to run manually.
 
 ```bash
 uv run heph ask "What is Hephaestus trying to become?"
@@ -12,11 +13,12 @@ uv run heph ask "What is Hephaestus trying to become?" --show-budget
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
 uv run heph chat
 uv run heph policy set developer
+uv run heph discuss "Propose a safe validation plan for this repo." --repo . --propose-tools
 ```
 
-This is not voice, shell execution, browser automation, or autonomous code
-editing. It is a memory-grounded thinking interface for code, architecture,
-research, product, strategy, roadmap, and difficult decisions.
+This is not voice, browser automation, or autonomous code editing. Chat does
+not execute tools. It can suggest exact `heph tools ...` commands with risk
+classification and approval notes.
 
 ## Commands
 
@@ -28,9 +30,11 @@ uv run heph ask "..." --show-context
 uv run heph ask "..." --show-budget
 uv run heph ask "..." --provider local
 uv run heph ask "..." --no-memory
+uv run heph ask "..." --repo . --propose-tools
 uv run heph discuss "..." --mode critical
 uv run heph discuss "..." --mode strategic --save-strategy
 uv run heph discuss "Research plan: compare agent frameworks." --mode research
+uv run heph discuss "Propose a validation plan." --repo . --propose-tools
 uv run heph chat --repo .
 uv run heph chat --session <session_id>
 uv run heph conversations
@@ -64,6 +68,19 @@ Internal passes are lightweight roles:
 
 They are not expensive recursive sub-agent swarms. The external product remains
 one Hephaestus.
+
+## Tool Proposals
+
+`--propose-tools` appends a deterministic table of proposed actions:
+
+- action type;
+- risk level;
+- whether approval is needed;
+- recommended order;
+- exact `heph tools ...` commands.
+
+The conversation service never runs those commands. The user stays in control
+and can inspect a dry run before executing anything.
 
 ## Memory And Strategic Context
 

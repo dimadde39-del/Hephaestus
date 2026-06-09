@@ -200,6 +200,25 @@ from hephaestus.strategic_memory.renderer import (
     build_strategic_memory_detail,
     build_strategic_memory_table,
 )
+from hephaestus.tool_runtime import (
+    ShellCommandRequest,
+    ToolRuntime,
+    ToolRuntimeRepository,
+    propose_tool_actions,
+)
+from hephaestus.tool_runtime.renderer import (
+    build_checkpoint_detail,
+    build_checkpoint_table,
+    build_filesystem_list_table,
+    build_filesystem_read_renderable,
+    build_filesystem_search_table,
+    build_patch_proposal_renderable,
+    build_tool_action_detail,
+    build_tool_actions_table,
+    build_tool_plan_renderable,
+    build_tool_proposals_table,
+    build_tool_result_renderable,
+)
 
 console = Console()
 
@@ -232,9 +251,16 @@ policy_benchmark_app = typer.Typer(
 )
 strategy_app = typer.Typer(help="Strategic context and memory commands.", no_args_is_help=True)
 strategy_memory_app = typer.Typer(help="Strategic memory commands.", no_args_is_help=True)
+tools_app = typer.Typer(help="Safe local tool runtime commands.", no_args_is_help=True)
+tool_patch_app = typer.Typer(help="Patch proposal and apply commands.", no_args_is_help=True)
+tool_checkpoint_app = typer.Typer(help="Checkpoint and rollback commands.", no_args_is_help=True)
+tool_action_app = typer.Typer(help="Tool action inspection commands.", no_args_is_help=True)
 conversation_app.add_typer(conversation_benchmark_app, name="benchmark")
 policy_app.add_typer(policy_benchmark_app, name="benchmark")
 strategy_app.add_typer(strategy_memory_app, name="memory")
+tools_app.add_typer(tool_patch_app, name="patch")
+tools_app.add_typer(tool_checkpoint_app, name="checkpoint")
+tools_app.add_typer(tool_action_app, name="action")
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
 app.add_typer(db_app, name="db")
@@ -250,6 +276,7 @@ app.add_typer(release_app, name="release")
 app.add_typer(conversation_app, name="conversation")
 app.add_typer(policy_app, name="policy")
 app.add_typer(strategy_app, name="strategy")
+app.add_typer(tools_app, name="tools")
 
 
 class DemoScenario(BaseModel):
@@ -525,6 +552,10 @@ def ask(
         bool,
         typer.Option("--no-memory", help="Do not retrieve persistent memories."),
     ] = False,
+    propose_tools: Annotated[
+        bool,
+        typer.Option("--propose-tools", help="Show safe tool actions the user can run manually."),
+    ] = False,
 ) -> None:
     """Ask a one-shot text question using memory, repo context, and deliberation."""
 
@@ -539,6 +570,7 @@ def ask(
         show_budget=show_budget,
         provider=provider,
         discussion=False,
+        propose_tools=propose_tools,
     )
 
 
@@ -580,6 +612,10 @@ def discuss(
         bool,
         typer.Option("--no-memory", help="Do not retrieve persistent memories."),
     ] = False,
+    propose_tools: Annotated[
+        bool,
+        typer.Option("--propose-tools", help="Show safe tool actions the user can run manually."),
+    ] = False,
 ) -> None:
     """Discuss a longer plan or idea with structured deliberation."""
 
@@ -594,6 +630,7 @@ def discuss(
         show_budget=show_budget,
         provider=provider,
         discussion=True,
+        propose_tools=propose_tools,
     )
 
 
@@ -871,6 +908,230 @@ def policy_benchmark_run(
         raise typer.Exit(1) from error
     console.print(build_policy_benchmark_list_table(results))
     if any(not result.passed for result in results):
+        raise typer.Exit(1)
+
+
+@tools_app.command("list")
+def tools_list(
+    path: Annotated[str, typer.Argument(help="Directory path inside the workspace.")] = ".",
+) -> None:
+    """List a local directory through the safe tool runtime."""
+
+    runtime = ToolRuntime()
+    try:
+        action, result, listing = runtime.list_directory(path)
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_filesystem_list_table(listing))
+    console.print(build_tool_result_renderable(action, result))
+
+
+@tools_app.command("read")
+def tools_read(
+    path: Annotated[str, typer.Argument(help="File path inside the workspace.")],
+) -> None:
+    """Read a local file, withholding protected secret-like contents."""
+
+    runtime = ToolRuntime()
+    try:
+        action, result, read_result = runtime.read_file(path)
+    except (FileNotFoundError, IsADirectoryError, PermissionError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_filesystem_read_renderable(read_result))
+    console.print(build_tool_result_renderable(action, result))
+
+
+@tools_app.command("search")
+def tools_search(
+    query: Annotated[str, typer.Argument(help="Text to search for.")],
+    path: Annotated[
+        str,
+        typer.Option("--path", help="File or directory path inside the workspace."),
+    ] = ".",
+) -> None:
+    """Search local files by simple text match."""
+
+    runtime = ToolRuntime()
+    try:
+        action, result, search_result = runtime.search_files(query, path=path)
+    except (FileNotFoundError, PermissionError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_filesystem_search_table(search_result))
+    console.print(build_tool_result_renderable(action, result))
+
+
+@tools_app.command("run")
+def tools_run(
+    command: Annotated[str, typer.Argument(help="Shell command to classify and optionally run.")],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Classify and persist the action without execution."),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve eligible approval-gated execution."),
+    ] = False,
+    require_approval: Annotated[
+        bool,
+        typer.Option("--require-approval", help="Force approval gate even for safe commands."),
+    ] = False,
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", min=1, help="Command timeout in seconds."),
+    ] = 120,
+) -> None:
+    """Classify, approval-gate, and run a local shell command."""
+
+    runtime = ToolRuntime()
+    plan, action, result = runtime.run_command(
+        ShellCommandRequest(
+            command=command,
+            cwd=".",
+            timeout_seconds=timeout,
+            dry_run=dry_run,
+            yes=yes,
+            require_approval=require_approval,
+        )
+    )
+    console.print(build_tool_plan_renderable(plan))
+    console.print(build_tool_result_renderable(action, result))
+    if result.status.value in {"blocked", "approval_required", "failed", "timed_out"}:
+        raise typer.Exit(1)
+
+
+@tool_patch_app.command("propose")
+def tools_patch_propose(
+    path: Annotated[str, typer.Argument(help="File path to patch.")],
+    find: Annotated[str, typer.Option("--find", help="Exact text to replace.")],
+    replace: Annotated[str, typer.Option("--replace", help="Replacement text.")],
+) -> None:
+    """Create a deterministic patch proposal without changing files."""
+
+    runtime = ToolRuntime()
+    try:
+        action, result, proposal = runtime.propose_patch(path, find=find, replace=replace)
+    except (FileNotFoundError, IsADirectoryError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_patch_proposal_renderable(proposal))
+    console.print(build_tool_result_renderable(action, result))
+
+
+@tool_patch_app.command("apply")
+def tools_patch_apply(
+    patch_id: Annotated[str, typer.Argument(help="Patch proposal ID to apply.")],
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve patch application after reviewing the diff."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Show the stored patch without applying it."),
+    ] = False,
+) -> None:
+    """Apply a stored patch proposal after approval."""
+
+    runtime = ToolRuntime()
+    try:
+        plan, action, result, _apply_result = runtime.apply_patch(
+            patch_id,
+            yes=yes,
+            dry_run=dry_run,
+        )
+    except (FileNotFoundError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_tool_plan_renderable(plan))
+    console.print(build_tool_result_renderable(action, result))
+    if result.status.value in {"blocked", "approval_required", "failed", "timed_out"}:
+        raise typer.Exit(1)
+
+
+@tools_app.command("actions")
+def tools_actions(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum actions to show.")] = 20,
+) -> None:
+    """List recent tool runtime actions."""
+
+    repository = ToolRuntimeRepository()
+    console.print(build_tool_actions_table(repository.list_actions(limit=limit)))
+
+
+@tool_action_app.command("show")
+def tools_action_show(
+    action_id: Annotated[str, typer.Argument(help="Tool action ID to inspect.")],
+) -> None:
+    """Show one tool action with approvals, results, and observations."""
+
+    repository = ToolRuntimeRepository()
+    action = repository.get_action(action_id)
+    if action is None:
+        console.print(f"[red]Tool action not found: {action_id}[/red]")
+        raise typer.Exit(1)
+    console.print(
+        build_tool_action_detail(
+            action,
+            repository.list_approvals_for_action(action.id),
+            repository.list_results_for_action(action.id),
+            repository.list_observations_for_action(action.id),
+        )
+    )
+
+
+@tool_checkpoint_app.command("list")
+def tools_checkpoint_list(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum checkpoints to show.")] = 20,
+) -> None:
+    """List recent tool checkpoints."""
+
+    repository = ToolRuntimeRepository()
+    console.print(build_checkpoint_table(repository.list_checkpoints(limit=limit)))
+
+
+@tool_checkpoint_app.command("show")
+def tools_checkpoint_show(
+    checkpoint_id: Annotated[str, typer.Argument(help="Checkpoint ID to inspect.")],
+) -> None:
+    """Show one checkpoint."""
+
+    repository = ToolRuntimeRepository()
+    checkpoint = repository.get_checkpoint(checkpoint_id)
+    if checkpoint is None:
+        console.print(f"[red]Checkpoint not found: {checkpoint_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_checkpoint_detail(checkpoint))
+
+
+@tool_checkpoint_app.command("restore")
+def tools_checkpoint_restore(
+    checkpoint_id: Annotated[str, typer.Argument(help="Checkpoint ID to restore.")],
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve restoring files from this checkpoint."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Show the restore plan without changing files."),
+    ] = False,
+) -> None:
+    """Restore files captured by a Hephaestus checkpoint."""
+
+    runtime = ToolRuntime()
+    try:
+        plan, action, result, _restored = runtime.restore_checkpoint(
+            checkpoint_id,
+            yes=yes,
+            dry_run=dry_run,
+        )
+    except (FileNotFoundError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_tool_plan_renderable(plan))
+    console.print(build_tool_result_renderable(action, result))
+    if result.status.value in {"blocked", "approval_required", "failed", "timed_out"}:
         raise typer.Exit(1)
 
 
@@ -2524,6 +2785,7 @@ def _run_conversation_turn(
     show_budget: bool,
     provider: str,
     discussion: bool,
+    propose_tools: bool,
 ) -> None:
     service = ConversationService()
     try:
@@ -2549,6 +2811,21 @@ def _run_conversation_turn(
     if show_budget:
         _print_conversation_budget(response)
     console.print(build_conversation_response_renderable(response))
+    if propose_tools:
+        repo_profile = None
+        if repo is not None:
+            repo_profile = RepoProfileRepository(service.database_path).latest_profile_for_path(repo)
+        policy_profile = PolicyRepository(service.database_path).get_active_profile()
+        console.print(
+            build_tool_proposals_table(
+                propose_tool_actions(
+                    prompt,
+                    policy_profile=policy_profile,
+                    repo_profile=repo_profile,
+                    repo_path=repo,
+                )
+            )
+        )
 
 
 def _print_chat_context(response: ConversationResponse | None) -> None:
