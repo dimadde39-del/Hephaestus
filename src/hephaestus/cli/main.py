@@ -99,6 +99,20 @@ from hephaestus.pareto.renderer import (
     build_selection_renderable,
 )
 from hephaestus.pareto.schemas import ParetoSelectionResult
+from hephaestus.policy import (
+    PolicyRepository,
+    evaluate_policy_request,
+    load_all_policy_benchmarks,
+    run_policy_benchmark,
+)
+from hephaestus.policy.renderer import (
+    build_active_policy_panel,
+    build_policy_benchmark_fixture_table,
+    build_policy_benchmark_list_table,
+    build_policy_evaluation_renderable,
+    build_policy_profile_renderable,
+    build_policy_profiles_table,
+)
 from hephaestus.policy_learning import (
     DecisionArea,
     DecisionQualityProfile,
@@ -211,9 +225,15 @@ conversation_benchmark_app = typer.Typer(
     help="Conversation quality benchmark commands.",
     no_args_is_help=True,
 )
+policy_app = typer.Typer(help="User-owned policy profile commands.", no_args_is_help=True)
+policy_benchmark_app = typer.Typer(
+    help="Policy behavior benchmark commands.",
+    no_args_is_help=True,
+)
 strategy_app = typer.Typer(help="Strategic context and memory commands.", no_args_is_help=True)
 strategy_memory_app = typer.Typer(help="Strategic memory commands.", no_args_is_help=True)
 conversation_app.add_typer(conversation_benchmark_app, name="benchmark")
+policy_app.add_typer(policy_benchmark_app, name="benchmark")
 strategy_app.add_typer(strategy_memory_app, name="memory")
 app.add_typer(memory_app, name="memory")
 app.add_typer(budget_app, name="budget")
@@ -228,6 +248,7 @@ app.add_typer(qubo_app, name="qubo")
 app.add_typer(repo_app, name="repo")
 app.add_typer(release_app, name="release")
 app.add_typer(conversation_app, name="conversation")
+app.add_typer(policy_app, name="policy")
 app.add_typer(strategy_app, name="strategy")
 
 
@@ -754,6 +775,103 @@ def conversation_benchmark_run(
         console.print(build_conversation_benchmark_summary_table(results))
     for result in results:
         console.print(build_conversation_benchmark_result_renderable(result))
+
+
+@policy_app.command("profiles")
+def policy_profiles() -> None:
+    """List built-in and custom policy profiles."""
+
+    repository = PolicyRepository()
+    active_profile = repository.get_active_profile()
+    console.print(
+        build_policy_profiles_table(
+            repository.list_profiles(),
+            active_profile_id=active_profile.id,
+        )
+    )
+
+
+@policy_app.command("active")
+def policy_active() -> None:
+    """Show the active policy profile."""
+
+    repository = PolicyRepository()
+    console.print(build_active_policy_panel(repository.get_active_profile()))
+
+
+@policy_app.command("set")
+def policy_set(
+    profile_id: Annotated[str, typer.Argument(help="Policy profile ID to activate.")],
+) -> None:
+    """Set the active policy profile."""
+
+    repository = PolicyRepository()
+    profile = repository.set_active_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Policy profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    console.print(f"Active policy profile set to {profile.id}: {profile.name}")
+
+
+@policy_app.command("show")
+def policy_show(
+    profile_id: Annotated[str, typer.Argument(help="Policy profile ID to inspect.")],
+) -> None:
+    """Show one policy profile."""
+
+    repository = PolicyRepository()
+    profile = repository.get_profile(profile_id)
+    if profile is None:
+        console.print(f"[red]Policy profile not found: {profile_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_policy_profile_renderable(profile))
+
+
+@policy_app.command("evaluate")
+def policy_evaluate(
+    prompt: Annotated[str, typer.Argument(help="Request text to evaluate.")],
+    profile: Annotated[
+        str | None,
+        typer.Option("--profile", help="Policy profile to use instead of the active profile."),
+    ] = None,
+) -> None:
+    """Evaluate request text against the active or selected policy profile."""
+
+    repository = PolicyRepository()
+    selected_profile = repository.get_profile(profile) if profile is not None else repository.get_active_profile()
+    if selected_profile is None:
+        console.print(f"[red]Policy profile not found: {profile}[/red]")
+        raise typer.Exit(1)
+    evaluation = evaluate_policy_request(prompt, profile=selected_profile)
+    repository.record_evaluation(evaluation)
+    console.print(build_policy_evaluation_renderable(evaluation))
+
+
+@policy_benchmark_app.command("list")
+def policy_benchmark_list() -> None:
+    """List policy benchmark fixtures."""
+
+    cases = load_all_policy_benchmarks()
+    console.print(build_policy_benchmark_fixture_table([case.id for case in cases]))
+
+
+@policy_benchmark_app.command("run")
+def policy_benchmark_run(
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Optional policy benchmark JSON path, id, or file stem."),
+    ] = None,
+) -> None:
+    """Run one or all policy behavior benchmarks."""
+
+    try:
+        results = run_policy_benchmark(target)
+    except (FileNotFoundError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_policy_benchmark_list_table(results))
+    if any(not result.passed for result in results):
+        raise typer.Exit(1)
 
 
 @app.command()

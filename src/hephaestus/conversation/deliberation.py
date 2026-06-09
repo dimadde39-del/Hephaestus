@@ -32,6 +32,8 @@ from hephaestus.discussion_quality.schemas import (
 )
 from hephaestus.models import FakeModelProvider, ModelProvider, ModelRequest
 from hephaestus.optimize.model_router import ModelRoutingError
+from hephaestus.policy.analysis import annotate_response_policy_quality, detect_over_refusal
+from hephaestus.policy.schemas import PolicyEvaluation
 
 
 class ConversationDeliberator:
@@ -47,6 +49,7 @@ class ConversationDeliberator:
         context: RetrievedConversationContext,
         *,
         recent_messages: list[ConversationMessage] | None = None,
+        policy_evaluation: PolicyEvaluation | None = None,
     ) -> DeliberationResult:
         """Run classification-informed deliberation and synthesize a response."""
 
@@ -93,7 +96,7 @@ class ConversationDeliberator:
             next_moves=next_moves,
         )
 
-        deterministic = _synthesize_deterministic_response(
+        local_deterministic = _synthesize_deterministic_response(
             request,
             intent,
             context,
@@ -106,7 +109,9 @@ class ConversationDeliberator:
             next_moves=next_moves,
             research_plan=research_plan,
             quality_evaluation=quality_evaluation,
+            policy_evaluation=policy_evaluation,
         )
+        deterministic = local_deterministic
         output_budget = request.output_token_budget
         assembly = build_conversation_prompt(
             request.prompt,
@@ -122,6 +127,7 @@ class ConversationDeliberator:
             next_moves=next_moves,
             research_plan=research_plan,
             quality_evaluation=quality_evaluation,
+            policy_evaluation=policy_evaluation,
             max_input_tokens=request.context_token_budget,
             output_token_budget=output_budget,
         )
@@ -151,6 +157,7 @@ class ConversationDeliberator:
                 next_moves=next_moves,
                 research_plan=research_plan,
                 quality_evaluation=quality_evaluation,
+                policy_evaluation=policy_evaluation,
                 max_input_tokens=prompt_token_budget,
                 output_token_budget=output_budget,
             )
@@ -159,6 +166,7 @@ class ConversationDeliberator:
         input_tokens = assembly.input_tokens
         output_tokens = estimate_tokens(deterministic)
         estimated_cost = 0.0
+        policy_quality_annotated = False
 
         if provider.name == "fake" or not provider.is_available:
             model_response = provider.complete(
@@ -171,6 +179,12 @@ class ConversationDeliberator:
             provider_model = model_response.model
             input_tokens = assembly.input_tokens
             output_tokens = max(output_tokens, model_response.output_tokens)
+            if policy_evaluation is not None:
+                policy_evaluation = annotate_response_policy_quality(
+                    policy_evaluation,
+                    deterministic,
+                )
+                policy_quality_annotated = True
         else:
             try:
                 model_response = provider.complete(
@@ -181,11 +195,34 @@ class ConversationDeliberator:
                         max_output_tokens=output_budget,
                     )
                 )
-                deterministic = model_response.text.strip() or deterministic
-                provider_model = model_response.model
-                input_tokens = model_response.input_tokens or assembly.input_tokens
-                output_tokens = model_response.output_tokens or estimate_tokens(deterministic)
-                estimated_cost = model_response.estimated_cost
+                model_text = model_response.text.strip()
+                if (
+                    policy_evaluation is not None
+                    and model_text
+                    and detect_over_refusal(policy_evaluation, model_text)
+                ):
+                    policy_evaluation = annotate_response_policy_quality(
+                        policy_evaluation,
+                        model_text,
+                    )
+                    deterministic = local_deterministic
+                    provider_model = f"{model_response.model}+local-policy-fallback"
+                    input_tokens = model_response.input_tokens or assembly.input_tokens
+                    output_tokens = estimate_tokens(deterministic)
+                    estimated_cost = model_response.estimated_cost
+                    policy_quality_annotated = True
+                else:
+                    deterministic = model_text or deterministic
+                    if policy_evaluation is not None:
+                        policy_evaluation = annotate_response_policy_quality(
+                            policy_evaluation,
+                            deterministic,
+                        )
+                        policy_quality_annotated = True
+                    provider_model = model_response.model
+                    input_tokens = model_response.input_tokens or assembly.input_tokens
+                    output_tokens = model_response.output_tokens or estimate_tokens(deterministic)
+                    estimated_cost = model_response.estimated_cost
             except Exception as error:
                 deterministic = "\n\n".join(
                     [
@@ -197,6 +234,8 @@ class ConversationDeliberator:
                     ]
                 )
                 output_tokens = estimate_tokens(deterministic)
+        if policy_evaluation is not None and not policy_quality_annotated:
+            policy_evaluation = annotate_response_policy_quality(policy_evaluation, deterministic)
 
         budget = ConversationBudgetReport(
             provider_model=provider_model,
@@ -229,6 +268,7 @@ class ConversationDeliberator:
             final_response=deterministic,
             quality_evaluation=quality_evaluation,
             research_plan=research_plan,
+            policy_evaluation=policy_evaluation,
             confidence=_confidence(intent, context, request.mode),
             selected_context=assembly.selected_context,
             provider_model=provider_model,
@@ -680,6 +720,7 @@ def _synthesize_deterministic_response(
     next_moves: list[str],
     research_plan: ResearchPlan | None,
     quality_evaluation: DiscussionQualityEvaluation | None,
+    policy_evaluation: PolicyEvaluation | None,
 ) -> str:
     provider_note = (
         "Provider note: no real model provider is configured, so this response uses "
@@ -752,6 +793,20 @@ def _synthesize_deterministic_response(
             f"({evaluation.score:.2f}). {evaluation.summary}"
         )
 
+    policy_line = ""
+    if policy_evaluation is not None:
+        decision = policy_evaluation.decision
+        if decision.requires_approval:
+            policy_line = (
+                "Policy boundary: this request can be discussed, but execution requires "
+                "explicit approval because it may change local or external state."
+            )
+        elif decision.is_allowed:
+            policy_line = (
+                f"Policy profile: {policy_evaluation.profile_name}. This is allowed "
+                "benign/user-owned work; answer directly without moralizing."
+            )
+
     sections = [
         provider_note,
         f"Intent: {intent.value}. Mode: {request.mode.value} ({mode_guidance(request.mode)})",
@@ -763,6 +818,7 @@ def _synthesize_deterministic_response(
         "Assumptions:\n" + _bullets(assumptions),
         "Options:\n" + _bullets(options),
         "Risks and tradeoffs:\n" + _bullets([*risks, *tradeoffs]),
+        policy_line,
         "Missing information:\n" + _bullets(missing_information),
         "Next moves:\n" + _bullets(next_moves),
         quality_line,

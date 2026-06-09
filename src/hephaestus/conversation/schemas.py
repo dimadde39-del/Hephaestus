@@ -14,6 +14,7 @@ from hephaestus.discussion_quality.schemas import (
     ResearchPlan,
 )
 from hephaestus.memory.schemas import MemoryItem, MemoryType
+from hephaestus.policy.schemas import PolicyEvaluation
 from hephaestus.repo.schemas import RepoProfile
 from hephaestus.strategic_memory.schemas import (
     StrategicMemoryExtractionResult,
@@ -202,6 +203,7 @@ class DeliberationResult(BaseModel):
     final_response: str
     quality_evaluation: DiscussionQualityEvaluation | None = None
     research_plan: ResearchPlan | None = None
+    policy_evaluation: PolicyEvaluation | None = None
     confidence: float = Field(default=0.7, ge=0, le=1)
     selected_context: list[ConversationContextItem] = Field(default_factory=list)
     provider_model: str = "local/deterministic"
@@ -306,6 +308,7 @@ class ConversationResponse(BaseModel):
     strategic_memory_candidates: list[StrategicMemoryItem] = Field(default_factory=list)
     strategic_memory_updates: list[StrategicMemoryItem] = Field(default_factory=list)
     decision_trace: ConversationDecisionTrace | None = None
+    policy_evaluation: PolicyEvaluation | None = None
     provider_model: str = "local/deterministic"
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)

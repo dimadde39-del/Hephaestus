@@ -28,12 +28,20 @@ from hephaestus.strategic_memory.renderer import (
 def build_conversation_response_renderable(response: ConversationResponse) -> RenderableType:
     """Render a conversation response with trace and memory suggestions."""
 
+    policy_line = ""
+    if response.policy_evaluation is not None:
+        policy = response.policy_evaluation
+        policy_line = (
+            f"\nPolicy: {policy.profile_type.value} / "
+            f"{policy.decision.decision_type.value}"
+        )
     parts: list[RenderableType] = [
         Panel(
             (
                 f"Session: {response.session_id}\n"
                 f"Intent: {response.intent.value}\n"
                 f"Mode: {response.mode.value}"
+                f"{policy_line}"
             ),
             title=f"Hephaestus: {response.intent.value} / {response.mode.value}",
         ),

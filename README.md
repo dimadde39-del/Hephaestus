@@ -10,7 +10,9 @@ problems, explain why choices were made, evaluate deterministic simulated
 outcomes, create learning signals, and answer text discussions through
 `heph ask`, `heph discuss`, and `heph chat`. Conversations run in deterministic
 local mode by default and can use configured DeepSeek or OpenAI-compatible
-providers for one-call synthesis with budget visibility. It does **not** execute
+providers for one-call synthesis with budget visibility. User-owned policy
+profiles keep benign creative, development, research, and strategy work
+practically free while preserving approval gates for side effects. It does **not** execute
 repository commands, edit code autonomously, run as a daemon, or claim
 production-ready autonomy.
 
@@ -47,8 +49,11 @@ Then inspect the artifacts:
 
 ```bash
 uv run heph ask "What is Hephaestus trying to become?" --show-budget
+uv run heph policy set developer
+uv run heph policy evaluate "make a README banner for my AI project"
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
 uv run heph discuss "Research plan: compare Hephaestus positioning against open-source agent frameworks." --mode research
+uv run heph policy benchmark run
 uv run heph conversation benchmark list
 uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
 uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
@@ -120,6 +125,9 @@ Hephaestus learns decision quality.
 - **Conversation quality is measurable.** Model-backed synthesis routes through
   provider profiles, prompt assembly, context budgets, and deterministic
   conversation benchmarks that do not require paid APIs.
+- **Freedom UX is configurable.** Policy profiles such as `developer`,
+  `research`, `local_power_user`, `strict`, and `balanced` make boundaries
+  transparent without turning benign work into a refusal ritual.
 
 ## Current Status
 
@@ -147,6 +155,9 @@ Built:
   regular memory, strategic memory, repo context, session context, and context
   trimming.
 - Conversation budget reporting and deterministic conversation benchmarks.
+- User-owned policy profiles with SQLite-backed active profile state,
+  deterministic request evaluation, over-refusal detection, policy benchmarks,
+  and `heph policy` commands.
 
 Not built yet:
 
@@ -174,6 +185,7 @@ Architecture at a glance:
 ```text
 CLI
  |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
+ |-- Policy profiles: user-owned freedom modes, boundaries, and over-refusal checks
  |-- Strategic memory: long-term goals, principles, assumptions, decisions, and context
  |-- Discussion quality: rubrics for stress tests, strategy, architecture, roadmap, and research
  |-- Repo intelligence: read-only local inspection and command risk classification
@@ -199,6 +211,9 @@ For the soft reveal materials, see [docs/public_launch_notes.md](docs/public_lau
 ```bash
 uv run heph --help
 uv run heph doctor
+uv run heph policy profiles
+uv run heph policy set developer
+uv run heph policy evaluate "make a README banner for my AI project"
 uv run heph ask "What is Hephaestus trying to become?"
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
 uv run heph ask "What context is shaping this?" --show-context
@@ -217,6 +232,7 @@ uv run heph explain <run_id> --summary
 uv run heph pareto list
 uv run heph qubo list
 uv run heph learn signals
+uv run heph policy benchmark run
 ```
 
 By default, local state is stored in:

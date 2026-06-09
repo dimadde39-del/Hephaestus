@@ -14,9 +14,12 @@ from hephaestus.conversation.analysis import (
 from hephaestus.conversation.classifier import classify_intent
 from hephaestus.conversation.context import retrieve_conversation_context
 from hephaestus.conversation.deliberation import ConversationDeliberator
+from hephaestus.conversation.prompt_builder import estimate_tokens
 from hephaestus.conversation.repository import ConversationRepository
 from hephaestus.conversation.schemas import (
+    ConversationBudgetReport,
     ConversationDecisionTrace,
+    ConversationIntent,
     ConversationMemoryCandidate,
     ConversationMemoryUpdate,
     ConversationMessage,
@@ -25,11 +28,14 @@ from hephaestus.conversation.schemas import (
     ConversationRole,
     ConversationSession,
     DeliberationMode,
+    DeliberationPass,
     DeliberationResult,
     RetrievedConversationContext,
 )
 from hephaestus.decision import DecisionTraceRepository
 from hephaestus.models import ModelProvider
+from hephaestus.policy import PolicyRepository, evaluate_policy_request, render_policy_response
+from hephaestus.policy.schemas import PolicyEvaluation
 from hephaestus.repo import RepoProfileRepository
 from hephaestus.storage import RunRecord, RunRepository, SqliteMemoryRepository
 from hephaestus.strategic_memory.extractor import extract_strategic_memories
@@ -55,6 +61,7 @@ class ConversationService:
         self.memory_repository = SqliteMemoryRepository(self.database_path)
         self.strategic_memory_repository = StrategicMemoryRepository(self.database_path)
         self.repo_repository = RepoProfileRepository(self.database_path)
+        self.policy_repository = PolicyRepository(self.database_path)
         self.run_repository = RunRepository(self.database_path)
         self.trace_repository = DecisionTraceRepository(self.database_path)
         self.deliberator = ConversationDeliberator(provider)
@@ -80,6 +87,19 @@ class ConversationService:
                 mode=effective_request.mode,
             )
         )
+        policy_profile = self.policy_repository.get_active_profile()
+        policy_evaluation = evaluate_policy_request(
+            effective_request.prompt,
+            profile=policy_profile,
+        )
+        if policy_evaluation.decision.is_blocking:
+            return self._respond_with_policy_boundary(
+                session.id,
+                user_message.id,
+                effective_request,
+                intent,
+                policy_evaluation,
+            )
         context = retrieve_conversation_context(
             effective_request,
             intent,
@@ -100,7 +120,10 @@ class ConversationService:
             intent,
             context,
             recent_messages=recent_messages,
+            policy_evaluation=policy_evaluation,
         )
+        policy_evaluation = deliberation.policy_evaluation or policy_evaluation
+        self.policy_repository.record_evaluation(policy_evaluation)
         memory_candidates = propose_memory_candidates(
             effective_request.prompt,
             deliberation,
@@ -141,6 +164,10 @@ class ConversationService:
             metadata={
                 "provider_model": deliberation.provider_model,
                 "reply_to": user_message.id,
+                "policy_evaluation_id": policy_evaluation.id,
+                "policy_profile": policy_evaluation.profile_type.value,
+                "policy_decision": policy_evaluation.decision.decision_type.value,
+                "policy_over_refusal_detected": policy_evaluation.over_refusal_detected,
             },
         )
         assistant_message = self.repository.save_response(assistant_message)
@@ -178,11 +205,89 @@ class ConversationService:
             strategic_memory_candidates=strategic_extraction.items,
             strategic_memory_updates=strategic_memory_updates,
             decision_trace=decision_trace,
+            policy_evaluation=policy_evaluation,
             provider_model=deliberation.provider_model,
             input_tokens=deliberation.input_tokens,
             output_tokens=deliberation.output_tokens,
             estimated_cost=deliberation.estimated_cost,
             budget=deliberation.budget,
+        )
+
+    def _respond_with_policy_boundary(
+        self,
+        session_id: str,
+        user_message_id: str,
+        request: ConversationRequest,
+        intent: ConversationIntent,
+        policy_evaluation: PolicyEvaluation,
+    ) -> ConversationResponse:
+        response_text = render_policy_response(policy_evaluation)
+        output_tokens = estimate_tokens(response_text)
+        budget = ConversationBudgetReport(
+            provider_model="local/policy",
+            selected_provider="local",
+            selected_model="policy",
+            estimated_input_tokens=estimate_tokens(request.prompt),
+            estimated_output_tokens=output_tokens,
+            output_token_budget=request.output_token_budget,
+            context_window=request.context_token_budget,
+            prompt_token_budget=request.context_token_budget,
+        )
+        deliberation = DeliberationResult(
+            intent=intent,
+            mode=request.mode,
+            passes=[
+                DeliberationPass(
+                    name="PolicyEvaluator",
+                    purpose="Apply the active user-owned policy profile before synthesis.",
+                    findings=policy_evaluation.decision.reasons,
+                    confidence=policy_evaluation.decision.confidence,
+                )
+            ],
+            assumptions=["The request crosses a blocked policy boundary."],
+            options=["Refuse briefly.", "Offer safer defensive discussion if useful."],
+            risks=["Fulfilling the request would enable harm."],
+            tradeoffs=["Short refusal preserves clarity without moral theater."],
+            missing_information=[],
+            recommendation="Refuse briefly and stay available for defensive or benign alternatives.",
+            next_moves=["Ask for a defensive or benign version of the task."],
+            final_response=response_text,
+            policy_evaluation=policy_evaluation,
+            confidence=policy_evaluation.decision.confidence,
+            provider_model="local/policy",
+            input_tokens=budget.estimated_input_tokens,
+            output_tokens=output_tokens,
+            budget=budget,
+        )
+        self.policy_repository.record_evaluation(policy_evaluation)
+        assistant_message = self.repository.save_response(
+            ConversationMessage(
+                session_id=session_id,
+                role=ConversationRole.ASSISTANT,
+                content=response_text,
+                intent=intent,
+                mode=request.mode,
+                metadata={
+                    "provider_model": "local/policy",
+                    "reply_to": user_message_id,
+                    "policy_evaluation_id": policy_evaluation.id,
+                    "policy_profile": policy_evaluation.profile_type.value,
+                    "policy_decision": policy_evaluation.decision.decision_type.value,
+                },
+            )
+        )
+        return ConversationResponse(
+            session_id=session_id,
+            message_id=assistant_message.id,
+            intent=intent,
+            mode=request.mode,
+            answer=response_text,
+            deliberation=deliberation,
+            policy_evaluation=policy_evaluation,
+            provider_model="local/policy",
+            input_tokens=budget.estimated_input_tokens,
+            output_tokens=output_tokens,
+            budget=budget,
         )
 
     def list_sessions(self, *, limit: int = 20) -> list[ConversationSession]:

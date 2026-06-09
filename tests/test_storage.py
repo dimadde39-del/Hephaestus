@@ -53,8 +53,11 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         strategic_recall_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'strategic_memory_recalls'"
         ).fetchone()
+        policy_settings_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'policy_settings'"
+        ).fetchone()
 
-    assert migration_count[0] == 11
+    assert migration_count[0] == 12
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
     assert pareto_table[0] == "pareto_frontiers"
@@ -65,6 +68,7 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
     assert strategic_memory_table[0] == "strategic_memories"
     assert strategic_conflict_table[0] == "strategic_memory_conflicts"
     assert strategic_recall_table[0] == "strategic_memory_recalls"
+    assert policy_settings_table[0] == "policy_settings"
 
 
 def test_memory_persists_across_repository_instances(tmp_path) -> None:

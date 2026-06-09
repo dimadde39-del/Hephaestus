@@ -2,13 +2,16 @@
 
 Phase 5A adds a real text interface, Phase 5B makes it more useful for
 strategy, architecture, product, research, roadmap, and high-stakes decision
-discussions, and Phase 5C makes provider-backed conversation quality explicit:
+discussions, Phase 5C makes provider-backed conversation quality explicit, and
+Phase 5D adds active policy profiles so benign user-owned work is helped
+directly while genuinely harmful requests stay bounded.
 
 ```bash
 uv run heph ask "What is Hephaestus trying to become?"
 uv run heph ask "What is Hephaestus trying to become?" --show-budget
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
 uv run heph chat
+uv run heph policy set developer
 ```
 
 This is not voice, shell execution, browser automation, or autonomous code
@@ -45,7 +48,7 @@ and strategic memory candidates from the last response.
 ## Pipeline
 
 ```text
-Input -> Intent Classification -> Context Retrieval -> Prompt Budgeting -> Rubric-Aware Deliberation -> One Synthesis Call -> Memory Suggestions
+Input -> Intent Classification -> Policy Evaluation -> Context Retrieval -> Prompt Budgeting -> Rubric-Aware Deliberation -> One Synthesis Call -> Memory Suggestions
 ```
 
 Internal passes are lightweight roles:
@@ -92,11 +95,18 @@ commands.
 ## Prompt And Context Budget
 
 Prompt assembly includes the behavior standard, freedom/policy boundary,
-selected mode, discussion rubric, strategic memory, repo context, recent session
-messages, regular memory, deterministic assumptions/options/risks, and the user
-message. Strategic memory is prioritized first, then repo summary, recent
-session context, and regular memory. Lower-priority context is trimmed when the
-budget is exceeded; the current user message is never silently dropped.
+active policy profile and decision, selected mode, discussion rubric, strategic
+memory, repo context, recent session messages, regular memory, deterministic
+assumptions/options/risks, and the user message. Strategic memory is prioritized
+first, then repo summary, recent session context, and regular memory.
+Lower-priority context is trimmed when the budget is exceeded; the current user
+message is never silently dropped.
+
+Allowed benign creative, development, research, and strategy prompts are marked
+as allowed in the provider prompt so the model should help directly instead of
+over-refusing. Blocked prompts short-circuit locally with a concise boundary.
+Approval-gated prompts can be discussed, but Hephaestus still does not execute
+tools in this phase.
 
 Use `--show-budget` to display estimated input tokens, output budget, selected
 provider/model, context window, selected memory counts, and trimming notes.
@@ -126,6 +136,7 @@ APIs by default:
 uv run heph conversation benchmark list
 uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
 uv run heph conversation benchmark run
+uv run heph policy benchmark run
 ```
 
 See [conversation benchmarks](conversation_benchmarks.md).
@@ -138,3 +149,6 @@ roadmap decisions. Research planning and risk analysis can also be traced.
 Traces record assumptions, options, recommendation, confidence, memory used,
 strategic memory used, suggested strategic memories, and the discussion-quality
 rubric used.
+
+Policy evaluations are recorded separately in the local SQLite policy tables and
+also attached to conversation response metadata.

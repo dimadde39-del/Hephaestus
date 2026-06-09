@@ -21,6 +21,12 @@ Phase 5B expands that loop:
 Input -> Intent Classification -> Regular + Strategic Memory Recall -> Rubric-Aware Deliberation -> Research Plan or Recommendation -> Strategic Memory Suggestions -> Decision Trace
 ```
 
+Phase 5D inserts policy before synthesis:
+
+```text
+Input -> Policy Profile Evaluation -> Conversation / Benchmark / Boundary Response
+```
+
 The current system stops before execution. It inspects, plans, optimizes,
 explains, evaluates deterministic simulated outcomes, and creates reviewable
 learning artifacts. Future phases can add safe command execution without
@@ -38,6 +44,9 @@ changing the core decision trail.
 - `outcomes`: typed outcome records, deterministic reflections, learning
   signals, failure memory drafts, policy update suggestions, SQLite repository,
   and Rich renderers.
+- `policy`: user-owned policy profile schemas, built-in freedom modes,
+  deterministic request classification, active-profile persistence, concise
+  boundary rendering, over-refusal analysis, and policy benchmarks.
 - `policy_learning`: decision quality profile schemas, SQLite profile store,
   deterministic learner, profile appliers, renderers, and profile summaries.
 - `pareto`: objective vectors, preference profiles, candidate generation,
@@ -121,6 +130,9 @@ history before any daemon process exists.
 - Make every optimizer return an explanation and a structured decision trace.
 - Attach outcomes to decisions before applying any learning behavior.
 - Store policy updates as suggestions until reviewed.
+- Keep user-owned policy profiles separate from learned decision quality
+  profiles: policy profiles define boundaries; learning profiles bias
+  optimization decisions.
 - Convert learning evidence into explicit decision quality profiles before it
   can influence future decisions.
 - Require explicit activation; draft profiles do not silently change behavior.
@@ -146,23 +158,30 @@ history before any daemon process exists.
   uses chat `/save-memory`.
 - Keep research planning honest: plan what to verify, but do not claim live
   research or current web facts.
+- Keep freedom UX explicit: benign creative, development, research, and strategy
+  work is allowed; destructive or external side effects require approval;
+  genuinely harmful requests are blocked briefly.
 
 ## Conversation Architecture
 
 Phase 5A adds `conversation_sessions`, `conversation_messages`, and
 `conversation_memory_updates`. Phase 5B adds `strategic_memories`,
-`strategic_memory_conflicts`, and `strategic_memory_recalls`. The package keeps
-the external UX as one Hephaestus while using lightweight internal roles:
+`strategic_memory_conflicts`, and `strategic_memory_recalls`. Phase 5D adds
+`policy_settings`, `policy_custom_profiles`, and `policy_evaluations`. The
+package keeps the external UX as one Hephaestus while using lightweight internal
+roles:
 
 ```text
 ContextScout -> MemoryRetriever -> AssumptionMapper -> EvidenceChecker -> SecondOrderThinker -> OptionGenerator -> Critic -> RecommendationSynthesizer
 ```
 
 These are structured deliberation passes, not external sub-agent swarms. The
-pipeline classifies intent, retrieves persistent memories by lexical relevance
-and intent tags, optionally loads or creates a repo profile for `--repo`, maps
-assumptions, considers options, critiques risks, synthesizes a final response,
-and proposes memory updates.
+pipeline classifies intent, evaluates the active policy profile, retrieves
+persistent memories by lexical relevance and intent tags, optionally loads or
+creates a repo profile for `--repo`, maps assumptions, considers options,
+critiques risks, synthesizes a final response, and proposes memory updates.
+Blocked policy requests short-circuit locally. Approval-gated requests remain
+discussion-only until Phase 5E adds tool execution.
 
 High-impact intents such as product strategy, business strategy, architecture
 discussion, roadmap decisions, idea stress tests, research planning, and risk

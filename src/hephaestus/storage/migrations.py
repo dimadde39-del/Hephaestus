@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -582,6 +582,48 @@ CREATE INDEX IF NOT EXISTS idx_strategic_memory_recalls_created
 ON strategic_memory_recalls(created_at DESC);
 """
 
+MIGRATION_12 = """
+CREATE TABLE IF NOT EXISTS policy_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS policy_custom_profiles (
+    id TEXT PRIMARY KEY,
+    profile_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_policy_custom_profiles_type
+ON policy_custom_profiles(profile_type, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS policy_evaluations (
+    id TEXT PRIMARY KEY,
+    prompt TEXT NOT NULL,
+    profile_type TEXT NOT NULL,
+    profile_name TEXT NOT NULL,
+    decision_type TEXT NOT NULL,
+    primary_category TEXT NOT NULL,
+    categories_json TEXT NOT NULL DEFAULT '[]',
+    requires_approval INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    over_refusal_detected INTEGER NOT NULL DEFAULT 0,
+    moralizing_detected INTEGER NOT NULL DEFAULT 0,
+    notes_json TEXT NOT NULL DEFAULT '[]',
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_policy_evaluations_created
+ON policy_evaluations(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_policy_evaluations_decision
+ON policy_evaluations(decision_type, primary_category, created_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -678,6 +720,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (11, datetime.now(UTC).isoformat()),
+        )
+    if 12 not in applied_versions:
+        connection.executescript(MIGRATION_12)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (12, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

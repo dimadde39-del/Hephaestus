@@ -47,7 +47,7 @@ quality understandable.
 - Failure memory drafts.
 - Policy update suggestions kept as reviewable artifacts.
 
-### Policy Profiles
+### Decision Quality Profiles
 
 - Decision quality profile suggestions.
 - Explicit activation and archive commands.
@@ -172,9 +172,26 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - `heph conversation benchmark list/run`.
 - Improved memory candidate summaries and stability labels.
 
+### Phase 5D: User-Owned Freedom / Policy Profiles
+
+- First-class `hephaestus.policy` package with schemas, built-in profiles,
+  deterministic classifier/evaluator, repository, renderer, and analysis
+  helpers.
+- Built-in profiles: `balanced`, `developer`, `research`, `local_power_user`,
+  `strict`, and schema support for `custom`.
+- SQLite active policy profile state, custom profile storage, and transparent
+  policy evaluation history.
+- `heph policy profiles/active/set/show/evaluate`.
+- `heph policy benchmark list/run`.
+- Conversation prompt integration with active profile name, decision, refusal
+  style, benign-work philosophy, and over-refusal detection.
+- Concise blocking for genuinely harmful requests and approval boundaries for
+  destructive/local/external side effects.
+- Documentation for user-owned freedom and policy profiles.
+
 ## Upcoming
 
-### Phase 5D: Safe Tool Execution Runtime
+### Phase 5E: Safe Tool Execution Runtime
 
 - Approval-gated command execution for safe validation.
 - Dry-run planning before execution.

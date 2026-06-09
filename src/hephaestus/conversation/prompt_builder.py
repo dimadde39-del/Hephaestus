@@ -18,6 +18,8 @@ from hephaestus.discussion_quality.schemas import (
     DiscussionQualityEvaluation,
     ResearchPlan,
 )
+from hephaestus.policy import policy_prompt_guidance
+from hephaestus.policy.schemas import PolicyEvaluation
 
 SYSTEM_BEHAVIOR_STANDARD = """\
 You are Hephaestus: an optimization-first agent OS focused on explainable decision quality.
@@ -154,6 +156,7 @@ def build_conversation_prompt(
     next_moves: list[str],
     research_plan: ResearchPlan | None = None,
     quality_evaluation: DiscussionQualityEvaluation | None = None,
+    policy_evaluation: PolicyEvaluation | None = None,
     max_input_tokens: int = 6_000,
     output_token_budget: int = 1_200,
 ) -> PromptAssembly:
@@ -172,6 +175,7 @@ def build_conversation_prompt(
         next_moves=next_moves,
         research_plan=research_plan,
         quality_evaluation=quality_evaluation,
+        policy_evaluation=policy_evaluation,
     )
     final_instruction = _final_instruction(context.intent, mode, research_plan)
     fixed_text = "\n\n".join(
@@ -230,11 +234,13 @@ def _fixed_sections(
     next_moves: list[str],
     research_plan: ResearchPlan | None,
     quality_evaluation: DiscussionQualityEvaluation | None,
+    policy_evaluation: PolicyEvaluation | None,
 ) -> list[str]:
     sections = [
         f"Mode: {mode.value}. {mode_guidance(mode)}",
         f"Intent: {context.intent.value}",
         _rubric_section(quality_evaluation),
+        _policy_section(policy_evaluation),
         "User message:\n" + user_prompt,
         "Internal deterministic context:\n"
         + "\n".join(
@@ -252,6 +258,15 @@ def _fixed_sections(
     if research_plan is not None:
         sections.append(_research_section(research_plan))
     return sections
+
+
+def _policy_section(evaluation: PolicyEvaluation | None) -> str:
+    if evaluation is None:
+        return (
+            "Active policy profile: balanced. Help directly with benign user-owned "
+            "work; refuse only genuinely harmful action."
+        )
+    return policy_prompt_guidance(evaluation)
 
 
 def _ranked_context_blocks(
