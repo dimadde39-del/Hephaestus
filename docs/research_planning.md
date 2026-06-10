@@ -34,6 +34,12 @@ verification in this phase. Provider-backed synthesis must preserve that
 boundary: it can improve wording and reasoning, but it cannot claim live
 research happened.
 
+Phase 5F adds real local validation evidence, which is different from external
+research. `heph validate run . --yes` can prove local tests or lint passed, but
+it does not verify current market facts, current library guidance, security
+advisories, or competitor positioning. Research mode should still identify what
+needs source-backed verification.
+
 Research-planning quality is covered by deterministic conversation benchmarks:
 
 ```bash

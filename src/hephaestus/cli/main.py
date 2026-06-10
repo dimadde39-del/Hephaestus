@@ -219,6 +219,18 @@ from hephaestus.tool_runtime.renderer import (
     build_tool_proposals_table,
     build_tool_result_renderable,
 )
+from hephaestus.validation import (
+    ValidationCommandType,
+    ValidationExecutor,
+    ValidationPlanner,
+    ValidationRepository,
+)
+from hephaestus.validation.renderer import (
+    build_validation_plan_renderable,
+    build_validation_results_table,
+    build_validation_show_renderable,
+    build_validation_suite_renderable,
+)
 
 console = Console()
 
@@ -239,6 +251,7 @@ pareto_app = typer.Typer(help="Pareto decision frontier commands.", no_args_is_h
 qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_help=True)
 repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
 release_app = typer.Typer(help="Repo-aware release planning demo commands.", no_args_is_help=True)
+validate_app = typer.Typer(help="Real repo validation planning and execution.", no_args_is_help=True)
 conversation_app = typer.Typer(help="Conversation session commands.", no_args_is_help=True)
 conversation_benchmark_app = typer.Typer(
     help="Conversation quality benchmark commands.",
@@ -273,6 +286,7 @@ app.add_typer(pareto_app, name="pareto")
 app.add_typer(qubo_app, name="qubo")
 app.add_typer(repo_app, name="repo")
 app.add_typer(release_app, name="release")
+app.add_typer(validate_app, name="validate")
 app.add_typer(conversation_app, name="conversation")
 app.add_typer(policy_app, name="policy")
 app.add_typer(strategy_app, name="strategy")
@@ -463,12 +477,20 @@ def release_plan(
         bool,
         typer.Option("--evaluate", help="Generate simulated outcomes and learning signals."),
     ] = False,
+    with_validation: Annotated[
+        bool,
+        typer.Option("--with-validation", help="Run real validation through the safe tool runtime."),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve validation execution when --with-validation is used."),
+    ] = False,
     latest_profile: Annotated[
         bool,
         typer.Option("--latest-profile", help="Reuse the latest profile for this path if available."),
     ] = False,
 ) -> None:
-    """Plan a repo-aware release demo flow without executing repository commands."""
+    """Plan a repo-aware release flow, optionally with real validation evidence."""
 
     request = ReleasePlanningRequest(
         path=str(path),
@@ -477,6 +499,8 @@ def release_plan(
         pareto=pareto,
         qubo=qubo,
         evaluate=evaluate,
+        with_validation=with_validation,
+        validation_yes=yes,
         use_latest_profile=latest_profile,
     )
     try:
@@ -512,6 +536,112 @@ def release_show(
         console.print(f"[red]Release plan not found: {release_run_id}[/red]")
         raise typer.Exit(1)
     console.print(build_release_show_renderable(plan_result))
+
+
+@validate_app.command("plan")
+def validate_plan(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Repository path to inspect for validation planning."),
+    ] = Path("."),
+    refresh: Annotated[
+        bool,
+        typer.Option("--refresh", help="Inspect the repo again instead of reusing latest profile."),
+    ] = False,
+) -> None:
+    """Build and persist an approval-aware validation execution plan."""
+
+    try:
+        plan = ValidationPlanner().build_plan(path, use_latest_profile=not refresh)
+    except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_validation_plan_renderable(plan))
+    console.print(f"Saved validation plan: {plan.id}")
+
+
+@validate_app.command("run")
+def validate_run(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Repository path to validate."),
+    ] = Path("."),
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Classify and record the run without executing commands."),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve safe validation execution after reviewing the plan."),
+    ] = False,
+    only: Annotated[
+        str | None,
+        typer.Option(
+            "--only",
+            help="Run one command type: lint, test, typecheck, build, format_check, security_check, or custom.",
+        ),
+    ] = None,
+    stop_on_failure: Annotated[
+        bool,
+        typer.Option("--stop-on-failure", help="Skip remaining commands after the first failed or timed-out command."),
+    ] = False,
+) -> None:
+    """Run a validation plan through the safe local tool runtime."""
+
+    try:
+        suite = ValidationExecutor(workspace_path=path).run(
+            path,
+            only=_parse_validation_only(only),
+            dry_run=dry_run,
+            yes=yes,
+            stop_on_failure=stop_on_failure,
+        )
+    except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_validation_suite_renderable(suite))
+    console.print(f"Saved validation result: {suite.id}")
+
+
+@validate_app.command("results")
+def validate_results(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum validation runs to show.")] = 20,
+) -> None:
+    """Show recent validation runs."""
+
+    repository = ValidationRepository()
+    console.print(build_validation_results_table(repository.list_suite_results(limit=limit)))
+
+
+@validate_app.command("show")
+def validate_show(
+    validation_result_id: Annotated[str, typer.Argument(help="Validation result ID to inspect.")],
+) -> None:
+    """Show command evidence and linked artifacts for one validation run."""
+
+    repository = ValidationRepository()
+    suite = repository.get_suite_result(validation_result_id)
+    if suite is None:
+        console.print(f"[red]Validation result not found: {validation_result_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_validation_show_renderable(suite))
+
+
+@validate_app.command("latest")
+def validate_latest(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Repository path whose latest validation run should be shown."),
+    ] = Path("."),
+) -> None:
+    """Show the latest validation run for a repository path."""
+
+    repository = ValidationRepository()
+    suite = repository.latest_suite_result_for_path(path)
+    if suite is None:
+        console.print(f"[red]No validation result found for {Path(path).resolve()}[/red]")
+        raise typer.Exit(1)
+    console.print(build_validation_show_renderable(suite))
 
 
 @app.command("ask")
@@ -2771,6 +2901,22 @@ def _get_repo_profile_or_exit(profile_id: str) -> RepoProfile:
         console.print(f"[red]Repo profile not found: {profile_id}[/red]")
         raise typer.Exit(1)
     return profile
+
+
+def _parse_validation_only(value: str | None) -> set[ValidationCommandType] | None:
+    if value is None:
+        return None
+    selected: set[ValidationCommandType] = set()
+    for part in value.split(","):
+        normalized = part.strip()
+        if not normalized:
+            continue
+        try:
+            selected.add(ValidationCommandType(normalized))
+        except ValueError as error:
+            valid = ", ".join(item.value for item in ValidationCommandType)
+            raise ValueError(f"Unknown validation command type {normalized!r}. Valid: {valid}") from error
+    return selected or None
 
 
 def _run_conversation_turn(

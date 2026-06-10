@@ -23,6 +23,8 @@ Users and future runtime systems should be able to answer:
 - Was a QUBO formulation generated, what variables and penalties existed, and
   which binary solution was selected?
 - Why did a tool action run, pause for approval, or get blocked?
+- Why was a validation command selected, skipped, approval-gated, failed, or
+  counted as release evidence?
 
 ## Decision Types
 
@@ -38,6 +40,9 @@ Decision traces are Pydantic records in `hephaestus.decision.schemas`:
 Phase 5E represents important tool runtime decisions as `SafetyDecision`
 records. These traces explain command risk, approval requirements, blocked
 actions, patch application, checkpoint restore, and observed execution status.
+Phase 5F also uses `SafetyDecision` records for validation planning and
+execution traces: command selection, skipped commands, approval-required
+validation, timeout/failure classification, and release-readiness impact.
 
 Every trace includes:
 
@@ -110,6 +115,8 @@ When QUBO problems exist, `explain` shows problem type, variable count, solver,
 selected variables, feasibility, objective value, and a short reason. `--summary`
 includes QUBO problem count, feasible/infeasible solution counts, and best
 objective value.
+When validation runs exist, `heph validate show <validation_result_id>` links
+command evidence back to the validation run and decision traces.
 
 ## Pareto Traces
 
@@ -154,6 +161,9 @@ Decision -> Outcome -> Reflection -> Memory Draft -> Learning Signal
 Outcomes can be manually attached with `heph outcome add`, or generated
 deterministically for benchmark traces with `heph benchmark run --evaluate` and
 `heph reflect <run_id>`.
+Validation execution creates real outcomes from command evidence: pass, fail,
+timeout, blocked, approval-required, skipped, warning counts, output summaries,
+and linked tool action/result IDs.
 
 ## Profile Applications
 

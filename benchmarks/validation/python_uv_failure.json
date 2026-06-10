@@ -1,0 +1,15 @@
+{
+  "id": "python_uv_failure",
+  "repo_type": "python_uv",
+  "description": "A Python uv project where pytest exits nonzero and should create a validation learning signal.",
+  "detected_commands": [
+    {
+      "command": "uv run pytest",
+      "type": "test",
+      "expected_status": "failed",
+      "expected_failure_classification": "test_failure"
+    }
+  ],
+  "expected_evidence_mode": "real_validation_evidence",
+  "requires_network": false
+}

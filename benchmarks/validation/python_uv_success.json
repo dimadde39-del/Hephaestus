@@ -1,0 +1,24 @@
+{
+  "id": "python_uv_success",
+  "repo_type": "python_uv",
+  "description": "A Python uv project with lint, typecheck, and test commands expected to pass.",
+  "detected_commands": [
+    {
+      "command": "uv run ruff check .",
+      "type": "lint",
+      "expected_status": "passed"
+    },
+    {
+      "command": "uv run mypy",
+      "type": "typecheck",
+      "expected_status": "passed"
+    },
+    {
+      "command": "uv run pytest",
+      "type": "test",
+      "expected_status": "passed"
+    }
+  ],
+  "expected_evidence_mode": "real_validation_evidence",
+  "requires_network": false
+}

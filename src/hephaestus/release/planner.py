@@ -30,12 +30,12 @@ def build_release_benchmark_case(profile: RepoProfile, goal: str) -> BenchmarkCa
             "description": (
                 "Repo-aware release planning demo built from read-only repository inspection. "
                 "Hephaestus optimizes, explains, compares Pareto tradeoffs, and can formulate "
-                "QUBO problems without executing repository commands."
+                "QUBO problems, and can optionally execute approved validation commands."
             ),
             "tags": list(dict.fromkeys([*case.tags, "release-planning", "phase-4b"])),
             "notes": [
                 *case.notes,
-                "Release planning does not execute validation, deploy, publish, or destructive commands.",
+                "Release planning executes validation only with --with-validation; deploy, publish, and destructive commands remain gated.",
             ],
         }
     )

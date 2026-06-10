@@ -15,7 +15,9 @@ profiles keep benign creative, development, research, and strategy work
 practically free while preserving approval gates for side effects. Phase 5E adds
 a safe local tool runtime for file inspection, dry-run command planning, safe
 validation commands, patch proposals, checkpointed patch application, and
-rollback. It does **not** edit code autonomously, run as a daemon, deploy,
+rollback. Phase 5F connects repo validation plans to that runtime so approved
+lint, test, typecheck, and build commands produce real evidence, outcomes, and
+learning signals. It does **not** edit code autonomously, run as a daemon, deploy,
 publish, push, or claim production-ready autonomy.
 
 ```text
@@ -59,6 +61,10 @@ uv run heph policy benchmark run
 uv run heph tools list .
 uv run heph tools run "python --version" --dry-run
 uv run heph tools run "python --version" --yes
+uv run heph validate plan .
+uv run heph validate run . --dry-run
+uv run heph validate run . --yes
+uv run heph release plan . --pareto --qubo --with-validation --yes
 uv run heph discuss "Propose a safe validation plan for this repo." --repo . --propose-tools
 uv run heph conversation benchmark list
 uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
@@ -167,11 +173,18 @@ Built:
 - Safe local tool runtime for file list/read/search, command dry-runs, safe
   command execution, patch proposals, checkpointed patch application, rollback,
   observations, approvals, and trace/outcome links.
+- Real validation execution for repo-derived lint, test, typecheck, build,
+  format-check, security-check, and custom validation commands through the safe
+  tool runtime.
+- Validation evidence persistence, per-command outcomes, validation learning
+  signals, repeated-failure drafts, and release-readiness score adjustments from
+  real command results.
 
 Not built yet:
 
 - Autonomous code edits.
-- Autonomous execution of full repository validation plans.
+- Autonomous coding loops that propose patches, apply them, validate, and
+  iterate without a new explicit phase boundary.
 - Deploy, publish, push, or destructive command execution.
 - A long-running daemon.
 - A dashboard.
@@ -179,10 +192,10 @@ Not built yet:
 - Production sandbox execution.
 - Quantum hardware integration.
 
-Release-planning outcomes are still deterministic simulations over decision
-traces. Tool runtime commands can now produce real command outcomes separately,
-but Phase 5F is the planned bridge that turns validation plans into
-evidence-backed release learning.
+Release planning can still run deterministic simulated outcome evaluation with
+`--evaluate`. When `--with-validation --yes` is used, it also runs the repo
+validation plan through the safe tool runtime and labels readiness as real
+validation evidence instead of simulated evidence.
 
 ## Core Loop
 
@@ -236,6 +249,10 @@ uv run heph ask "What are the release risks in this repo?" --repo .
 uv run heph conversations
 uv run heph repo inspect .
 uv run heph release plan . --pareto --qubo --evaluate
+uv run heph validate plan .
+uv run heph validate run . --dry-run
+uv run heph validate run . --yes
+uv run heph release plan . --pareto --qubo --with-validation --yes
 uv run heph release list
 uv run heph runs
 uv run heph explain <run_id>
@@ -264,7 +281,9 @@ uv run ruff check .
 uv run pytest
 uv run mypy
 uv run heph doctor
+uv run heph validate run . --dry-run
 uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release plan . --pareto --qubo --with-validation --yes
 ```
 
 Contributors should start with [CONTRIBUTING.md](CONTRIBUTING.md) and

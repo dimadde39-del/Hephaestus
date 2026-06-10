@@ -53,6 +53,7 @@ _SIGNAL_AREA_MAP: dict[LearningSignalType, DecisionArea] = {
     LearningSignalType.TASK_ORDERING: DecisionArea.SCHEDULER,
     LearningSignalType.OPTIMIZER_WEIGHT: DecisionArea.OPTIMIZER,
     LearningSignalType.MEMORY_RETRIEVAL: DecisionArea.MEMORY_RETRIEVAL,
+    LearningSignalType.VALIDATION_STRATEGY: DecisionArea.SCHEDULER,
 }
 
 _POLICY_AREA_MAP: dict[PolicyArea, DecisionArea] = {

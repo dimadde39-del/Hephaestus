@@ -26,6 +26,9 @@ uv run heph tools action show <action_id>
 uv run heph tools checkpoint list
 uv run heph tools checkpoint show <checkpoint_id>
 uv run heph tools checkpoint restore <checkpoint_id> --yes
+uv run heph validate plan .
+uv run heph validate run . --dry-run
+uv run heph validate run . --yes
 ```
 
 ## Risk Levels
@@ -60,6 +63,25 @@ Obvious destructive commands are blocked in Phase 5E.
 Every shell result captures stdout, stderr, exit code, timeout state, truncation
 state, a tool observation, and decision/outcome links where practical.
 
+## Validation Runtime
+
+Phase 5F routes repo-derived validation commands through this same shell
+runtime. `heph validate run . --dry-run` records what would run without
+executing. `heph validate run . --yes` executes only the supported validation
+commands selected from repo intelligence, such as lint, test, typecheck, build,
+format-check, and security-check commands.
+
+Validation execution stores:
+
+- the tool action and tool execution result,
+- command stdout/stderr summaries,
+- exit code, duration, timeout, and truncation state,
+- a validation evidence record,
+- a validation outcome,
+- learning signals for meaningful failures or missing commands.
+
+Destructive commands are not validation commands and remain blocked.
+
 ## Persistence
 
 Tool actions are stored in SQLite:
@@ -78,5 +100,5 @@ checkpoint, decision trace, outcome, conversation, run, and repo profile links.
 
 Phase 5E is a runtime foundation. It does not autonomously edit a repo, browse,
 deploy, publish, push, run as a daemon, or turn chat into an execution loop.
-Phase 5F can use this runtime to execute real validation plans and turn results
-into stronger outcome learning.
+Phase 5F uses this runtime to execute approved validation plans and turn results
+into stronger outcome learning. It is still not an autonomous coding loop.

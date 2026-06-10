@@ -31,6 +31,7 @@ class LearningSignalType(StrEnum):
     TASK_ORDERING = "task_ordering"
     OPTIMIZER_WEIGHT = "optimizer_weight"
     MEMORY_RETRIEVAL = "memory_retrieval"
+    VALIDATION_STRATEGY = "validation_strategy"
 
 
 class LearningDirection(StrEnum):

@@ -1,0 +1,10 @@
+{
+  "id": "missing_tests",
+  "repo_type": "unknown_or_incomplete",
+  "description": "A project with manifests but no supported validation command.",
+  "detected_commands": [],
+  "expected_status": "unknown",
+  "expected_learning_signal": "validation.command_detection",
+  "expected_evidence_mode": "no_validation_evidence",
+  "requires_network": false
+}

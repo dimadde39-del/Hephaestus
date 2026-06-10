@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hephaestus.benchmarks.schemas import BenchmarkResult
 from hephaestus.repo.schemas import CommandRiskCategory, RepoProfile, RepoTask, ValidationPlan
+from hephaestus.validation.schemas import ReleaseValidationSummary
 
 
 class ReleaseRecommendationStatus(StrEnum):
@@ -35,6 +36,8 @@ class ReleasePlanningRequest(BaseModel):
     pareto: bool = False
     qubo: bool = False
     evaluate: bool = False
+    with_validation: bool = False
+    validation_yes: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -115,6 +118,9 @@ class ReleasePlanningResult(BaseModel):
     decision_trace_ids: list[str] = Field(default_factory=list)
     outcome_ids: list[str] = Field(default_factory=list)
     learning_signal_ids: list[str] = Field(default_factory=list)
+    validation_result_id: str | None = None
+    validation_summary: ReleaseValidationSummary | None = None
+    evidence_mode: str = "simulated_outcome_evaluation"
     readiness_score: int = Field(ge=0, le=100)
     recommendation: ReleaseRecommendation
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

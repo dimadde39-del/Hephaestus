@@ -1,0 +1,25 @@
+{
+  "id": "node_project_validation",
+  "repo_type": "node",
+  "description": "A Node project with package scripts for lint, test, and build.",
+  "package_manager": "pnpm",
+  "detected_commands": [
+    {
+      "command": "pnpm lint",
+      "type": "lint",
+      "expected_status": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "type": "test",
+      "expected_status": "passed"
+    },
+    {
+      "command": "pnpm build",
+      "type": "build",
+      "expected_status": "passed"
+    }
+  ],
+  "expected_evidence_mode": "real_validation_evidence",
+  "requires_network": false
+}

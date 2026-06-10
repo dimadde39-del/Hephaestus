@@ -11,12 +11,13 @@ from hephaestus.release.schemas import (
 )
 from hephaestus.repo.analysis import risk_summary
 from hephaestus.repo.schemas import CommandRiskCategory, RepoProfile
+from hephaestus.validation.schemas import ReleaseValidationSummary, ValidationStatus
 
 READINESS_SCORE_DESCRIPTION = (
-    "Release readiness is a deterministic planning-readiness score from 0 to 100. "
-    "It uses coarse whole-number weights for detected validation, CI, safety gates, "
-    "optimizer evidence, Pareto evidence, and QUBO evidence. It does not mean commands "
-    "passed, because Phase 4B intentionally does not execute repository commands."
+    "Release readiness is a deterministic score from 0 to 100. It uses coarse "
+    "whole-number weights for detected validation, CI, safety gates, optimizer evidence, "
+    "Pareto evidence, QUBO evidence, and, when requested, real validation execution. "
+    "Runs without --with-validation remain planning/simulated evidence only."
 )
 
 
@@ -26,6 +27,7 @@ def build_readiness_signals(
     *,
     pareto_requested: bool,
     qubo_requested: bool,
+    validation_summary: ReleaseValidationSummary | None = None,
 ) -> list[ReleaseReadinessSignal]:
     """Build coarse, deterministic readiness signals for a release planning run."""
 
@@ -51,7 +53,7 @@ def build_readiness_signals(
         comparison.feasible for comparison in benchmark_result.qubo_comparisons
     )
 
-    return [
+    signals = [
         _signal(
             "repo_profile",
             "Repo profile confidence",
@@ -159,6 +161,9 @@ def build_readiness_signals(
             [comparison.problem_id for comparison in benchmark_result.qubo_comparisons],
         ),
     ]
+    if validation_summary is not None:
+        signals.append(_validation_signal(validation_summary))
+    return signals
 
 
 def readiness_score(signals: list[ReleaseReadinessSignal]) -> int:
@@ -207,6 +212,7 @@ def generate_release_recommendation(
     signals: list[ReleaseReadinessSignal],
     *,
     evaluated: bool,
+    validation_summary: ReleaseValidationSummary | None = None,
 ) -> ReleaseRecommendation:
     """Generate an honest recommendation from deterministic release signals."""
 
@@ -233,10 +239,11 @@ def generate_release_recommendation(
         profile,
         benchmark_result,
         evaluated=evaluated,
+        validation_summary=validation_summary,
     )
     next_steps = [
         "Review the generated task order before approving any execution.",
-        "Run validation commands manually or in a future approved execution phase.",
+        "Run validation commands manually or with `--with-validation --yes`.",
         "Inspect approval-gated release or deploy scripts before any side effects.",
     ]
 
@@ -248,6 +255,51 @@ def generate_release_recommendation(
             next_steps=["Add or inspect project manifests before release planning."],
             risks=risks,
         )
+
+    if validation_summary is not None:
+        if validation_summary.status in {ValidationStatus.FAILED, ValidationStatus.TIMED_OUT}:
+            return ReleaseRecommendation(
+                status=ReleaseRecommendationStatus.BLOCKED,
+                summary="Release readiness is blocked by real validation failure evidence.",
+                why=why,
+                next_steps=[
+                    "Inspect the validation result output.",
+                    "Fix the failed command before treating the release as ready.",
+                    "Re-run `heph validate run . --yes` after changes.",
+                ],
+                risks=risks,
+            )
+        if validation_summary.status in {
+            ValidationStatus.BLOCKED,
+            ValidationStatus.REQUIRES_APPROVAL,
+            ValidationStatus.UNKNOWN,
+        }:
+            return ReleaseRecommendation(
+                status=ReleaseRecommendationStatus.NEEDS_VALIDATION,
+                summary="Release readiness still needs approved validation execution.",
+                why=why,
+                next_steps=[
+                    "Review the validation plan.",
+                    "Re-run with `--with-validation --yes` when approved.",
+                ],
+                risks=risks,
+            )
+        if validation_summary.status == ValidationStatus.PASSED:
+            status = (
+                ReleaseRecommendationStatus.READY
+                if score >= 90 and not high_or_external_risks and not profile.env_files_detected
+                else ReleaseRecommendationStatus.MOSTLY_READY
+            )
+            return ReleaseRecommendation(
+                status=status,
+                summary="Release readiness is backed by real local validation evidence.",
+                why=why,
+                next_steps=[
+                    "Review remaining risks before publishing.",
+                    "Keep deploy, publish, or push commands approval-gated.",
+                ],
+                risks=risks,
+            )
 
     if not validation_commands and high_or_external_risks:
         return ReleaseRecommendation(
@@ -337,9 +389,16 @@ def _recommendation_reasons(
     benchmark_result: BenchmarkResult,
     *,
     evaluated: bool,
+    validation_summary: ReleaseValidationSummary | None = None,
 ) -> list[str]:
     reasons: list[str] = []
-    if profile.validation_plan.command_texts:
+    if validation_summary is not None:
+        reasons.append(
+            f"real validation evidence: {validation_summary.status.value} "
+            f"({validation_summary.pass_count} passed, {validation_summary.fail_count} failed, "
+            f"{validation_summary.timed_out_count} timed out)."
+        )
+    elif profile.validation_plan.command_texts:
         reasons.append("lint/build/test commands were detected but not executed.")
     else:
         reasons.append("no safe validation commands were detected.")
@@ -368,3 +427,26 @@ def _recommendation_reasons(
     else:
         reasons.append("outcome evaluation was skipped for this run.")
     return reasons
+
+
+def _validation_signal(summary: ReleaseValidationSummary) -> ReleaseReadinessSignal:
+    if summary.status == ValidationStatus.PASSED:
+        score = 20 if summary.warning_count == 0 else 15
+        rationale = "real validation commands passed"
+    elif summary.status in {ValidationStatus.FAILED, ValidationStatus.TIMED_OUT}:
+        score = 0
+        rationale = "real validation failed or timed out"
+    elif summary.status in {ValidationStatus.BLOCKED, ValidationStatus.REQUIRES_APPROVAL}:
+        score = 4
+        rationale = "validation is approval-gated and has not produced passing evidence"
+    else:
+        score = 0
+        rationale = "no real validation evidence"
+    return _signal(
+        "real_validation_evidence",
+        "Real validation evidence",
+        summary.evidence_based,
+        20,
+        rationale,
+        [summary.validation_result_id],
+    ).model_copy(update={"score": score})

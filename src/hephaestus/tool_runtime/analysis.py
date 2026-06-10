@@ -142,7 +142,6 @@ def propose_tool_actions(
 ) -> list[ToolProposal]:
     """Build deterministic tool proposals for conversation output without execution."""
 
-    del prompt
     workspace = Path(repo_path or ".")
     proposals: list[ToolProposal] = []
     order = 1
@@ -159,6 +158,58 @@ def propose_tool_actions(
     )
     order += 1
     if repo_profile is not None and repo_profile.validation_plan.commands:
+        proposals.append(
+            _proposal(
+                order,
+                action_type=ToolActionType.RUN_COMMAND,
+                summary="Build an evidence plan for release validation commands.",
+                risk_level=ToolRiskLevel.SAFE_READONLY,
+                approval_required=False,
+                exact_cli_command=f"heph validate plan {workspace}",
+                reasons=[
+                    "collects detected lint, test, typecheck, and build commands",
+                    "does not execute repository commands",
+                ],
+            )
+        )
+        order += 1
+        proposals.append(
+            _proposal(
+                order,
+                action_type=ToolActionType.RUN_COMMAND,
+                summary="Dry-run validation to show approvals and command evidence shape.",
+                risk_level=ToolRiskLevel.SAFE_VALIDATION,
+                approval_required=False,
+                exact_cli_command=f"heph validate run {workspace} --dry-run",
+                reasons=[
+                    "records planned validation without running commands",
+                    "shows how results would affect release readiness",
+                ],
+            )
+        )
+        order += 1
+        validation_decision = classify_tool_action(
+            ToolActionType.RUN_COMMAND,
+            policy_profile=policy_profile,
+            command=repo_profile.validation_plan.commands[0].command,
+        )
+        proposals.append(
+            _proposal(
+                order,
+                action_type=ToolActionType.RUN_COMMAND,
+                summary="Run approved validation and turn tool results into release evidence.",
+                risk_level=validation_decision.risk_level,
+                approval_required=True,
+                blocked=validation_decision.blocked,
+                exact_cli_command=f"heph validate run {workspace} --yes",
+                reasons=[
+                    "executes safe validation commands through the tool runtime",
+                    "captures stdout/stderr summaries, outcomes, and learning signals",
+                    "release readiness is upgraded or downgraded from real evidence",
+                ],
+            )
+        )
+        order += 1
         for command in repo_profile.validation_plan.commands[:5]:
             decision = classify_tool_action(
                 ToolActionType.RUN_COMMAND,

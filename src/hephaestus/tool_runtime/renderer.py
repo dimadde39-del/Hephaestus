@@ -287,6 +287,7 @@ def build_tool_proposals_table(proposals: list[ToolProposal]) -> Table:
     table.add_column("Action")
     table.add_column("Risk")
     table.add_column("Approval")
+    table.add_column("Summary", overflow="fold")
     table.add_column("Command", overflow="fold")
     for proposal in proposals:
         table.add_row(
@@ -294,6 +295,7 @@ def build_tool_proposals_table(proposals: list[ToolProposal]) -> Table:
             proposal.action_type.value,
             proposal.risk_level.value,
             "blocked" if proposal.blocked else ("yes" if proposal.approval_required else "no"),
+            proposal.summary,
             proposal.exact_cli_command,
         )
     return table

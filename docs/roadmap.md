@@ -211,15 +211,41 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - `--propose-tools` on `heph ask` and `heph discuss` for manual next-step plans
   without chat auto-execution.
 
-## Upcoming
-
 ### Phase 5F: Real Validation Execution + Outcome Learning
 
-- Execute repo validation plans through the Phase 5E runtime.
-- Convert real command results into outcome records.
-- Update learning signals from repeated validation failures.
-- Make release planning evidence-based rather than simulated.
-- Keep deploy, publish, destructive, and external-side-effect commands gated.
+- First-class `hephaestus.validation` package with schemas, planner, executor,
+  evaluator, repository, renderer, and analysis helpers.
+- SQLite tables for validation plans, commands, suite results, evidence, and
+  release validation summaries.
+- `heph validate plan/run/results/show/latest`.
+- Repo-derived validation command detection for lint, test, typecheck, build,
+  format-check, security-check, and custom validation commands.
+- Approved execution through the Phase 5E safe tool runtime with stdout/stderr
+  summaries, exit codes, durations, timeouts, and approval-required states.
+- Per-command validation outcomes, validation strategy learning signals, and
+  repeated-failure memory drafts.
+- Release planning integration through `heph release plan . --with-validation --yes`.
+- Evidence mode labels for simulated outcome evaluation, real validation
+  evidence, dry-run, and approval-gated execution.
+- Conversation tool proposals now suggest `heph validate plan`, dry-run, and
+  approved validation commands without auto-running them.
+
+## Upcoming
+
+### Phase 5G: Repo-Aware Coding Loop
+
+- Use safe tools and real validation to propose patches.
+- Apply approved changes with checkpoints.
+- Run validation, observe failures, and iterate within explicit limits.
+- Learn from real coding outcomes without deploying, publishing, pushing, or
+  running destructive commands.
+
+### Phase 5.5: Hephaestus Studio / Persistent Interface Layer
+
+- Beautiful persistent interface for chat history, run history, decision traces,
+  Pareto/QUBO/outcome views, approvals, checkpoints, validation evidence, and
+  readable past conversations.
+- This interface layer is mandatory before Phase 6 Skill Forge.
 
 ### Soft Reveal Execution
 
@@ -228,20 +254,6 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Prepare one or two Telegram/Discord community messages.
 - Observe responses and repeated objections.
 - Gather feedback into roadmap notes before the larger public alpha push.
-
-### Safe Validation Execution
-
-- Execute only approved low-risk validation commands.
-- Capture command output, exit codes, duration, and environment constraints.
-- Store real validation outcomes against decision traces.
-- Keep deploy, publish, destructive, and external side-effect commands gated.
-
-### Repo-Aware Outcome Learning From Real Commands
-
-- Turn real validation results into outcome records.
-- Connect failures back to decision traces and repo profiles.
-- Improve learning signals with command evidence.
-- Keep policy/profile updates reviewable before activation.
 
 ### Dashboard Later
 

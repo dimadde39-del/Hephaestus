@@ -142,6 +142,8 @@ def build_release_links_panel(plan: ReleasePlanningResult) -> Panel:
         lines.append(f"View outcomes: heph outcome list --run {plan.optimizer_run_id}")
     if plan.learning_signal_ids:
         lines.append(f"View learning signals: heph learn signals --run {plan.optimizer_run_id}")
+    if plan.validation_result_id:
+        lines.append(f"View validation: heph validate show {plan.validation_result_id}")
     return Panel("\n".join(lines), title="Linked Artifacts")
 
 
@@ -153,9 +155,19 @@ def _summary_panel(plan: ReleasePlanningResult, *, repo_path: str = "") -> Panel
         f"Optimizer run: {plan.optimizer_run_id}",
         f"Readiness score: {plan.readiness_score}/100",
         f"Recommendation: {plan.recommendation.status.value}",
+        f"Evidence mode: {plan.evidence_mode}",
         "",
         READINESS_SCORE_DESCRIPTION,
     ]
+    if plan.validation_summary is not None:
+        lines.extend(
+            [
+                "",
+                f"Validation result: {plan.validation_summary.validation_result_id}",
+                f"Validation status: {plan.validation_summary.status.value}",
+                f"Readiness delta: {plan.validation_summary.readiness_score_delta:+d}",
+            ]
+        )
     return Panel("\n".join(lines), title="Repo-Aware Release Planning")
 
 
@@ -169,6 +181,7 @@ def _flow_table(plan: ReleasePlanningResult) -> Table:
     table.add_row("Optimize", plan.optimizer_run_id, "1")
     table.add_row("Pareto", ", ".join(plan.pareto_frontier_ids[:2]) or "-", str(len(plan.pareto_frontier_ids)))
     table.add_row("QUBO", ", ".join(plan.qubo_problem_ids[:2]) or "-", str(len(plan.qubo_problem_ids)))
+    table.add_row("Validate", plan.validation_result_id or "-", "1" if plan.validation_result_id else "0")
     table.add_row("Explain", ", ".join(plan.decision_trace_ids[:2]) or "-", str(len(plan.decision_trace_ids)))
     table.add_row("Evaluate", ", ".join(plan.outcome_ids[:2]) or "-", str(len(plan.outcome_ids)))
     table.add_row(

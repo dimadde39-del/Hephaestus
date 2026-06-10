@@ -1,8 +1,9 @@
 # Repo Intelligence
 
 Repo intelligence is Hephaestus' bridge from synthetic optimizer fixtures to
-real local development workflows. In Phase 5E its command classifier also feeds
-the safe tool execution runtime.
+real local development workflows. Its command classifier feeds the safe tool
+execution runtime, and Phase 5F turns supported validation suggestions into
+approved validation execution plans.
 
 ```text
 Hephaestus does not jump straight from prompt to action.
@@ -37,7 +38,8 @@ The conversation pipeline reuses the latest profile for the path when one
 exists, otherwise it performs the same read-only inspection used by
 `heph repo inspect`. The answer can reference detected stack, validation
 commands, generated repo tasks, and risk signals. With `--propose-tools`, it can
-also print exact `heph tools ...` commands for the user to run manually.
+also print exact `heph validate ...` and `heph tools ...` commands for the user
+to run manually.
 
 ## Safety Model
 
@@ -101,7 +103,9 @@ Docker and CI:
 ## Validation Plans
 
 Validation plans are ordered suggestions. They are not executed by repo
-inspection.
+inspection. `heph validate plan` promotes them into an approval-aware execution
+plan, and `heph validate run . --yes` runs supported commands through the safe
+tool runtime.
 
 Examples:
 
@@ -156,6 +160,9 @@ uv run heph repo show <profile_id>
 uv run heph repo tasks <profile_id>
 uv run heph repo plan <profile_id>
 uv run heph repo export-benchmark <profile_id> --output benchmarks/repo/<name>.json
+uv run heph validate plan .
+uv run heph validate run . --dry-run
+uv run heph validate run . --yes
 ```
 
 `heph repo plan <profile_id>` runs the existing task scheduler over repo-aware
@@ -203,12 +210,14 @@ repo profile. Otherwise it inspects the path read-only and persists a new
 profile. `--latest-profile` can reuse the newest profile for a path when one is
 available.
 
-Release planning still does not execute validation commands. It converts
+Release planning still does not execute validation commands by default. With
+`--with-validation --yes`, it runs the validation plan through the safe runtime
+and links real evidence to the release plan. Without that flag, it converts
 detected validation, CI, env-file, script-risk, and approval signals into a
 conservative recommendation such as `needs_validation`. The recommendation
 links to `heph explain <run_id>`, `heph repo tasks <profile_id>`, `heph pareto
-show <frontier_id>`, and `heph qubo show <problem_id>` when those artifacts
-exist.
+show <frontier_id>`, `heph qubo show <problem_id>`, and validation results when
+those artifacts exist.
 
 ## Persistence
 
@@ -218,6 +227,8 @@ Repo intelligence uses the local SQLite database:
 - `repo_inspections`
 - `release_plans` for Phase 4B release planning results linked back to repo
   profiles.
+- `validation_plans`, `validation_commands`, `validation_results`, and
+  `validation_evidence` for Phase 5F execution evidence.
 
 Rows store the repo path, repo name, stack summary, validation plan, generated
 tasks, risk summary, full report JSON, and inspection timestamp.
@@ -229,5 +240,7 @@ tasks, risk summary, full report JSON, and inspection timestamp.
 - Dependency detection is manifest-based and may miss dynamically imported
   frameworks.
 - Validation plans are suggestions, not proof that commands will pass.
+- Real validation evidence exists only after `heph validate run ... --yes` or
+  `heph release plan ... --with-validation --yes`.
 - No dashboard, daemon, browser automation, voice, Telegram, or autonomous code
-  editing is included in Phase 4A or 4B.
+  editing is included in the current alpha.

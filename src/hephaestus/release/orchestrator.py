@@ -26,6 +26,9 @@ from hephaestus.release.schemas import (
 )
 from hephaestus.repo import RepoProfile, RepoProfileRepository, inspect_repository
 from hephaestus.storage import RunRepository
+from hephaestus.validation import ValidationExecutor
+from hephaestus.validation.analysis import adjusted_readiness_score
+from hephaestus.validation.repository import ValidationRepository
 
 
 class ReleasePlanningError(Exception):
@@ -42,6 +45,7 @@ class ReleasePlanningOrchestrator:
         self.run_repository = RunRepository(self.database_path)
         self.trace_repository = DecisionTraceRepository(self.database_path)
         self.outcome_repository = OutcomeRepository(self.database_path)
+        self.validation_repository = ValidationRepository(self.database_path)
 
     def plan(self, request: ReleasePlanningRequest) -> ReleaseDemoRun:
         """Run the complete release planning flow and persist the result."""
@@ -86,6 +90,7 @@ class ReleasePlanningOrchestrator:
             signals,
             evaluated=request.evaluate,
         )
+        base_readiness_score = readiness_score(signals)
         plan_result = ReleasePlanningResult(
             repo_profile_id=profile.id,
             goal=request.goal,
@@ -102,7 +107,12 @@ class ReleasePlanningOrchestrator:
             decision_trace_ids=[trace.id for trace in traces],
             outcome_ids=[outcome.id for outcome in outcomes],
             learning_signal_ids=[signal.id for signal in learning_signals],
-            readiness_score=readiness_score(signals),
+            evidence_mode=(
+                "simulated_outcome_evaluation"
+                if request.evaluate
+                else "no_validation_evidence"
+            ),
+            readiness_score=base_readiness_score,
             recommendation=recommendation,
             readiness_signals=signals,
             task_plan=build_release_task_plan(
@@ -110,6 +120,68 @@ class ReleasePlanningOrchestrator:
                 optimized_task_order=benchmark_result.scheduler.best_order,
             ),
         )
+        self.release_repository.save_release_plan(plan_result)
+
+        if request.with_validation:
+            validation_suite = ValidationExecutor(
+                self.database_path,
+                workspace_path=profile.path,
+            ).run(
+                profile.path,
+                release_plan_id=plan_result.id,
+                dry_run=False,
+                yes=request.validation_yes,
+                readiness_score_before=base_readiness_score,
+            )
+            validation_summary = self.validation_repository.latest_release_summary(
+                release_plan_id=plan_result.id
+            )
+            if validation_summary is None:
+                validation_summary = self.validation_repository.latest_release_summary(
+                    validation_result_id=validation_suite.id
+                )
+            signals = build_readiness_signals(
+                profile,
+                benchmark_result,
+                pareto_requested=request.pareto,
+                qubo_requested=request.qubo,
+                validation_summary=validation_summary,
+            )
+            validation_score = (
+                validation_summary.readiness_score_after
+                if validation_summary is not None
+                and validation_summary.readiness_score_after is not None
+                else adjusted_readiness_score(base_readiness_score, validation_suite)
+            )
+            recommendation = generate_release_recommendation(
+                profile,
+                benchmark_result,
+                signals,
+                evaluated=request.evaluate,
+                validation_summary=validation_summary,
+            )
+            plan_result = plan_result.model_copy(
+                update={
+                    "validation_result_id": validation_suite.id,
+                    "validation_summary": validation_summary,
+                    "evidence_mode": validation_suite.evidence_mode,
+                    "readiness_score": validation_score,
+                    "recommendation": recommendation,
+                    "readiness_signals": signals,
+                    "outcome_ids": [
+                        *plan_result.outcome_ids,
+                        *validation_suite.outcome_ids,
+                    ],
+                    "learning_signal_ids": [
+                        *plan_result.learning_signal_ids,
+                        *validation_suite.learning_signal_ids,
+                    ],
+                    "decision_trace_ids": [
+                        *plan_result.decision_trace_ids,
+                        *validation_suite.decision_trace_ids,
+                    ],
+                }
+            )
         self.release_repository.save_release_plan(plan_result)
         return ReleaseDemoRun(
             request=request,

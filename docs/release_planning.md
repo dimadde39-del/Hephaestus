@@ -1,12 +1,12 @@
 # Repo-Aware Release Planning
 
-Phase 4B creates the first polished local demo candidate for Hephaestus. Phase
-5E adds a separate safe tool runtime that can execute approved validation
-commands, but release planning itself remains evidence-oriented and does not
-auto-run the plan.
+Phase 4B created the first polished local demo candidate for Hephaestus. Phase
+5F keeps the same planning flow but can optionally execute the repo validation
+plan through the Phase 5E safe tool runtime.
 
 ```text
 Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -> Learn
+Repo Inspect -> Release Plan -> Approved Validation -> Evidence -> Outcomes -> Readiness
 ```
 
 ```text
@@ -26,6 +26,7 @@ It inspects the repository, builds a release plan, exposes tradeoffs, formulates
 - optional QUBO formulations and local solves,
 - decision trace persistence,
 - optional simulated outcome evaluation,
+- optional real validation execution with `--with-validation`,
 - learning signal generation,
 - conservative release recommendation persistence.
 
@@ -33,6 +34,12 @@ The public demo command is:
 
 ```bash
 uv run heph release plan . --pareto --qubo --evaluate
+```
+
+The evidence-backed command is:
+
+```bash
+uv run heph release plan . --pareto --qubo --with-validation --yes
 ```
 
 ## Demo Assets
@@ -68,14 +75,21 @@ file names. It persists real SQLite records for:
 The optimizer, Pareto comparison, QUBO formulation, and decision explanation are
 real local deterministic systems.
 
-## What Is Simulated
+## Simulated And Real Evidence
 
-Outcome evaluation in release planning is still simulated over decision traces.
-Tool runtime commands can now produce real outcomes separately, but Phase 5F is
-the planned bridge that will feed real validation results back into release
-planning automatically.
+`--evaluate` still generates deterministic simulated outcomes over optimizer
+decision traces. This is useful for learning-loop demos, but it is not proof that
+tests, lint, type checks, or builds passed.
 
-Release readiness is therefore planning readiness, not release proof.
+`--with-validation --yes` builds a validation execution plan, runs supported
+commands through the safe tool runtime, stores command evidence, creates
+outcomes and learning signals, and updates release readiness from real exit
+codes and output summaries.
+
+When validation is not requested, the release plan says `no_validation_evidence`
+or `simulated_outcome_evaluation`. When validation runs, it says
+`real_validation_evidence`, `approval_gated_no_execution`, or
+`dry_run_no_execution`.
 
 ## Why Command Execution Is Separate
 
@@ -112,7 +126,8 @@ whole-number weights for:
 - Pareto feasibility,
 - QUBO feasibility.
 
-It avoids fake precision and does not claim commands passed.
+It avoids fake precision. With real validation evidence, failed or timed-out
+commands downgrade readiness and can block the recommendation.
 
 ## Recommendation Status
 
@@ -126,6 +141,10 @@ Release recommendations can be:
 
 The common honest status in Phase 4B is `needs_validation`, because even a
 strong plan still has not executed validation.
+
+With Phase 5F, a passing approved validation run can promote the recommendation
+to `mostly_ready` or `ready`, while failed or timed-out validation produces
+`blocked`.
 
 Example reasons:
 
@@ -146,6 +165,7 @@ Why:
 uv run heph release plan .
 uv run heph release plan <path>
 uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release plan . --pareto --qubo --with-validation --yes
 uv run heph release plan . --profile <profile_id>
 uv run heph release plan . --preference balanced
 uv run heph release list
@@ -173,6 +193,8 @@ uv run heph learn signals --run <optimizer_run_id>
 ## Persistence
 
 SQLite migration 9 adds `release_plans`.
+SQLite migration 14 adds `release_validation_summaries`, which links a release
+plan to real validation evidence when `--with-validation` is used.
 
 Each row stores:
 
@@ -187,6 +209,7 @@ Each row stores:
 - decision trace IDs JSON,
 - outcome IDs JSON,
 - learning signal IDs JSON,
+- optional validation result and evidence-mode fields in the raw JSON,
 - full raw Pydantic JSON,
 - creation time.
 

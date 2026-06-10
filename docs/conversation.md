@@ -6,6 +6,8 @@ discussions, Phase 5C makes provider-backed conversation quality explicit, and
 Phase 5D adds active policy profiles so benign user-owned work is helped
 directly while genuinely harmful requests stay bounded. Phase 5E lets
 conversation turns propose safe tool actions for the user to run manually.
+Phase 5F adds validation-specific proposals without allowing chat to auto-run
+validation.
 
 ```bash
 uv run heph ask "What is Hephaestus trying to become?"
@@ -17,8 +19,8 @@ uv run heph discuss "Propose a safe validation plan for this repo." --repo . --p
 ```
 
 This is not voice, browser automation, or autonomous code editing. Chat does
-not execute tools. It can suggest exact `heph tools ...` commands with risk
-classification and approval notes.
+not execute tools. It can suggest exact `heph validate ...` and `heph tools ...`
+commands with risk classification and approval notes.
 
 ## Commands
 
@@ -78,9 +80,12 @@ one Hephaestus.
 - whether approval is needed;
 - recommended order;
 - exact `heph tools ...` commands.
+- validation-specific commands such as `heph validate plan .`,
+  `heph validate run . --dry-run`, and `heph validate run . --yes`.
 
-The conversation service never runs those commands. The user stays in control
-and can inspect a dry run before executing anything.
+The conversation service never runs those commands. The user stays in control,
+can inspect a dry run before executing anything, and must explicitly approve
+validation execution with `--yes`.
 
 ## Memory And Strategic Context
 
@@ -108,6 +113,14 @@ With `--repo`, conversation loads the latest repo profile for the path or runs a
 read-only inspection if none exists. It can discuss stack, validation commands,
 risk signals, and generated repo-aware tasks. It still does not execute
 commands.
+
+For release questions, `--propose-tools` suggests the validation evidence path:
+
+```bash
+uv run heph validate plan .
+uv run heph validate run . --dry-run
+uv run heph validate run . --yes
+```
 
 ## Prompt And Context Budget
 

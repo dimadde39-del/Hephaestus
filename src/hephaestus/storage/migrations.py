@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -730,6 +730,140 @@ CREATE INDEX IF NOT EXISTS idx_tool_checkpoints_action
 ON tool_checkpoints(action_id, created_at);
 """
 
+MIGRATION_14 = """
+CREATE TABLE IF NOT EXISTS validation_plans (
+    id TEXT PRIMARY KEY,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    release_plan_id TEXT REFERENCES release_plans(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    command_count INTEGER NOT NULL DEFAULT 0,
+    confidence REAL NOT NULL DEFAULT 0.5,
+    status TEXT NOT NULL DEFAULT 'planned',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_plans_repo
+ON validation_plans(repo_path, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_validation_plans_release
+ON validation_plans(release_plan_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS validation_commands (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL REFERENCES validation_plans(id) ON DELETE CASCADE,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    command_text TEXT NOT NULL,
+    command_type TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    risk_level TEXT NOT NULL,
+    requires_approval INTEGER NOT NULL DEFAULT 0,
+    blocked INTEGER NOT NULL DEFAULT 0,
+    execution_order INTEGER NOT NULL DEFAULT 1,
+    decision_trace_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_commands_plan
+ON validation_commands(plan_id, execution_order);
+
+CREATE INDEX IF NOT EXISTS idx_validation_commands_type
+ON validation_commands(command_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS validation_results (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL REFERENCES validation_plans(id) ON DELETE CASCADE,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    release_plan_id TEXT REFERENCES release_plans(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    status TEXT NOT NULL,
+    command_count INTEGER NOT NULL DEFAULT 0,
+    pass_count INTEGER NOT NULL DEFAULT 0,
+    fail_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    timed_out_count INTEGER NOT NULL DEFAULT 0,
+    blocked_count INTEGER NOT NULL DEFAULT 0,
+    requires_approval_count INTEGER NOT NULL DEFAULT 0,
+    warning_count INTEGER NOT NULL DEFAULT 0,
+    readiness_impact INTEGER NOT NULL DEFAULT 0,
+    evidence_mode TEXT NOT NULL DEFAULT 'no_validation_evidence',
+    summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_results_repo
+ON validation_results(repo_path, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_validation_results_release
+ON validation_results(release_plan_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS validation_evidence (
+    id TEXT PRIMARY KEY,
+    validation_result_id TEXT REFERENCES validation_results(id) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL REFERENCES validation_plans(id) ON DELETE CASCADE,
+    command_id TEXT NOT NULL REFERENCES validation_commands(id) ON DELETE CASCADE,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    command_text TEXT NOT NULL,
+    command_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    exit_code INTEGER,
+    stdout_summary TEXT NOT NULL DEFAULT '',
+    stderr_summary TEXT NOT NULL DEFAULT '',
+    duration_seconds REAL NOT NULL DEFAULT 0,
+    tool_action_id TEXT REFERENCES tool_actions(id) ON DELETE SET NULL,
+    tool_execution_result_id TEXT REFERENCES tool_execution_results(id) ON DELETE SET NULL,
+    outcome_id TEXT REFERENCES outcomes(id) ON DELETE SET NULL,
+    decision_trace_id TEXT REFERENCES decision_traces(id) ON DELETE SET NULL,
+    failure_classification TEXT,
+    warning_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_evidence_result
+ON validation_evidence(validation_result_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_validation_evidence_repo_status
+ON validation_evidence(repo_path, command_type, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS release_validation_summaries (
+    id TEXT PRIMARY KEY,
+    release_plan_id TEXT REFERENCES release_plans(id) ON DELETE SET NULL,
+    validation_result_id TEXT NOT NULL REFERENCES validation_results(id) ON DELETE CASCADE,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    status TEXT NOT NULL,
+    evidence_based INTEGER NOT NULL DEFAULT 0,
+    simulated INTEGER NOT NULL DEFAULT 0,
+    readiness_score_before INTEGER,
+    readiness_score_after INTEGER,
+    readiness_score_delta INTEGER NOT NULL DEFAULT 0,
+    pass_count INTEGER NOT NULL DEFAULT 0,
+    fail_count INTEGER NOT NULL DEFAULT 0,
+    timed_out_count INTEGER NOT NULL DEFAULT 0,
+    blocked_count INTEGER NOT NULL DEFAULT 0,
+    requires_approval_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    warning_count INTEGER NOT NULL DEFAULT 0,
+    summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_release_validation_summaries_release
+ON release_validation_summaries(release_plan_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_release_validation_summaries_result
+ON release_validation_summaries(validation_result_id);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -838,6 +972,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (13, datetime.now(UTC).isoformat()),
+        )
+    if 14 not in applied_versions:
+        connection.executescript(MIGRATION_14)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (14, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

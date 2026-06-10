@@ -33,6 +33,12 @@ Phase 5E adds controlled local tools:
 Tool Intent -> Risk Classification -> Approval Gate -> Safe Execution -> Observation -> Trace / Outcome
 ```
 
+Phase 5F connects repo validation to real tool execution:
+
+```text
+Repo Validation Plan -> Approved Execution -> Evidence -> Outcome -> Learning -> Release Readiness
+```
+
 The current system still stops before autonomous coding. It can inspect files,
 run safe validation commands, propose patches, apply approved checkpointed
 patches, restore checkpoints, and record observations. It does not let
@@ -67,6 +73,9 @@ conversation turns execute tools automatically.
   and execution, approval gates, patch proposals, checkpointed patch apply and
   restore, SQLite tool audit records, tool observations, and trace/outcome
   integration.
+- `validation`: repo-derived validation execution plans, command classification,
+  safe runtime execution, SQLite evidence, release validation summaries,
+  command outcomes, learning signals, failure drafts, and Rich renderers.
 - `release`: repo-aware release planning schemas, orchestration, readiness
   analysis, SQLite persistence, and Rich demo renderers.
 - `conversation`: `ask`, `discuss`, and `chat` schemas, intent classifier,
@@ -114,6 +123,8 @@ User goal
   -> QUBO formulation / local binary solve
   -> Repo-aware benchmark export
   -> Release planning recommendation
+  -> Optional approved validation execution
+  -> Real validation evidence / release readiness update
   -> Optional safe tool runtime action
   -> Benchmark report / persisted run
   -> ExecutionPlan
@@ -159,8 +170,9 @@ history before any daemon process exists.
 - Inspect repositories before suggesting real development actions.
 - Keep repo intelligence read-only: commands are detected, classified, and
   suggested, not executed.
-- Keep release planning pre-execution: optimize, explain, evaluate simulated
-  outcomes, and learn before any command execution is allowed.
+- Keep release planning honest about evidence: `--evaluate` is simulated, while
+  `--with-validation --yes` produces real validation evidence through the safe
+  runtime.
 - Keep conversation text-only in Phase 5A: reason about code, architecture,
   strategy, research, and product decisions without editing files, executing
   commands, browsing, or pretending autonomy exists.
@@ -226,7 +238,8 @@ tasks, and then lets the decision engine optimize the plan.
 
 ## Release Planning Architecture
 
-Phase 4B adds `release_plans` and `src/hephaestus/release/`. The release layer
+Phase 4B adds `release_plans` and `src/hephaestus/release/`. Phase 5F links it
+to validation execution when requested. The release layer
 does not introduce a new optimizer. It composes existing systems:
 
 ```text
@@ -238,6 +251,8 @@ repo inspect/load profile
   -> optionally persist QUBO problems and solutions
   -> persist decision traces
   -> optionally evaluate simulated outcomes and learning signals
+  -> optionally run approved validation through the tool runtime
+  -> link validation evidence, outcomes, and learning signals
   -> compute deterministic readiness score
   -> persist ReleasePlanningResult
 ```
@@ -246,6 +261,23 @@ repo inspect/load profile
 optimizer run ID, coarse readiness score, recommendation status/summary, JSON
 IDs for Pareto, QUBO, decision traces, outcomes, learning signals, full raw
 Pydantic JSON, and creation time.
+
+`src/hephaestus/validation/` owns the execution side:
+
+```text
+load or inspect repo profile
+  -> build ValidationExecutionPlan from supported repo commands
+  -> classify each command with the tool runtime policy
+  -> require approval unless --yes
+  -> execute with ToolRuntime.run_command
+  -> persist ValidationEvidence and ValidationSuiteResult
+  -> create outcomes, validation learning signals, and repeated-failure drafts
+  -> optionally persist ReleaseValidationSummary
+```
+
+SQLite migration 14 adds `validation_plans`, `validation_commands`,
+`validation_results`, `validation_evidence`, and
+`release_validation_summaries`.
 
 Hephaestus does not run blindly.
 It inspects the repository, builds a release plan, exposes tradeoffs, formulates
