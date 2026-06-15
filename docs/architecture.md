@@ -39,10 +39,15 @@ Phase 5F connects repo validation to real tool execution:
 Repo Validation Plan -> Approved Execution -> Evidence -> Outcome -> Learning -> Release Readiness
 ```
 
-The current system still stops before autonomous coding. It can inspect files,
-run safe validation commands, propose patches, apply approved checkpointed
-patches, restore checkpoints, and record observations. It does not let
-conversation turns execute tools automatically.
+Phase 5G adds the first controlled coding loop:
+
+```text
+Request -> Repo Context -> Scoped Plan -> Patch Proposal -> Review -> Approved Apply -> Real Validation -> Outcome / Learning
+```
+
+This is still not full autonomy. It handles small docs, tests, config/help text,
+and clear bugfix-style changes. Conversation turns can propose coding plans, but
+they do not edit files automatically.
 
 ## Core Modules
 
@@ -76,6 +81,9 @@ conversation turns execute tools automatically.
 - `validation`: repo-derived validation execution plans, command classification,
   safe runtime execution, SQLite evidence, release validation summaries,
   command outcomes, learning signals, failure drafts, and Rich renderers.
+- `coding_loop`: scoped coding request schemas, repo-aware planner,
+  deterministic patch proposal, lightweight review, executor, SQLite
+  persistence, renderers, and trace/outcome/learning integration.
 - `release`: repo-aware release planning schemas, orchestration, readiness
   analysis, SQLite persistence, and Rich demo renderers.
 - `conversation`: `ask`, `discuss`, and `chat` schemas, intent classifier,
@@ -125,6 +133,8 @@ User goal
   -> Release planning recommendation
   -> Optional approved validation execution
   -> Real validation evidence / release readiness update
+  -> Optional scoped coding loop / checkpointed patch
+  -> Coding validation / rollback decision
   -> Optional safe tool runtime action
   -> Benchmark report / persisted run
   -> ExecutionPlan
@@ -173,6 +183,11 @@ history before any daemon process exists.
 - Keep release planning honest about evidence: `--evaluate` is simulated, while
   `--with-validation --yes` produces real validation evidence through the safe
   runtime.
+- Keep coding-loop work scoped: low-risk docs/tests/config changes can proceed
+  with `--yes`; oversized refactors and vague architecture rewrites become
+  plans, not automatic edits.
+- Keep chat non-mutating: `--propose-code` prints a coding plan and next command
+  but does not apply patches.
 - Keep conversation text-only in Phase 5A: reason about code, architecture,
   strategy, research, and product decisions without editing files, executing
   commands, browsing, or pretending autonomy exists.

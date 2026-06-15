@@ -230,15 +230,39 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Conversation tool proposals now suggest `heph validate plan`, dry-run, and
   approved validation commands without auto-running them.
 
-## Upcoming
-
 ### Phase 5G: Repo-Aware Coding Loop
 
-- Use safe tools and real validation to propose patches.
-- Apply approved changes with checkpoints.
-- Run validation, observe failures, and iterate within explicit limits.
-- Learn from real coding outcomes without deploying, publishing, pushing, or
-  running destructive commands.
+- First-class `hephaestus.coding_loop` package with schemas, planner, patcher,
+  reviewer, executor, repository, renderers, and analysis helpers.
+- SQLite tables for coding requests, plans, changes, iterations, and results.
+- `heph code plan/propose/apply/run/results/show`.
+- Repo-aware planning over repo intelligence, validation plans, active policy
+  profile, and strategic memory recall.
+- Deterministic single-file patch proposals for small docs/tests/config/help
+  text and exact replacement workflows.
+- Lightweight patch review for request match, expected files, protected files,
+  scope drift, obvious secrets, and validation availability.
+- Approved patch application through the safe tool runtime with checkpoint
+  creation.
+- Validation through Phase 5F after apply, with validation result links.
+- Optional checkpoint restore with `--rollback-on-failure`.
+- Coding-loop decision traces, outcomes, and learning signals for scope blocks,
+  patch proposals, apply decisions, validation, rollback, and final result.
+- `--propose-code` on `heph ask`, `heph discuss`, and `heph chat`; chat also
+  supports `/propose-code <request>`.
+- Still bounded: no daemon, no deploy/publish/push, no destructive actions, no
+  dependency installs without explicit approval, and no unbounded repair loop.
+
+## Upcoming
+
+### Phase 5G.5: README Reality / Product Positioning Pass
+
+- Stop leading public messaging with QUBO/Pareto/decision-theory internals.
+- Lead with the practical self-improving agent value: context, thinking, coding,
+  validation, project history, and improvement over time.
+- Show what works today, including the repo-aware coding loop.
+- Separate public value from advanced internals.
+- Make README feel like a useful product, not architecture theater.
 
 ### Phase 5.5: Hephaestus Studio / Persistent Interface Layer
 
@@ -268,7 +292,7 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 
 ## Deferred On Purpose
 
-- Autonomous code editing.
+- Fully autonomous code editing.
 - Always-on daemon behavior.
 - Browser or desktop automation.
 - Telegram bot integrations.

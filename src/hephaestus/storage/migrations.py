@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -864,6 +864,156 @@ CREATE INDEX IF NOT EXISTS idx_release_validation_summaries_result
 ON release_validation_summaries(validation_result_id);
 """
 
+MIGRATION_15 = """
+CREATE TABLE IF NOT EXISTS coding_requests (
+    id TEXT PRIMARY KEY,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    active_policy_profile TEXT NOT NULL DEFAULT '',
+    user_request TEXT NOT NULL,
+    scope_type TEXT NOT NULL DEFAULT 'unknown',
+    risk TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'planned',
+    plan_summary TEXT NOT NULL DEFAULT '',
+    likely_files_json TEXT NOT NULL DEFAULT '[]',
+    patch_ids_json TEXT NOT NULL DEFAULT '[]',
+    tool_action_ids_json TEXT NOT NULL DEFAULT '[]',
+    checkpoint_ids_json TEXT NOT NULL DEFAULT '[]',
+    validation_result_ids_json TEXT NOT NULL DEFAULT '[]',
+    outcome_ids_json TEXT NOT NULL DEFAULT '[]',
+    decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_requests_repo_created
+ON coding_requests(repo_path, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_coding_requests_status
+ON coding_requests(status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS coding_plans (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES coding_requests(id) ON DELETE CASCADE,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    active_policy_profile TEXT NOT NULL DEFAULT '',
+    user_request TEXT NOT NULL,
+    scope_type TEXT NOT NULL DEFAULT 'unknown',
+    risk TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'planned',
+    summary TEXT NOT NULL DEFAULT '',
+    likely_files_json TEXT NOT NULL DEFAULT '[]',
+    validation_commands_json TEXT NOT NULL DEFAULT '[]',
+    validation_plan_id TEXT REFERENCES validation_plans(id) ON DELETE SET NULL,
+    patch_proposal_possible INTEGER NOT NULL DEFAULT 0,
+    scope_too_large INTEGER NOT NULL DEFAULT 0,
+    requires_approval INTEGER NOT NULL DEFAULT 1,
+    decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_plans_request
+ON coding_plans(request_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS coding_changes (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES coding_requests(id) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL REFERENCES coding_plans(id) ON DELETE CASCADE,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    active_policy_profile TEXT NOT NULL DEFAULT '',
+    scope_type TEXT NOT NULL DEFAULT 'unknown',
+    risk TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'patch_proposed',
+    summary TEXT NOT NULL DEFAULT '',
+    files_touched_json TEXT NOT NULL DEFAULT '[]',
+    patch_ids_json TEXT NOT NULL DEFAULT '[]',
+    tool_action_ids_json TEXT NOT NULL DEFAULT '[]',
+    review_id TEXT,
+    decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    outcome_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_changes_request
+ON coding_changes(request_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_coding_changes_plan
+ON coding_changes(plan_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS coding_iterations (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES coding_requests(id) ON DELETE CASCADE,
+    plan_id TEXT REFERENCES coding_plans(id) ON DELETE SET NULL,
+    change_id TEXT REFERENCES coding_changes(id) ON DELETE SET NULL,
+    review_id TEXT,
+    status TEXT NOT NULL DEFAULT 'planned',
+    summary TEXT NOT NULL DEFAULT '',
+    apply_tool_action_id TEXT REFERENCES tool_actions(id) ON DELETE SET NULL,
+    apply_tool_result_id TEXT REFERENCES tool_execution_results(id) ON DELETE SET NULL,
+    checkpoint_id TEXT REFERENCES tool_checkpoints(id) ON DELETE SET NULL,
+    validation_result_id TEXT REFERENCES validation_results(id) ON DELETE SET NULL,
+    rollback_tool_action_id TEXT REFERENCES tool_actions(id) ON DELETE SET NULL,
+    rollback_checkpoint_id TEXT REFERENCES tool_checkpoints(id) ON DELETE SET NULL,
+    outcome_ids_json TEXT NOT NULL DEFAULT '[]',
+    learning_signal_ids_json TEXT NOT NULL DEFAULT '[]',
+    decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_iterations_request
+ON coding_iterations(request_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS coding_loop_results (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES coding_requests(id) ON DELETE CASCADE,
+    plan_id TEXT REFERENCES coding_plans(id) ON DELETE SET NULL,
+    change_id TEXT REFERENCES coding_changes(id) ON DELETE SET NULL,
+    repo_path TEXT NOT NULL,
+    repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    active_policy_profile TEXT NOT NULL DEFAULT '',
+    user_request TEXT NOT NULL,
+    scope_type TEXT NOT NULL DEFAULT 'unknown',
+    risk TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'planned',
+    summary TEXT NOT NULL DEFAULT '',
+    iteration_ids_json TEXT NOT NULL DEFAULT '[]',
+    patch_ids_json TEXT NOT NULL DEFAULT '[]',
+    tool_action_ids_json TEXT NOT NULL DEFAULT '[]',
+    checkpoint_ids_json TEXT NOT NULL DEFAULT '[]',
+    validation_result_ids_json TEXT NOT NULL DEFAULT '[]',
+    outcome_ids_json TEXT NOT NULL DEFAULT '[]',
+    learning_signal_ids_json TEXT NOT NULL DEFAULT '[]',
+    decision_trace_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_results_request
+ON coding_loop_results(request_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_coding_results_repo_created
+ON coding_loop_results(repo_path, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_coding_results_status
+ON coding_loop_results(status, created_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -978,6 +1128,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (14, datetime.now(UTC).isoformat()),
+        )
+    if 15 not in applied_versions:
+        connection.executescript(MIGRATION_15)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (15, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

@@ -62,8 +62,14 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         validation_plans_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'validation_plans'"
         ).fetchone()
+        coding_requests_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'coding_requests'"
+        ).fetchone()
+        coding_results_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'coding_loop_results'"
+        ).fetchone()
 
-    assert migration_count[0] == 14
+    assert migration_count[0] == 15
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
     assert pareto_table[0] == "pareto_frontiers"
@@ -77,6 +83,8 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
     assert policy_settings_table[0] == "policy_settings"
     assert tool_actions_table[0] == "tool_actions"
     assert validation_plans_table[0] == "validation_plans"
+    assert coding_requests_table[0] == "coding_requests"
+    assert coding_results_table[0] == "coding_loop_results"
 
 
 def test_memory_persists_across_repository_instances(tmp_path) -> None:

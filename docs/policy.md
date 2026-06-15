@@ -4,7 +4,7 @@ Hephaestus is local-first and user-owned. Phase 5D turns that from a prompt
 principle into a product layer: policy profiles, deterministic request
 evaluation, active-profile persistence, concise boundaries, over-refusal
 detection, and policy benchmarks. Phase 5E applies those profiles to local tool
-execution.
+execution. Phase 5G applies them to scoped coding loops.
 
 The short version:
 
@@ -13,6 +13,8 @@ The short version:
   edgy, direct, or non-corporate.
 - Require explicit approval for destructive local actions and external side
   effects.
+- Allow harmless repo inspection, planning, and patch proposal generation
+  without approval spam.
 - Block genuinely harmful requests: credential theft, malware, abuse evasion,
   targeted harassment, exploitation, and real-world violence.
 - Keep boundaries transparent and configurable.
@@ -68,6 +70,23 @@ Blocked prompts short-circuit locally with a concise refusal. Approval-gated
 prompts can still be discussed. When execution happens through `heph tools`, the
 runtime records the active profile, risk level, approval decision, result, and
 observation.
+
+## Coding Loop Integration
+
+`heph code plan` and `heph code propose` are local analysis/proposal actions and
+do not require approval. `heph code apply` and non-dry-run `heph code run`
+modify files and require explicit `--yes`.
+
+Low-risk docs, tests, and config/help text can batch the safe internal steps:
+
+```text
+planned low-risk local change -> checkpoint -> apply -> validate -> record outcome
+```
+
+Medium-risk changes require clearer explicit approval. High-risk, destructive,
+external-side-effect, protected-file, and oversized changes are blocked or
+converted into plan-only output. The boundary should be short and concrete, not
+moralizing.
 
 ## Why Before Tool Execution
 

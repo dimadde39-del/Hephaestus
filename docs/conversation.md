@@ -7,7 +7,8 @@ Phase 5D adds active policy profiles so benign user-owned work is helped
 directly while genuinely harmful requests stay bounded. Phase 5E lets
 conversation turns propose safe tool actions for the user to run manually.
 Phase 5F adds validation-specific proposals without allowing chat to auto-run
-validation.
+validation. Phase 5G adds coding-plan proposals without allowing chat to edit
+files automatically.
 
 ```bash
 uv run heph ask "What is Hephaestus trying to become?"
@@ -16,11 +17,12 @@ uv run heph discuss "Stress-test launching before code execution exists." --mode
 uv run heph chat
 uv run heph policy set developer
 uv run heph discuss "Propose a safe validation plan for this repo." --repo . --propose-tools
+uv run heph discuss "Propose a small safe README improvement." --repo . --propose-code
 ```
 
 This is not voice, browser automation, or autonomous code editing. Chat does
-not execute tools. It can suggest exact `heph validate ...` and `heph tools ...`
-commands with risk classification and approval notes.
+not execute tools. It can suggest exact `heph validate ...`, `heph tools ...`,
+and `heph code ...` commands with risk classification and approval notes.
 
 ## Commands
 
@@ -33,11 +35,14 @@ uv run heph ask "..." --show-budget
 uv run heph ask "..." --provider local
 uv run heph ask "..." --no-memory
 uv run heph ask "..." --repo . --propose-tools
+uv run heph ask "..." --repo . --propose-code
 uv run heph discuss "..." --mode critical
 uv run heph discuss "..." --mode strategic --save-strategy
 uv run heph discuss "Research plan: compare agent frameworks." --mode research
 uv run heph discuss "Propose a validation plan." --repo . --propose-tools
+uv run heph discuss "Improve the README launch section." --repo . --propose-code
 uv run heph chat --repo .
+uv run heph chat --repo . --propose-code
 uv run heph chat --session <session_id>
 uv run heph conversations
 uv run heph conversation show <session_id>
@@ -48,8 +53,9 @@ uv run heph conversation benchmark run
 `ask` is a one-shot turn. `discuss` is tuned for longer plans or ideas and
 returns more structured analysis. `chat` persists an interactive session and
 supports `/exit`, `/memory`, `/mode <mode>`, `/repo <path>`, `/summary`, and
-`/save-memory`. In Phase 5B, `/save-memory` saves both normal memory candidates
-and strategic memory candidates from the last response.
+`/save-memory`. It also supports `/propose-code <request>` for a planning-only
+coding loop proposal. In Phase 5B, `/save-memory` saves both normal memory
+candidates and strategic memory candidates from the last response.
 
 ## Pipeline
 
@@ -86,6 +92,21 @@ one Hephaestus.
 The conversation service never runs those commands. The user stays in control,
 can inspect a dry run before executing anything, and must explicitly approve
 validation execution with `--yes`.
+
+## Code Proposals
+
+`--propose-code` appends a repo-aware coding plan:
+
+- intended scope and risk,
+- likely files,
+- whether a deterministic patch proposal is possible,
+- validation commands,
+- exact next `heph code ...` command.
+
+It does not propose from vague large requests as if they were safe. Oversized
+requests become plan-only and ask the user to narrow scope. Normal chat never
+applies patches; use `heph code propose`, `heph code apply --yes`, or
+`heph code run --yes` explicitly.
 
 ## Memory And Strategic Context
 

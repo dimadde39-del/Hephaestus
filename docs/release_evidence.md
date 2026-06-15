@@ -58,6 +58,21 @@ Release plans link to validation results when available. Validation results link
 to tool actions, tool execution results, outcomes, learning signals, and decision
 traces.
 
+## Coding Loop Evidence
+
+Phase 5G also uses validation evidence after approved repo patches:
+
+```bash
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --yes
+uv run heph code show <coding_request_id>
+```
+
+Coding-loop evidence is scoped to the change request rather than a full release
+recommendation. It records the patch proposal, review, apply action,
+checkpoint, validation result, optional rollback, outcomes, learning signals,
+and decision traces. A passing coding-loop validation result is useful release
+evidence, but it does not replace a release plan or external CI.
+
 ## Known Limits
 
 Real local validation is strong evidence, not a guarantee. It does not inspect

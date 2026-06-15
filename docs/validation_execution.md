@@ -19,6 +19,8 @@ uv run heph validate run . --stop-on-failure --yes
 uv run heph validate results
 uv run heph validate latest .
 uv run heph validate show <validation_result_id>
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --yes
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --yes --rollback-on-failure
 ```
 
 ## Planning
@@ -91,10 +93,26 @@ signals. Repeated meaningful failures can draft failure memories.
 Learning is intentionally conservative: Hephaestus does not spam records for
 every line of output, and it does not auto-activate policy/profile changes.
 
+## Coding Loop Integration
+
+Phase 5G runs this validation executor after an approved patch is applied unless
+`--no-validate` is passed. Coding-loop records link to:
+
+- the validation plan id,
+- the validation result id,
+- command evidence,
+- validation outcomes,
+- validation learning signals,
+- decision traces.
+
+If validation passes, the coding loop can complete. If validation fails, the
+loop records the failure and can restore the pre-apply checkpoint when
+`--rollback-on-failure` is set. Hephaestus does not blindly continue repairing
+the repo; the default maximum iteration count is one.
+
 ## Limitations
 
-- This is not an autonomous coding loop.
-- Hephaestus does not edit files to fix validation failures in Phase 5F.
+- Hephaestus does not run unbounded repair loops after validation failures.
 - Deploy, publish, push, destructive, and external side-effect commands are not
   validation commands.
 - Command detection is manifest/config based and may miss project-specific docs.

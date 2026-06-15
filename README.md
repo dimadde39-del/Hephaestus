@@ -2,23 +2,18 @@
 
 ![Hephaestus README hero showing Talos forging an explainable decision graph](docs/assets/brand/hephaestus-readme-hero.png)
 
-**Optimization-first agent OS with explainable decisions and learning memory.**
+**A self-improving AI agent for people building ambitious things.**
 
 Status: **early alpha, local-first, approval-gated**. Hephaestus can inspect a
-repository, build a release-readiness plan, expose tradeoffs, formulate decision
-problems, explain why choices were made, evaluate deterministic simulated
-outcomes, create learning signals, and answer text discussions through
-`heph ask`, `heph discuss`, and `heph chat`. Conversations run in deterministic
-local mode by default and can use configured DeepSeek or OpenAI-compatible
-providers for one-call synthesis with budget visibility. User-owned policy
-profiles keep benign creative, development, research, and strategy work
-practically free while preserving approval gates for side effects. Phase 5E adds
-a safe local tool runtime for file inspection, dry-run command planning, safe
-validation commands, patch proposals, checkpointed patch application, and
-rollback. Phase 5F connects repo validation plans to that runtime so approved
-lint, test, typecheck, and build commands produce real evidence, outcomes, and
-learning signals. It does **not** edit code autonomously, run as a daemon, deploy,
-publish, push, or claim production-ready autonomy.
+repository, remember context, help think through decisions, propose small scoped
+repo patches, apply approved changes with checkpoints, run real validation, and
+learn from outcomes. Conversations run in deterministic local mode by default
+and can use configured DeepSeek or OpenAI-compatible providers for one-call
+synthesis with budget visibility. User-owned policy profiles keep benign
+creative, development, research, and strategy work practically free while
+preserving approval gates for side effects. It does **not** run as a daemon,
+deploy, publish, push, perform large autonomous rewrites, or claim
+production-ready autonomy.
 
 ```text
 The forge for agents that think before they act.
@@ -65,7 +60,11 @@ uv run heph validate plan .
 uv run heph validate run . --dry-run
 uv run heph validate run . --yes
 uv run heph release plan . --pareto --qubo --with-validation --yes
+uv run heph code plan "Update README wording to mention validation-backed release evidence." --repo .
+uv run heph code propose "Update README wording to mention validation-backed release evidence." --repo .
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 uv run heph discuss "Propose a safe validation plan for this repo." --repo . --propose-tools
+uv run heph discuss "Propose a small safe README improvement." --repo . --propose-code
 uv run heph conversation benchmark list
 uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
 uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
@@ -179,12 +178,14 @@ Built:
 - Validation evidence persistence, per-command outcomes, validation learning
   signals, repeated-failure drafts, and release-readiness score adjustments from
   real command results.
+- Repo-aware coding loop for small scoped changes: plan, propose, review, apply
+  with `--yes`, checkpoint, validate, optionally rollback, and record outcomes
+  and learning signals.
 
 Not built yet:
 
-- Autonomous code edits.
-- Autonomous coding loops that propose patches, apply them, validate, and
-  iterate without a new explicit phase boundary.
+- Fully autonomous code editing.
+- Large architecture rewrites or unbounded multi-file self-editing.
 - Deploy, publish, push, or destructive command execution.
 - A long-running daemon.
 - A dashboard.
@@ -200,7 +201,7 @@ validation evidence instead of simulated evidence.
 ## Core Loop
 
 ```text
-Inspect -> Specify -> Optimize -> Explain -> Evaluate -> Learn -> Execute safely with approval
+Inspect -> Plan -> Propose -> Apply with approval -> Validate -> Learn
 ```
 
 Architecture at a glance:
@@ -213,6 +214,7 @@ CLI
  |-- Discussion quality: rubrics for stress tests, strategy, architecture, roadmap, and research
  |-- Repo intelligence: read-only local inspection and command risk classification
  |-- Tool runtime: safe file tools, shell gates, patches, checkpoints, observations
+ |-- Coding loop: scoped repo plans, patch review, approved apply, validation, rollback
  |-- Release planning: demo orchestration and conservative recommendations
  |-- Optimization core: scheduling, routing, context packing, token budget checks
  |-- Pareto layer: multi-objective candidate frontiers and selections

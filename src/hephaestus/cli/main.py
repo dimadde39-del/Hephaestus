@@ -22,6 +22,19 @@ from hephaestus.benchmarks.reporter import (
     print_benchmark_show,
     results_to_json,
 )
+from hephaestus.coding_loop import (
+    CodingLoopExecutor,
+    CodingLoopRepository,
+    CodingScopeType,
+)
+from hephaestus.coding_loop.renderer import (
+    build_coding_change_renderable,
+    build_coding_conversation_proposal,
+    build_coding_plan_renderable,
+    build_coding_result_renderable,
+    build_coding_results_table,
+    build_coding_show_renderable,
+)
 from hephaestus.conversation import (
     ConversationMemoryUpdate,
     ConversationRequest,
@@ -252,6 +265,7 @@ qubo_app = typer.Typer(help="QUBO and Ising formulation commands.", no_args_is_h
 repo_app = typer.Typer(help="Read-only local repository intelligence commands.", no_args_is_help=True)
 release_app = typer.Typer(help="Repo-aware release planning demo commands.", no_args_is_help=True)
 validate_app = typer.Typer(help="Real repo validation planning and execution.", no_args_is_help=True)
+code_app = typer.Typer(help="Repo-aware scoped coding loop commands.", no_args_is_help=True)
 conversation_app = typer.Typer(help="Conversation session commands.", no_args_is_help=True)
 conversation_benchmark_app = typer.Typer(
     help="Conversation quality benchmark commands.",
@@ -287,6 +301,7 @@ app.add_typer(qubo_app, name="qubo")
 app.add_typer(repo_app, name="repo")
 app.add_typer(release_app, name="release")
 app.add_typer(validate_app, name="validate")
+app.add_typer(code_app, name="code")
 app.add_typer(conversation_app, name="conversation")
 app.add_typer(policy_app, name="policy")
 app.add_typer(strategy_app, name="strategy")
@@ -644,6 +659,169 @@ def validate_latest(
     console.print(build_validation_show_renderable(suite))
 
 
+@code_app.command("plan")
+def code_plan(
+    request_text: Annotated[str, typer.Argument(help="Scoped repo change request.")],
+    repo: Annotated[
+        Path,
+        typer.Option("--repo", help="Repository path to plan against."),
+    ] = Path("."),
+    scope: Annotated[
+        CodingScopeType | None,
+        typer.Option("--scope", help="Optional scope override."),
+    ] = None,
+) -> None:
+    """Plan a scoped repo change without proposing or applying a patch."""
+
+    try:
+        request, plan = CodingLoopExecutor().plan(request_text, repo_path=repo, scope=scope)
+    except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_coding_plan_renderable(plan))
+    console.print(f"Saved coding request: {request.id}")
+    console.print(f"Saved coding plan: {plan.id}")
+
+
+@code_app.command("propose")
+def code_propose(
+    request_text: Annotated[str, typer.Argument(help="Scoped repo change request.")],
+    repo: Annotated[
+        Path,
+        typer.Option("--repo", help="Repository path to plan against."),
+    ] = Path("."),
+    scope: Annotated[
+        CodingScopeType | None,
+        typer.Option("--scope", help="Optional scope override."),
+    ] = None,
+) -> None:
+    """Create a patch proposal without applying it."""
+
+    executor = CodingLoopExecutor()
+    try:
+        request, plan, change = executor.propose(request_text, repo_path=repo, scope=scope)
+    except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_coding_plan_renderable(plan))
+    console.print(build_coding_change_renderable(change))
+    console.print(f"Saved coding request: {request.id}")
+    console.print(f"Saved coding change: {change.id}")
+
+
+@code_app.command("apply")
+def code_apply(
+    coding_change_id: Annotated[str, typer.Argument(help="Coding change ID to apply.")],
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve patch application after reviewing the proposal."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Review and classify without changing files."),
+    ] = False,
+    no_validate: Annotated[
+        bool,
+        typer.Option("--no-validate", help="Skip validation after applying the patch."),
+    ] = False,
+    rollback_on_failure: Annotated[
+        bool,
+        typer.Option("--rollback-on-failure", help="Restore the checkpoint if validation fails."),
+    ] = False,
+) -> None:
+    """Apply a previously proposed patch with approval gates."""
+
+    try:
+        result = CodingLoopExecutor().apply_change(
+            coding_change_id,
+            yes=yes,
+            dry_run=dry_run,
+            no_validate=no_validate,
+            rollback_on_failure=rollback_on_failure,
+        )
+    except (FileNotFoundError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_coding_result_renderable(result))
+    if result.status.value in {"blocked", "requires_approval", "validation_failed"}:
+        raise typer.Exit(1)
+
+
+@code_app.command("run")
+def code_run(
+    request_text: Annotated[str, typer.Argument(help="Scoped repo change request.")],
+    repo: Annotated[
+        Path,
+        typer.Option("--repo", help="Repository path to plan against."),
+    ] = Path("."),
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Plan, propose, and review without changing files."),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve eligible patch application and validation."),
+    ] = False,
+    max_iterations: Annotated[
+        int,
+        typer.Option("--max-iterations", min=1, help="Maximum bounded iterations. Defaults to 1."),
+    ] = 1,
+    no_validate: Annotated[
+        bool,
+        typer.Option("--no-validate", help="Skip validation after applying the patch."),
+    ] = False,
+    rollback_on_failure: Annotated[
+        bool,
+        typer.Option("--rollback-on-failure", help="Restore the checkpoint if validation fails."),
+    ] = False,
+    scope: Annotated[
+        CodingScopeType | None,
+        typer.Option("--scope", help="Optional scope override."),
+    ] = None,
+) -> None:
+    """Run the controlled coding loop: plan, propose, review, apply, validate."""
+
+    try:
+        result = CodingLoopExecutor().run(
+            request_text,
+            repo_path=repo,
+            dry_run=dry_run,
+            yes=yes,
+            max_iterations=max_iterations,
+            no_validate=no_validate,
+            rollback_on_failure=rollback_on_failure,
+            scope=scope,
+        )
+    except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_coding_result_renderable(result))
+    if result.status.value in {"blocked", "requires_approval", "validation_failed"}:
+        raise typer.Exit(1)
+
+
+@code_app.command("results")
+def code_results(
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum results to show.")] = 20,
+) -> None:
+    """Show recent coding loop results."""
+
+    console.print(build_coding_results_table(CodingLoopRepository().list_results(limit=limit)))
+
+
+@code_app.command("show")
+def code_show(
+    coding_request_id: Annotated[str, typer.Argument(help="Coding request, result, plan, or change ID.")],
+) -> None:
+    """Show a coding loop request with plan, patch, validation, outcomes, and traces."""
+
+    detail = CodingLoopRepository().show_result(coding_request_id)
+    if detail.request is None and detail.result is None and detail.plan is None and detail.change is None:
+        console.print(f"[red]Coding loop record not found: {coding_request_id}[/red]")
+        raise typer.Exit(1)
+    console.print(build_coding_show_renderable(detail))
+
+
 @app.command("ask")
 def ask(
     prompt: Annotated[str, typer.Argument(help="Question or context to ask Hephaestus.")],
@@ -686,6 +864,10 @@ def ask(
         bool,
         typer.Option("--propose-tools", help="Show safe tool actions the user can run manually."),
     ] = False,
+    propose_code: Annotated[
+        bool,
+        typer.Option("--propose-code", help="Show a repo-aware coding plan and next command."),
+    ] = False,
 ) -> None:
     """Ask a one-shot text question using memory, repo context, and deliberation."""
 
@@ -701,6 +883,7 @@ def ask(
         provider=provider,
         discussion=False,
         propose_tools=propose_tools,
+        propose_code=propose_code,
     )
 
 
@@ -746,6 +929,10 @@ def discuss(
         bool,
         typer.Option("--propose-tools", help="Show safe tool actions the user can run manually."),
     ] = False,
+    propose_code: Annotated[
+        bool,
+        typer.Option("--propose-code", help="Show a repo-aware coding plan and next command."),
+    ] = False,
 ) -> None:
     """Discuss a longer plan or idea with structured deliberation."""
 
@@ -761,6 +948,7 @@ def discuss(
         provider=provider,
         discussion=True,
         propose_tools=propose_tools,
+        propose_code=propose_code,
     )
 
 
@@ -778,6 +966,10 @@ def chat(
         DeliberationMode,
         typer.Option("--mode", help="Initial reasoning style."),
     ] = DeliberationMode.BALANCED,
+    propose_code: Annotated[
+        bool,
+        typer.Option("--propose-code", help="Show a coding plan after each chat turn."),
+    ] = False,
 ) -> None:
     """Start a persistent interactive text session."""
 
@@ -861,6 +1053,22 @@ def chat(
                 f"{saved_strategy_count} strategic memory update(s)."
             )
             continue
+        if text.startswith("/propose-code"):
+            parts = text.split(maxsplit=1)
+            code_request = parts[1].strip() if len(parts) == 2 else ""
+            if not code_request:
+                console.print("Usage: /propose-code <request>")
+                continue
+            try:
+                _request, code_plan_result = CodingLoopExecutor(service.database_path).plan(
+                    code_request,
+                    repo_path=current_repo or Path("."),
+                )
+            except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+                console.print(f"[red]{error}[/red]")
+                continue
+            console.print(build_coding_conversation_proposal(code_plan_result))
+            continue
 
         try:
             last_response = service.respond(
@@ -877,6 +1085,17 @@ def chat(
             continue
         current_session_id = last_response.session_id
         console.print(build_conversation_response_renderable(last_response))
+        if propose_code:
+            try:
+                _request, code_plan_result = CodingLoopExecutor(service.database_path).plan(
+                    text,
+                    repo_path=current_repo or Path("."),
+                    conversation_id=current_session_id,
+                )
+            except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+                console.print(f"[red]{error}[/red]")
+                continue
+            console.print(build_coding_conversation_proposal(code_plan_result))
 
 
 @app.command("conversations")
@@ -2932,6 +3151,7 @@ def _run_conversation_turn(
     provider: str,
     discussion: bool,
     propose_tools: bool,
+    propose_code: bool,
 ) -> None:
     service = ConversationService()
     try:
@@ -2972,6 +3192,17 @@ def _run_conversation_turn(
                 )
             )
         )
+    if propose_code:
+        try:
+            _request, plan = CodingLoopExecutor(service.database_path).plan(
+                prompt,
+                repo_path=repo or Path("."),
+                conversation_id=response.session_id,
+            )
+        except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+            console.print(f"[red]{error}[/red]")
+            raise typer.Exit(1) from error
+        console.print(build_coding_conversation_proposal(plan))
 
 
 def _print_chat_context(response: ConversationResponse | None) -> None:

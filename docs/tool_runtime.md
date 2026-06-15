@@ -8,8 +8,10 @@ The runtime follows:
 think -> explain -> classify risk -> ask approval -> execute safely -> observe output -> learn
 ```
 
-It is not a full autonomous coding loop. Conversations can propose tool actions,
-but they do not run tools automatically.
+It is the execution substrate for Phase 5G's controlled coding loop. The runtime
+can apply a reviewed patch and create a checkpoint, but it does not decide on
+its own what to edit. Conversations can propose tool or coding actions, but they
+do not run tools automatically.
 
 ## Commands
 
@@ -29,6 +31,9 @@ uv run heph tools checkpoint restore <checkpoint_id> --yes
 uv run heph validate plan .
 uv run heph validate run . --dry-run
 uv run heph validate run . --yes
+uv run heph code plan "Update README wording to mention validation-backed release evidence." --repo .
+uv run heph code propose "Update README wording to mention validation-backed release evidence." --repo .
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 ```
 
 ## Risk Levels
@@ -82,6 +87,24 @@ Validation execution stores:
 
 Destructive commands are not validation commands and remain blocked.
 
+## Coding Loop Runtime Use
+
+Phase 5G uses the same runtime rather than adding a second file mutation path.
+
+The coding loop:
+
+- plans with repo intelligence and policy context,
+- creates a deterministic patch proposal without writing files,
+- reviews the patch against scope and protected-file rules,
+- applies the stored tool-runtime patch only with `--yes`,
+- relies on runtime checkpoint creation before the file write,
+- runs validation through `heph validate` internals,
+- optionally restores the checkpoint when validation fails.
+
+Low-risk docs, tests, and config/help text can be batched under one `--yes`.
+Medium-risk work still requires clearer explicit approval. Destructive or
+external-side-effect behavior remains blocked by the runtime policy layer.
+
 ## Persistence
 
 Tool actions are stored in SQLite:
@@ -98,7 +121,6 @@ checkpoint, decision trace, outcome, conversation, run, and repo profile links.
 
 ## Boundaries
 
-Phase 5E is a runtime foundation. It does not autonomously edit a repo, browse,
+Phase 5E is a runtime foundation. Phase 5F uses it for approved validation.
+Phase 5G uses it for small scoped coding loops. It still does not browse,
 deploy, publish, push, run as a daemon, or turn chat into an execution loop.
-Phase 5F uses this runtime to execute approved validation plans and turn results
-into stronger outcome learning. It is still not an autonomous coding loop.

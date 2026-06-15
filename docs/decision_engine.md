@@ -25,6 +25,8 @@ Users and future runtime systems should be able to answer:
 - Why did a tool action run, pause for approval, or get blocked?
 - Why was a validation command selected, skipped, approval-gated, failed, or
   counted as release evidence?
+- Why was a coding request accepted, blocked as too large, patched, validated,
+  or rolled back?
 
 ## Decision Types
 
@@ -43,6 +45,9 @@ actions, patch application, checkpoint restore, and observed execution status.
 Phase 5F also uses `SafetyDecision` records for validation planning and
 execution traces: command selection, skipped commands, approval-required
 validation, timeout/failure classification, and release-readiness impact.
+Phase 5G adds coding-loop traces for scope acceptance/rejection, likely file
+selection, patch proposal, patch review, patch application, validation result,
+rollback decision, iteration status, and final outcome.
 
 Every trace includes:
 
@@ -164,6 +169,10 @@ deterministically for benchmark traces with `heph benchmark run --evaluate` and
 Validation execution creates real outcomes from command evidence: pass, fail,
 timeout, blocked, approval-required, skipped, warning counts, output summaries,
 and linked tool action/result IDs.
+Coding loops create outcomes for patch proposed, patch applied, validation
+passed/failed, rollback performed, scope blocked, and approval missing. Learning
+signals are created for useful failure patterns such as validation failure,
+missing validation, oversized scope, and rollback frequency candidates.
 
 ## Profile Applications
 
