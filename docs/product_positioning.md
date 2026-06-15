@@ -106,6 +106,34 @@ story rather than replace it.
 Use the external term first. Add the internal term only when the reader needs
 implementation detail.
 
+## Relationship to Hermes
+
+Hephaestus should learn from Hermes. Hermes showed that people want agents that
+remember them, grow with them, and carry work forward instead of starting from
+zero every session.
+
+Do not position Hephaestus as a cheap clone or a rival to dunk on. The shared
+ambition is self-improving agency. The differentiator is the center of gravity:
+Hephaestus is about evidence-backed work.
+
+Use this line when the comparison needs to be direct:
+
+```text
+Hermes learns workflows.
+Hephaestus learns why workflows succeed, then forges better ones.
+```
+
+Public messaging can lead with companion-like self-improvement, but it must
+quickly show the evidence-backed loop:
+
+```text
+repo context -> scoped patch -> checkpoint -> validation -> outcome -> learning
+```
+
+That is the distinction: repo-aware coding, validation-backed work, checkpoints,
+outcome learning, and decision-quality improvement. Hephaestus is still early
+and should not claim full always-on companion maturity yet.
+
 ## Explaining QUBO/Pareto Without Looking Ridiculous
 
 Say:

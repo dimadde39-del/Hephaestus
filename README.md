@@ -141,6 +141,31 @@ context -> plan -> patch -> validate -> outcome -> memory
 The goal is not to replace the model. The goal is to make the agent around the
 model remember, verify, and improve.
 
+## Why not Hermes?
+
+Hermes is not the enemy. Hermes proved that people want self-improving agents
+that remember them, grow with them, and carry work forward across time.
+
+Hephaestus is built from the same belief, but with a different center of
+gravity. It focuses on evidence-backed work: repo-aware coding, validation,
+outcomes, learning, checkpoints, and decision-quality improvement.
+
+```text
+Hermes learns workflows.
+Hephaestus learns why workflows succeed, then forges better ones.
+```
+
+Hephaestus is still early. It does not yet have full always-on companion
+features, voice, or a long-running background runtime. The long-term goal is a
+self-improving agent that can think with you, work on your repo, validate what
+happened, and improve from real outcomes.
+
+| System | Center of gravity |
+|---|---|
+| Hermes | Self-improving personal/workflow agent |
+| Claude Code / Codex-style tools | Strong coding assistance inside a repo |
+| Hephaestus | Self-improving agent with validation-backed coding and outcome learning |
+
 ## Why This Is Not Architecture Theater
 
 Early Hephaestus versions were deliberately planning-heavy. That made the

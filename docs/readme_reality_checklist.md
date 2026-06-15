@@ -60,6 +60,10 @@ context -> plan -> patch -> validate -> outcome -> memory
 - [ ] It explains why validation evidence matters.
 - [ ] It explains how outcomes improve future work.
 - [ ] It answers "Why not just ChatGPT or Claude Code?"
+- [ ] It explains why this is not just Hermes.
+- [ ] It distinguishes public promise from technical spine.
+- [ ] It avoids attacking competitors.
+- [ ] It avoids claiming maturity that does not exist yet.
 
 ## Link And Asset Check
 
