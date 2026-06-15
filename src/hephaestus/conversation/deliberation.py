@@ -498,7 +498,9 @@ def _map_assumptions(
     if "20k" in lowered or "stars" in lowered:
         assumptions.append("GitHub stars require a crisp public story plus proof that the system works.")
     if "before it can execute code" in lowered or "can't execute code" in lowered:
-        assumptions.append("A planning-only launch can work if the demo makes the execution boundary explicit.")
+        assumptions.append(
+            "A scoped launch can work if the demo makes approval and execution boundaries explicit."
+        )
     if context.repo_profile is not None:
         assumptions.append(
             "Repo-aware advice is grounded in profile signals; tool execution stays explicit."
@@ -537,14 +539,14 @@ def _generate_options(
         ]
     if intent == ConversationIntent.PRODUCT_STRATEGY:
         return [
-            "Double down on decision quality as the wedge.",
+            "Double down on context, validation, and scoped coding as the wedge.",
             "Move quickly into execution to satisfy practical users.",
-            "Publish a transparent alpha that treats non-execution as a deliberate safety boundary.",
+            "Publish a transparent alpha that treats scope and approval gates as deliberate safety boundaries.",
         ]
     if intent == ConversationIntent.BUSINESS_STRATEGY:
         return [
             "Validate the customer pain and distribution path before widening scope.",
-            "Position the project around decision quality first, then test commercial extensions later.",
+            "Position the project around the self-improving agent loop first, then test commercial extensions later.",
             "Keep open-source trust high by making boundaries and incentives explicit.",
         ]
     if intent == ConversationIntent.ARCHITECTURE_DISCUSSION:
@@ -572,9 +574,11 @@ def _critic_risks(
     if "abstract" in lowered or intent == ConversationIntent.IDEA_STRESS_TEST:
         risks.append("The project can sound abstract if the demo does not show a concrete before/after.")
     if "execute code" in lowered:
-        risks.append("Users may expect agent OS to execute actions; the alpha must frame planning clearly.")
+        risks.append(
+            "Users may expect a self-improving agent to execute broad actions; the alpha must frame scope clearly."
+        )
     if intent == ConversationIntent.PRODUCT_STRATEGY:
-        risks.append("A broad agent OS story can dilute the wedge unless the first use case is sharp.")
+        risks.append("A broad platform story can dilute the wedge unless the first use case is sharp.")
     if intent == ConversationIntent.BUSINESS_STRATEGY:
         risks.append("Business strategy can become speculative without customer, distribution, and pricing proof.")
     if intent == ConversationIntent.REPO_QUESTION and context.repo_profile is not None:
@@ -643,8 +647,8 @@ def _next_moves(
         ]
     if intent == ConversationIntent.IDEA_STRESS_TEST:
         return [
-            "Write the launch story around a concrete decision-quality demo.",
-            "Name the non-execution boundary directly in the README and demo.",
+            "Write the launch story around a concrete self-improving agent loop.",
+            "Name the scoped execution and approval boundaries directly in the README and demo.",
             "Collect objections and turn repeated ones into strategic memory or research-planning work.",
         ]
     if mode == DeliberationMode.RESEARCH:
@@ -669,8 +673,8 @@ def _recommendation(
     lowered = prompt.lower()
     if "what is hephaestus trying to become" in lowered:
         return (
-            "Hephaestus is trying to become an optimization-first agent OS that improves "
-            "decision quality before action: local-first, memory-grounded, repo-aware, "
+            "Hephaestus is trying to become a self-improving local AI agent for people "
+            "building ambitious things: memory-grounded, repo-aware, validation-backed, "
             "explainable, and honest about uncertainty."
         )
     if intent == ConversationIntent.REPO_QUESTION and context.repo_profile is not None:
@@ -685,8 +689,8 @@ def _recommendation(
         )
     if intent == ConversationIntent.PRODUCT_STRATEGY:
         return (
-            "Keep the wedge narrow: decision quality for repo, roadmap, and strategy work "
-            "before expanding into execution or voice."
+            "Keep the wedge narrow: project memory, scoped repo work, validation evidence, "
+            "and outcomes before expanding into broad autonomy or voice."
         )
     if intent == ConversationIntent.BUSINESS_STRATEGY:
         return (

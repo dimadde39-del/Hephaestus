@@ -5,11 +5,13 @@ Use this as the execution checklist before the first public post.
 ## Repository
 
 - [ ] README hero image renders.
-- [ ] README intro says early alpha, local-first, planning-only.
-- [ ] README demo command is obvious.
-- [ ] README limitations section is visible and trust-building.
+- [ ] README intro says self-improving agent, early alpha, local-first, and
+  approval-gated.
+- [ ] README shows what works today.
+- [ ] README shows what is not built yet.
+- [ ] README current-loop commands are obvious.
 - [ ] Contributor docs are linked.
-- [ ] Roadmap avoids overpromising near-term autonomy.
+- [ ] Roadmap makes Phase 5.5 mandatory before Phase 6.
 - [ ] GitHub repository description is set.
 - [ ] GitHub topics are set.
 - [ ] GitHub social preview image is uploaded.
@@ -19,21 +21,20 @@ Use this as the execution checklist before the first public post.
 
 - [ ] `uv sync` works on a clean clone.
 - [ ] `uv run heph doctor` works.
-- [ ] `uv run heph repo inspect .` works.
-- [ ] `uv run heph release plan . --pareto --qubo --evaluate` works.
-- [ ] `uv run heph release list` shows the saved plan.
-- [ ] `uv run heph runs` shows the saved optimizer run.
-- [ ] `uv run heph explain <optimizer_run_id> --summary` works.
-- [ ] `uv run heph pareto show <frontier_id>` works.
-- [ ] `uv run heph qubo show <problem_id>` works.
-- [ ] `uv run heph learn signals --run <optimizer_run_id>` works.
+- [ ] `uv run heph ask "What is this project trying to become?" --repo .` works.
+- [ ] `uv run heph validate run . --yes` works.
+- [ ] `uv run heph code propose "Update README wording to mention validation-backed release evidence." --repo .` works.
+- [ ] `uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run` works.
+- [ ] `uv run heph code results` works.
+- [ ] Advanced demo: `uv run heph release plan . --pareto --qubo --with-validation --yes` works.
+- [ ] Advanced demo IDs can be inspected with `heph explain`, `heph pareto`, and `heph qubo`.
 
 ## Assets
 
 - [ ] README hero image ready.
 - [ ] GitHub social preview ready.
 - [ ] Demo screenshots ready in `docs/assets/demo/`.
-- [ ] Main screenshot selected for README.
+- [ ] Main screenshot selected for README or docs.
 - [ ] Screenshot pack linked from README and docs.
 - [ ] Terminal recording plan reviewed.
 - [ ] 60-90 second demo script rehearsed once.
@@ -54,10 +55,13 @@ Use this as the execution checklist before the first public post.
 - [ ] First post order decided.
 - [ ] Objection answers reviewed.
 - [ ] Honest limitation notes ready.
-- [ ] No claims of autonomous editing.
-- [ ] No claims of command execution.
+- [ ] No claims of full autonomous coding.
+- [ ] No claims of deploy/publish/push execution.
+- [ ] No claims that local validation proves production readiness.
+- [ ] No vague "the model learns" claims.
 - [ ] No quantum speedup language.
 - [ ] No voice/Jarvis positioning.
+- [ ] QUBO/Pareto appear only as advanced internals.
 
 ## Suggested Post Order
 

@@ -81,7 +81,7 @@ def test_prompt_builder_includes_mode_rubric_memory_and_repo_context() -> None:
         options=["Launch a narrow proof."],
         risks=["Users may expect execution."],
         tradeoffs=["Early feedback versus clarity burden."],
-        missing_information=["Need proof that users accept planning-only value."],
+        missing_information=["Need proof that users accept scoped execution value."],
         recommendation="Launch only with clear positioning.",
         next_moves=["Run a cheap validation test."],
     )
@@ -94,7 +94,7 @@ def test_prompt_builder_includes_mode_rubric_memory_and_repo_context() -> None:
         options=["Launch a narrow proof."],
         risks=["Users may expect execution."],
         tradeoffs=["Early feedback versus clarity burden."],
-        missing_information=["Need proof that users accept planning-only value."],
+        missing_information=["Need proof that users accept scoped execution value."],
         recommendation="Launch only with clear positioning.",
         next_moves=["Run a cheap validation test."],
         quality_evaluation=evaluation,
@@ -165,7 +165,7 @@ def test_fake_provider_conversation_synthesis_and_budget(tmp_path) -> None:
 
     assert response.provider_model.startswith("local/fake")
     assert response.budget.estimated_input_tokens > 0
-    assert "optimization-first agent OS" in response.answer
+    assert "self-improving local AI agent" in response.answer
 
 
 def test_openai_compatible_provider_config_detection(monkeypatch) -> None:

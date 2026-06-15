@@ -5,32 +5,36 @@ This guide gives new contributors the project context behind
 
 ## The Product Bet
 
-Most agent demos jump from prompt to action. Hephaestus focuses on the part
-before action: decision quality.
+Most agent demos jump from prompt to action and then lose the trail.
+Hephaestus focuses on the local loop around the model:
 
 ```text
-Hermes learns workflows.
-Hephaestus learns decision quality.
+context -> plan -> patch -> validate -> outcome -> memory
 ```
 
 That means the core system should be able to answer:
 
 - What did it inspect?
+- What context or memory shaped the work?
 - What plan did it generate?
 - What alternatives did it compare?
 - What tradeoffs did it expose?
 - Why did it choose this option?
+- What patch or command was proposed?
+- What validation evidence exists?
 - What happened afterward?
 - What should future decisions learn?
 
 ## Current Priorities
 
-- Make the release planning demo easy to run and explain.
-- Strengthen repo-aware task generation and validation planning.
-- Improve decision traces and explanation quality.
-- Improve deterministic outcome learning.
+- Keep the README and public docs product-first and honest.
+- Make the current conversation, validation, and coding-loop demos easy to run.
+- Strengthen repo-aware scoped change planning.
+- Improve validation evidence, outcomes, and learning signals.
+- Improve decision traces and explanation quality without making them the public
+  headline.
 - Keep policy learning reviewable and reversible.
-- Prepare for safe validation execution later.
+- Prepare the persistent Studio interface before Phase 6.
 
 ## Deferred Work
 
@@ -38,10 +42,9 @@ The following are intentionally not current priorities:
 
 - Voice features.
 - Telegram/Discord bots.
-- Dashboards.
+- Always-on daemon work.
 - Browser automation.
-- Autonomous repo editing.
-- Daemon behavior.
+- Full autonomous repo editing.
 - Broad integration marketplaces.
 
 If a contribution touches one of these, it should first explain why it is needed
@@ -56,9 +59,9 @@ uv run ruff check .
 uv run pytest
 uv run mypy
 uv run heph doctor
-uv run heph release plan . --pareto --qubo --evaluate
-uv run heph release list
-uv run heph runs
+uv run heph validate run . --dry-run
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
+uv run heph release plan . --pareto --qubo --with-validation --yes
 ```
 
 ## Design Expectations

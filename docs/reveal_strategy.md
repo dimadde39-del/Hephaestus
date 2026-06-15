@@ -6,120 +6,143 @@ Make early technical observers think:
 
 ```text
 This is early, but real.
-This is different from generic agent wrappers.
+This is useful before it is fully autonomous.
 I want to follow where this goes.
 ```
 
 The reveal is not a launch campaign. It is a build-in-public start: show the
-working planning loop, invite architecture feedback, and set honest boundaries.
+working local loop, invite practical feedback, and set honest boundaries.
 
 ## Target Audiences
 
 - Open-source AI tool builders.
 - Devtools engineers.
 - Agent framework watchers.
-- LocalLLaMA and infra tinkerers.
-- Engineers interested in explainability, optimization, and safety.
+- Local AI and infra tinkerers.
+- Engineers interested in memory, validation, explainability, and safety.
 
 ## Emphasize
 
-- Optimization-first agent OS.
-- Planning before action.
-- Read-only repo inspection.
-- Release-readiness planning without command execution.
+- Self-improving agent for people building ambitious things.
+- Persistent project and conversation memory.
+- Help with thinking, planning, and scoped repo work.
+- Repo inspection before code changes.
+- Patch proposals before apply.
+- Approved patch application with checkpoints.
+- Real local validation evidence.
+- Outcome records and reviewable learning signals.
+- Honest alpha boundary: local-first, scoped, and approval-gated.
+
+## Keep Technical But Lower
+
+- Decision traces with selected and rejected options.
 - Pareto tradeoffs instead of a hidden single score.
 - QUBO as inspectable binary optimization, solved locally.
-- Decision traces with selected and rejected options.
-- Learning signals that stay reviewable before they influence future behavior.
-- Honest alpha boundary: local-first and planning-only.
+- Policy profiles for user-owned execution boundaries.
+- Model routing and context packing.
+
+These are advanced engine details. They are useful proof for technical readers,
+but they should not be the first sentence of the reveal.
 
 ## Avoid Emphasizing
 
-- Voice, Jarvis, Telegram, dashboard, daemon, browser automation, or autonomous
-  editing.
-- Claims that the system executes validation commands.
-- Claims that simulated outcomes prove real tests or builds passed.
+- Voice, Jarvis, Telegram, dashboard, daemon, browser automation, or broad
+  autonomous editing.
+- Claims that Hephaestus can handle large unbounded repo rewrites.
+- Claims that local validation proves production readiness.
+- Claims that outcome learning means model weights are being trained.
 - Quantum hardware claims or quantum speedup language.
 - Star-bait, hype language, or "AGI" framing.
-- Broad promises about replacing coding agents.
+- Broad promises about replacing mature coding agents.
 
 ## Likely Objections
 
-### Why not just use Hermes?
+### Why not just use ChatGPT or Claude Code?
 
-Hermes and Hephaestus have different jobs.
+Use them. They are excellent models and coding tools.
+
+Hephaestus is different because it wraps model calls inside a local agent loop:
 
 ```text
-Hermes learns workflows.
-Hephaestus learns decision quality.
+context -> plan -> patch -> validate -> outcome -> memory
 ```
 
-Hermes is about carrying work through repeatable workflows. Hephaestus is about
-making the decision surface inspectable before an agent acts: options,
-constraints, tradeoffs, rationale, outcomes, and learning signals.
+The goal is not to replace the model. The goal is to make the agent around the
+model remember, verify, and improve.
 
 ### Is this a coding agent yet?
 
-No. The current alpha is planning-only. It can inspect a repo, generate
-release-readiness tasks, optimize the plan, expose Pareto/QUBO artifacts,
-explain decisions, and simulate outcome learning. It does not autonomously edit
-code or execute repository commands.
+Partly, in a deliberately bounded way.
 
-That boundary is intentional. The next serious feature area is safe validation
-execution, not broad autonomy.
+Hephaestus can plan a scoped repo change, propose a patch, apply an approved
+patch with a checkpoint, run real validation, and record outcomes. It is meant
+for small docs, tests, config/help text, and clear replacement workflows.
+
+It is not a full autonomous coding agent. It does not run unbounded repair
+loops, deploy, publish, push, or perform large rewrites on its own.
 
 ### Why QUBO?
 
-QUBO is useful here because it turns some choices into inspectable binary
-decision problems: variables, objective terms, constraints, assignments, and
-energy. It is a way to make decision quality concrete and auditable.
+For complex tradeoffs, Hephaestus can compare options instead of blindly taking
+the first plausible path.
 
-This is local classical solving. It is not a quantum hardware claim.
+QUBO is one optional advanced representation for some binary decision problems:
+variables, objective terms, constraints, assignments, and score. It is local
+classical solving. It is not a quantum hardware claim.
 
 ### Is this real or just architecture theater?
 
 What is real today:
 
+- persistent conversations,
+- strategic memory,
 - local repo inspection,
-- persisted repo profiles,
-- generated release tasks,
-- optimizer runs,
-- Pareto frontiers,
-- QUBO formulations and local solutions,
-- decision traces,
-- deterministic simulated outcomes,
-- learning signals and profile suggestions,
+- safe local tools,
+- patch proposals,
+- checkpointed approved patch application,
+- real validation execution,
+- validation evidence,
+- outcomes and learning signals,
+- release planning with validation links,
 - CLI commands that save and inspect artifacts.
 
 What is not real yet:
 
-- autonomous code edits,
-- validation command execution,
+- full autonomous coding,
+- unbounded multi-file self-editing,
 - deploy or publish execution,
 - production sandboxing,
-- dashboard,
-- daemon,
-- voice or chat interface.
+- Studio UI,
+- daemon/VPS runtime,
+- browser automation,
+- voice.
 
-The reveal should show the working CLI first, then the architecture.
+Early versions were planning-heavy. The current reveal should show the working
+loop first, then explain the architecture.
 
 ### What actually works today?
 
-The demo command works locally:
+Good starting commands:
 
 ```bash
-uv run heph release plan . --pareto --qubo --evaluate
+heph ask "What is this project trying to become?"
+heph validate run . --yes
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 ```
 
-It inspects this repository, plans release-readiness work, compares tradeoffs,
-formulates QUBO problems, explains the optimizer run, persists artifacts, and
-creates simulated learning signals.
+Advanced release evidence:
+
+```bash
+heph release plan . --pareto --qubo --with-validation --yes
+```
 
 ### Why should people follow now?
 
-Because the early shape is clear and unusual: an agent system that treats
-decision quality as the product, not a hidden implementation detail. The project
-is early enough for feedback to matter, but real enough to inspect.
+Because the early shape is clear: a local agent system that treats memory,
+validation evidence, and outcomes as part of the product rather than as hidden
+implementation details.
+
+The project is early enough for feedback to matter, but real enough to inspect.
 
 ## Tone
 
@@ -127,8 +150,8 @@ Use:
 
 - precise,
 - calm,
+- practical,
 - build-in-public,
-- architecture-feedback oriented,
 - honest about limitations.
 
 Avoid:

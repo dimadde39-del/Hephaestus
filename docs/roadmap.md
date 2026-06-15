@@ -1,9 +1,31 @@
 # Roadmap
 
-Hephaestus is building toward an optimization-first agent OS: local-first,
-explainable, memory-backed, and careful about execution. The public alpha goal
-is not to look autonomous before the core is ready. It is to make decision
-quality understandable.
+Hephaestus is building toward a self-improving local AI agent for people
+building ambitious things: memory-backed, repo-aware, validation-aware, and
+careful about execution. The public alpha goal is not to look autonomous before
+the core is ready. It is to make the working loop understandable:
+
+```text
+context -> plan -> patch -> validate -> outcome -> memory
+```
+
+Optimization, decision traces, Pareto, and QUBO remain part of the technical
+spine, but they are not the public headline.
+
+## Current Sequence
+
+- Phase 5G.5: README Reality / Product Positioning Pass.
+- Phase 5.5: Hephaestus Studio / Persistent Interface Layer.
+- Phase 6A: Personal Context + Project Memory UX.
+- Phase 6B: Skill Forge.
+- Phase 6C: Skill Evaluation + Quarantine.
+- Phase 6D: Adaptive Work Router / Model Economy.
+- Phase 6E: Capability Gap Detector.
+- Phase 6F: Capability Forge.
+- Phase 7: Always-On Runtime / VPS / Telegram / async work.
+
+Phase 5.5 is mandatory before Phase 6. Persistent readable chat history and
+run history must come before broader skill and autonomy work.
 
 ## Complete
 
@@ -253,23 +275,80 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Still bounded: no daemon, no deploy/publish/push, no destructive actions, no
   dependency installs without explicit approval, and no unbounded repair loop.
 
-## Upcoming
-
 ### Phase 5G.5: README Reality / Product Positioning Pass
 
-- Stop leading public messaging with QUBO/Pareto/decision-theory internals.
-- Lead with the practical self-improving agent value: context, thinking, coding,
-  validation, project history, and improvement over time.
-- Show what works today, including the repo-aware coding loop.
-- Separate public value from advanced internals.
-- Make README feel like a useful product, not architecture theater.
+- Public README repositioned around self-improving agent value: memory,
+  thinking, coding, validation, outcomes, and project continuity.
+- What works today and what is not built yet are stated near the top.
+- Practical commands and the current coding/validation loop are shown before
+  advanced engine internals.
+- QUBO, Pareto, decision traces, policy profiles, strategic memory, and model
+  routing are described as advanced machinery, not the primary pitch.
+- Public launch notes, reveal strategy, demo script, brand docs, freedom/policy
+  docs, and GitHub-facing setup notes align around the same message.
+- Product positioning and README reality checklist docs capture the new rules.
+
+## Upcoming
 
 ### Phase 5.5: Hephaestus Studio / Persistent Interface Layer
 
-- Beautiful persistent interface for chat history, run history, decision traces,
-  Pareto/QUBO/outcome views, approvals, checkpoints, validation evidence, and
-  readable past conversations.
-- This interface layer is mandatory before Phase 6 Skill Forge.
+- Beautiful persistent interface for readable chat history, run history,
+  coding-loop results, validation evidence, outcomes, checkpoints, approvals,
+  decision traces, and advanced Pareto/QUBO views.
+- Core principle: persistent readable chat history, not automatic context
+  summaries. Users should be able to open the same chat tomorrow, read exact
+  previous messages, inspect runs visually, and continue naturally.
+- This interface layer is mandatory before Phase 6.
+
+### Phase 6A: Personal Context + Project Memory UX
+
+- Make user/project memory visible, editable, searchable, and reviewable in
+  Studio.
+- Separate exact chat history, saved memories, strategic memories, outcomes, and
+  learning signals.
+- Let users inspect why context was recalled instead of relying on opaque
+  summaries.
+
+### Phase 6B: Skill Forge
+
+- Add a user-approved workflow for creating reusable local skills from repeated
+  project work.
+- Keep skill creation evidence-backed: source runs, validation, examples, and
+  approval history should be inspectable.
+
+### Phase 6C: Skill Evaluation + Quarantine
+
+- Evaluate skills against deterministic fixtures and real validation where
+  possible.
+- Quarantine weak, risky, stale, or failing skills before they influence future
+  work.
+
+### Phase 6D: Adaptive Work Router / Model Economy
+
+- Route tasks across local deterministic behavior and configured model
+  providers based on cost, risk, context size, quality needs, and policy.
+- Make routing decisions explainable and measurable.
+
+### Phase 6E: Capability Gap Detector
+
+- Detect repeated failure patterns, missing skills, missing context, weak
+  validation coverage, and tool gaps.
+- Turn gaps into reviewable improvement proposals, not automatic self-edits.
+
+### Phase 6F: Capability Forge
+
+- Convert approved capability proposals into bounded improvements with
+  checkpoints, validation, and rollback.
+- Keep self-improvement evidence-based and reversible.
+
+### Phase 7: Always-On Runtime / VPS / Telegram / Async Work
+
+- Introduce long-running or remote execution only after Studio, memory UX,
+  skills, evaluation, quarantine, and capability governance exist.
+- Explore VPS, Telegram, async work queues, and background tasks with explicit
+  user controls.
+- Do not make always-on autonomy the public promise before it has trustworthy
+  visibility and approval surfaces.
 
 ### Soft Reveal Execution
 
@@ -278,12 +357,6 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Prepare one or two Telegram/Discord community messages.
 - Observe responses and repeated objections.
 - Gather feedback into roadmap notes before the larger public alpha push.
-
-### Dashboard Later
-
-- Local web dashboard for decision traces, Pareto frontiers, QUBO problems,
-  memories, approvals, and run history.
-- Not part of the current alpha.
 
 ### Voice Much Later
 
@@ -296,8 +369,7 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Always-on daemon behavior.
 - Browser or desktop automation.
 - Telegram bot integrations.
-- Dashboard-first product work.
 - Random integrations that do not improve decision quality.
 
-The current priority is clear: core decision quality, repo-aware planning,
-explainability, learning memory, and safe execution later.
+The current priority is clear: persistent interface, readable history,
+validation-backed coding loops, evidence, memory, and careful improvement.

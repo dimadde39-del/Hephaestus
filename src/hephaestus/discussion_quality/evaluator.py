@@ -109,7 +109,7 @@ def build_research_plan(
         ],
         what_would_change_conclusion=[
             "A direct competitor already owns the same positioning with stronger proof.",
-            "Users consistently reject the non-execution boundary.",
+            "Users consistently reject the scoped execution and approval boundary.",
             "Primary docs show capabilities that make the proposed wedge less distinctive.",
             "Benchmark evidence contradicts the claimed decision-quality advantage.",
         ],

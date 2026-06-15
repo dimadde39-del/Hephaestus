@@ -1,10 +1,8 @@
 # Policy and Freedom UX
 
-Hephaestus is local-first and user-owned. Phase 5D turns that from a prompt
-principle into a product layer: policy profiles, deterministic request
-evaluation, active-profile persistence, concise boundaries, over-refusal
-detection, and policy benchmarks. Phase 5E applies those profiles to local tool
-execution. Phase 5G applies them to scoped coding loops.
+Hephaestus is local-first and user-owned. Policy is a product layer, not a
+public headline: it helps the agent stay useful for normal work while keeping
+local side effects explicit.
 
 The short version:
 
@@ -13,15 +11,15 @@ The short version:
   edgy, direct, or non-corporate.
 - Require explicit approval for destructive local actions and external side
   effects.
-- Allow harmless repo inspection, planning, and patch proposal generation
-  without approval spam.
+- Allow harmless repo inspection, planning, validation dry-runs, and patch
+  proposal generation without approval spam.
 - Block genuinely harmful requests: credential theft, malware, abuse evasion,
   targeted harassment, exploitation, and real-world violence.
 - Keep boundaries transparent and configurable.
 
-This is what "same practical freedom as Hermes" means in Hephaestus: normal
-user-owned work should feel open and direct. It does not mean Hephaestus helps
-with abuse or pretends tool execution is ready before it is.
+This supports the public product promise: Hephaestus should remember context,
+help people think and code, validate work, and improve from outcomes without
+pretending every request needs a lecture or every side effect is safe.
 
 ## Commands
 
@@ -88,9 +86,13 @@ external-side-effect, protected-file, and oversized changes are blocked or
 converted into plan-only output. The boundary should be short and concrete, not
 moralizing.
 
-## Why Before Tool Execution
+## Why This Matters
 
-Safe Tool Execution Runtime uses the Phase 5D approval vocabulary:
+Self-improvement in Hephaestus means memory, outcomes, validation evidence,
+skills, and capabilities improve with approval and evidence. It does not mean
+uncontrolled self-modification or invisible policy drift.
+
+Policy profiles make that boundary inspectable:
 
 - `developer`: benign local development stays direct; side effects need approval.
 - `research`: read-only analysis is easy; execution is approval-gated more often.

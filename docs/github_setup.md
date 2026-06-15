@@ -7,7 +7,7 @@ These suggestions are for the public alpha soft reveal.
 Use this in the GitHub About box:
 
 ```text
-Optimization-first agent OS with explainable decisions, repo-aware planning, Pareto/QUBO tradeoffs, and learning memory.
+Self-improving AI agent that remembers context, helps think and code, validates work, and learns from outcomes.
 ```
 
 ## Website / Links
@@ -17,7 +17,9 @@ the GitHub repository. Do not link to a placeholder landing page.
 
 Useful links to feature in README or Discussions:
 
-- [release plan walkthrough](../examples/release_plan_demo.md)
+- [product positioning](product_positioning.md)
+- [release evidence](release_evidence.md)
+- [repo-aware coding loop](repo_aware_coding_loop.md)
 - [demo script](demo_script.md)
 - [demo screenshot pack](assets/demo/README.md)
 - [roadmap](roadmap.md)
@@ -32,13 +34,15 @@ ai-agent
 agentic-ai
 llm
 developer-tools
+ai-coding
+local-first
+validation
+memory
+explainable-ai
+decision-traces
 optimization
 pareto
 qubo
-ising
-explainable-ai
-decision-traces
-ai-coding
 python
 cli
 open-source
@@ -73,27 +77,34 @@ docs/assets/demo/qubo-demo.png
 docs/assets/demo/explain-demo.png
 ```
 
-Keep the README to 1-2 images. Use the rest in the walkthrough and social
-updates.
+Keep the README to 1-2 images. Use the rest in walkthroughs and social updates.
 
-## Pinned Demo Command
+## Pinned Demo Commands
 
-Use the release planning demo in the README and repository profile:
+Lead with the practical agent loop:
 
 ```bash
-uv run heph release plan . --pareto --qubo --evaluate
+heph ask "What is this project trying to become?"
+heph validate run . --yes
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 ```
 
 Suggested pinned copy:
 
 ```text
-Run the local planning demo: inspect a repo, generate release tasks, compare Pareto tradeoffs, formulate QUBO problems, explain decisions, and create learning signals.
+Try the local agent loop: talk with project context, run validation, propose scoped repo changes, and inspect outcomes.
+```
+
+Advanced technical readers can also try:
+
+```bash
+heph release plan . --pareto --qubo --with-validation --yes
 ```
 
 ## Discussions
 
 Enable GitHub Discussions if you want a low-friction place to collect early
-architecture feedback.
+product and architecture feedback.
 
 Suggested first Discussion:
 
@@ -108,10 +119,11 @@ while the soft reveal is active.
 
 Feature these in order:
 
-1. README demo command.
-2. Release planning screenshot.
+1. README current loop commands.
+2. Validation/coding-loop evidence docs.
 3. Public alpha roadmap.
-4. GitHub Discussion feedback thread, if enabled.
+4. Release planning screenshot for advanced internals.
+5. GitHub Discussion feedback thread, if enabled.
 
 Avoid pinning speculative feature mockups. The public reveal should lead with
 the working CLI.
@@ -121,16 +133,17 @@ the working CLI.
 If tagging the soft reveal:
 
 ```text
-v0.1.0-soft-reveal
+v0.1.0-self-improving-agent-alpha
 ```
 
 Alternative later tags:
 
-- `v0.2.0-safe-validation-alpha`
-- `v0.3.0-real-outcome-learning`
-- `v0.4.0-deliberation-modes`
+- `v0.2.0-studio-alpha`
+- `v0.3.0-skill-forge-alpha`
+- `v0.4.0-always-on-runtime-alpha`
 
-Avoid tag names that imply production autonomy before safe execution exists.
+Avoid tag names that imply production autonomy before the visibility and
+approval surfaces exist.
 
 ## Repository Settings Checklist
 
@@ -143,4 +156,4 @@ Avoid tag names that imply production autonomy before safe execution exists.
 - [ ] Default branch is `main`.
 - [ ] License visible.
 - [ ] First discussion or release notes draft ready.
-- [ ] No dashboard, voice, daemon, or autonomous editing claims in metadata.
+- [ ] No dashboard, voice, daemon, browser automation, or full autonomous coding claims in metadata.

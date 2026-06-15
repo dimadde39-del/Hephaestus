@@ -190,7 +190,7 @@ def test_patch_checkpoint_restore_and_learning_links(tmp_path: Path) -> None:
 def test_tool_cli_smoke(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / "README.md").write_text(
-        "Hephaestus is an optimization-first agent OS.\n",
+        "Hephaestus is a self-improving local AI agent.\n",
         encoding="utf-8",
     )
 
@@ -207,7 +207,7 @@ def test_tool_cli_smoke(tmp_path: Path, monkeypatch) -> None:
     assert list_result.exit_code == 0
     assert "Directory" in list_result.output
     assert read_result.exit_code == 0
-    assert "optimization-first" in read_result.output
+    assert "self-improving" in read_result.output
     assert search_result.exit_code == 0
     assert "README.md" in search_result.output
     assert dry_run.exit_code == 0

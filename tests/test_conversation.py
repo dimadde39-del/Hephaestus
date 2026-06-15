@@ -246,7 +246,7 @@ def test_conversation_cli_smoke(tmp_path, monkeypatch) -> None:
     show_result = runner.invoke(app, ["conversation", "show", session_id])
 
     assert ask_result.exit_code == 0
-    assert "optimization-first agent OS" in ask_result.output
+    assert "self-improving local AI agent" in ask_result.output
     assert discuss_result.exit_code == 0
     assert "idea_stress_test" in discuss_result.output
     assert list_result.exit_code == 0

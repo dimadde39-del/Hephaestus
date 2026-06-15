@@ -1,40 +1,81 @@
 # Brand Direction
 
-Hephaestus is an optimization-first agent OS for explainable decisions and
-learning memory.
+Hephaestus is a self-improving AI agent for people building ambitious things.
+It remembers context, helps people think and code, validates its work, and
+improves from real outcomes.
 
 ![Hephaestus Talos brand badge](assets/brand/talos-badge.svg)
 
 ## Brand Idea
 
-Hephaestus should feel like a forge for decisions:
+Hephaestus should feel like a practical forge for agent work:
 
-- Practical, not mystical.
+- Useful before it is fully autonomous.
 - Careful, not timid.
 - Technical, but readable.
 - Honest about limits.
-- Built for people who want agents to justify choices before taking action.
+- Built for people who want agents to remember, verify, and improve.
 
-Core line:
+Core public line:
+
+```text
+A self-improving AI agent for people building ambitious things.
+```
+
+Product promise:
+
+```text
+Hephaestus remembers your context, helps you think, helps you code, validates
+its work, and improves from real outcomes.
+```
+
+Technical spine:
+
+```text
+repo intelligence
+-> conversation memory
+-> safe tool runtime
+-> repo-aware coding loop
+-> real validation
+-> outcomes
+-> learning
+```
+
+Internal thesis:
 
 ```text
 The forge for agents that think before they act.
 ```
 
-Long-form positioning:
+## Message Hierarchy
 
-```text
-Hephaestus inspects a repo, builds a plan, exposes tradeoffs, formulates
-decision problems, explains why choices were made, evaluates outcomes, and
-turns mistakes into reviewable learning signals.
-```
+### First
 
-In short:
+- It remembers project context.
+- It helps you think through strategy, architecture, roadmap, and risk.
+- It can work on a repo in small scoped loops.
+- It proposes patches before applying them.
+- It validates local work.
+- It records outcomes and learning signals.
 
-```text
-Hermes learns workflows.
-Hephaestus learns decision quality.
-```
+### Then
+
+- It is local-first.
+- It is approval-gated.
+- It keeps checkpoints.
+- It persists runs, conversations, validation evidence, and coding-loop results.
+
+### Later
+
+- Decision traces.
+- Pareto frontiers.
+- QUBO/Ising formulations.
+- Policy profiles.
+- Model routing.
+- Context packing.
+
+These advanced internals are important, but they are supporting evidence. Do not
+lead public copy with them unless the audience is explicitly technical.
 
 ## Tone
 
@@ -43,13 +84,16 @@ Use:
 - Clear engineering language.
 - Short explanations before deep detail.
 - Honest alpha caveats.
-- Concrete nouns: repo profile, task graph, decision trace, Pareto frontier,
-  QUBO problem, learning signal.
+- Concrete product nouns: memory, repo context, patch, checkpoint, validation
+  evidence, outcome, learning signal.
+- Technical nouns after the value is clear: decision trace, Pareto frontier,
+  QUBO problem, policy profile.
 - Confidence without hype.
 
 Avoid:
 
-- "Autonomous" unless describing future work.
+- "Optimization-first agent OS" as the public headline.
+- "Autonomous" unless describing a current limitation or future phase.
 - "Quantum speedup" or anything implying quantum hardware.
 - "AGI" positioning.
 - Competitor dunking.
@@ -105,7 +149,7 @@ Brand assets live in `docs/assets/brand/`.
 | `hephaestus-brand-board.png` | Source brand board for the current high-fidelity raster crops. |
 | `hephaestus-social-preview.png` | GitHub social preview image with project name, tagline, Talos, and the release-planning pipeline. |
 | `hephaestus-social-preview.svg` | Crop-source SVG that references `hephaestus-brand-board.png`. |
-| `hephaestus-readme-hero.png` | Wide README hero used near the top of the repository README. |
+| `hephaestus-readme-hero.png` | Wide README hero used in the repository README. |
 | `hephaestus-readme-hero-source.png` | Source image for the current README banner. |
 | `hephaestus-readme-hero.svg` | Source-image SVG wrapper for the current README banner. |
 | `talos-pixel.png` | 64x64 pixel mascot crop for docs, social posts, or future CLI splash experiments. |
@@ -138,7 +182,7 @@ README hero banner.
 Useful next visual assets, when they support the public reveal:
 
 - A restrained terminal demo card showing real CLI output.
-- A simple architecture card based on the existing README diagram.
+- A product-loop card based on context, plan, patch, validate, outcome, memory.
 - A few social update images that reuse Talos and the decision graph motif.
 - Optional small CLI splash using `talos-pixel.png`, only when it serves the
   developer experience.

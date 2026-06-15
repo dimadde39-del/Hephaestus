@@ -18,11 +18,11 @@ def test_idea_stress_test_rubric_output() -> None:
     evaluation = evaluate_discussion_quality(
         intent=ConversationIntent.IDEA_STRESS_TEST,
         mode=DeliberationMode.STRATEGIC,
-        assumptions=["The demo can make the non-execution boundary clear."],
-        options=["Launch a narrow proof around decision quality."],
+        assumptions=["The demo can make the scoped execution boundary clear."],
+        options=["Launch a narrow proof around the self-improving agent loop."],
         risks=["Users may expect command execution and reject the alpha."],
         tradeoffs=["Launching early gets feedback but raises clarity burden."],
-        missing_information=["Need user reaction to a planning-only demo."],
+        missing_information=["Need user reaction to a scoped execution demo."],
         recommendation="Launch only with explicit positioning.",
         next_moves=["Run a cheap validation test with the README and demo script."],
     )

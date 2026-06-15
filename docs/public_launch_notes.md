@@ -1,76 +1,86 @@
 # Public Launch Notes
 
 These are near-final soft reveal drafts, not a big launch campaign. The goal is
-to attract early watchers, get architecture feedback, and make people want to
+to attract early watchers, get practical feedback, and make people want to
 follow updates as the system matures.
 
 ## Positioning Guardrails
 
-- Be honest: early, local-first, planning-only.
-- Ask for architecture feedback, not stars.
-- Do not imply autonomous coding or command execution.
-- Do not claim quantum speedups.
-- Lead with the working demo and the decision-quality thesis.
-- Keep voice, Jarvis, dashboards, daemon mode, Telegram, and browser automation
-  out of the reveal.
+- Be honest: early, local-first, scoped, and approval-gated.
+- Lead with the self-improving agent experience: remembers context, helps think,
+  helps code, validates work, and learns from outcomes.
+- Show working commands before advanced internals.
+- Do not imply full autonomy, background daemon behavior, deploy/publish/push,
+  browser automation, voice, or production readiness.
+- Describe learning as outcome-based memory and reviewable signals, not model
+  training magic.
+- Keep Pareto, QUBO, decision traces, and policy profiles visible as advanced
+  machinery, not the headline.
 
 ## X / Twitter Soft Reveal
 
 ### Short Post
 
 ```text
-Soft reveal: I am building Hephaestus, an optimization-first agent OS.
+Soft reveal: I am building Hephaestus, a self-improving AI agent for people building ambitious things.
 
-Early and planning-only for now. It inspects a repo, builds a release plan, exposes Pareto/QUBO tradeoffs, explains decisions, and records learning signals from simulated outcomes.
+It remembers project context, helps you think, helps you code, validates its work locally, and records outcomes so the next loop is less forgetful.
 
-The thesis: agents should learn decision quality before they get more autonomy.
+Early alpha: local-first, scoped, approval-gated. Not a full autonomous daemon.
 ```
 
 ### Thread Version
 
 ```text
-1/ I am starting a soft reveal for Hephaestus: an optimization-first agent OS.
+1/ I am starting a soft reveal for Hephaestus: a self-improving AI agent for people building ambitious things.
 
-The current alpha is local-first and planning-only. It does not edit code or execute repo commands yet.
+The practical idea is simple:
 
-2/ The demo path:
+You can talk to it.
+It remembers.
+It can inspect your repo.
+It can propose scoped changes.
+It can validate what happened.
+It records outcomes for future work.
 
-uv run heph release plan . --pareto --qubo --evaluate
+2/ The current loop is local-first and approval-gated:
 
-It inspects the repo, generates release-readiness tasks, optimizes the plan, exposes Pareto tradeoffs, formulates QUBO problems, explains decisions, and creates learning signals.
+context -> plan -> patch -> validate -> outcome -> memory
 
-3/ The idea is simple:
+It is not a full autonomous coding agent, daemon, browser agent, or voice assistant.
 
-Hermes learns workflows.
-Hephaestus learns decision quality.
+3/ A few commands that work today:
 
-Before an agent gets more autonomy, I want it to show its options, constraints, tradeoffs, rationale, outcomes, and learning memory.
+heph ask "What is this project trying to become?"
+heph validate run . --yes
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 
 4/ What works today:
 
-- read-only repo inspection
-- release planning
-- optimizer runs
-- Pareto frontiers
-- QUBO formulations with local solving
-- persisted decision traces
-- simulated outcome learning
+- persistent conversations
+- strategic memory
+- repo inspection
+- safe local tools
+- real validation execution
+- small scoped repo-aware coding loops
+- outcomes and learning signals
 
 5/ What does not work yet:
 
-- autonomous code edits
-- validation command execution
-- deploy/publish execution
-- dashboard
-- daemon
-- voice/Jarvis features
-- quantum hardware integration
+- full autonomous coding
+- always-on daemon/VPS runtime
+- Studio UI
+- voice
+- browser automation
+- deploy/publish/push automation
 
-That boundary is intentional.
+6/ Under the hood there is a deeper decision engine: traces, Pareto tradeoffs, QUBO formulations, policy profiles, model routing, and strategic memory.
 
-6/ I am looking for architecture feedback from people building devtools, agent runtimes, local AI systems, and optimization/explainability tooling.
+That machinery is there to support the product loop, not to be the product pitch.
 
-Especially: what should an agent prove about its decisions before we let it act?
+7/ I am looking for feedback from people building devtools, local AI agents, coding tools, and agent runtimes:
+
+What should a local agent remember, verify, and show you before you trust it with more autonomy?
 ```
 
 ### Progress Update Variant
@@ -78,11 +88,12 @@ Especially: what should an agent prove about its decisions before we let it act?
 ```text
 Progress update on Hephaestus:
 
-The public-alpha demo now has repo inspection, release planning, Pareto tradeoffs, QUBO formulation, explainable decision traces, and simulated learning signals wired into one local CLI flow.
+The alpha now has repo inspection, persistent conversation memory, safe local tools, real validation execution, and a repo-aware coding loop for small scoped changes.
 
-Still planning-only. No autonomous edits. No command execution claims.
+Still early. Still approval-gated. No daemon, no deploy/publish/push, no full autonomous rewrites.
 
-Next: share the soft reveal, collect architecture feedback, then tighten the roadmap before safe validation execution.
+The public message is shifting from "look at the engine" to "try the loop":
+context -> plan -> patch -> validate -> outcome -> memory.
 ```
 
 ## Reddit Feedback Post
@@ -90,39 +101,53 @@ Next: share the soft reveal, collect architecture feedback, then tighten the roa
 ### Title
 
 ```text
-I am building an optimization-first agent OS and would like architecture feedback
+I am building a local self-improving AI agent and would like practical feedback
 ```
 
 ### Body
 
 ```text
-I am working on Hephaestus, an early local-first agent runtime focused on decision quality before autonomy.
+I am working on Hephaestus, an early local-first AI agent for people building ambitious things.
 
-The current alpha is planning-only. It can inspect a local repo, generate release-readiness tasks, compare optimizer choices, expose Pareto tradeoffs, formulate QUBO problems, save decision traces, simulate outcomes, and create reviewable learning signals.
+The product goal is not to be a bigger model. It is to make the agent loop around a model remember, verify, and improve:
 
-Demo command:
+context -> plan -> patch -> validate -> outcome -> memory
 
-uv run heph release plan . --pareto --qubo --evaluate
+What works today:
+
+- persistent conversations
+- strategic/project memory
+- repo inspection
+- scoped patch proposals
+- approved patch application with checkpoints
+- real local validation execution
+- outcomes and learning signals
+- release planning with validation evidence
+
+Try:
+
+heph ask "What is this project trying to become?"
+heph validate run . --yes
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 
 What it does not do yet:
 
-- edit code autonomously
-- execute repo commands
-- run tests/builds/deploys for you
+- full autonomous coding
+- large unbounded repo rewrites
+- deploy/publish/push execution
 - run as a daemon
-- ship a dashboard
-- claim quantum speedups
+- browser automation
+- voice/Jarvis features
+- uncontrolled self-modification
 
-QUBO is used as an inspectable binary optimization format with local classical solving. It is not a quantum hardware claim.
+Under the hood, Hephaestus has decision traces, Pareto tradeoff comparison, QUBO/Ising formulations, policy profiles, model routing, and strategic memory. Those are advanced internals, not the headline. QUBO is local classical optimization over binary variables, not a quantum hardware claim.
 
-The architecture bet is that agents should make decision trails first-class before they get more power. I would especially appreciate feedback on:
+I would especially appreciate feedback on:
 
-- whether the repo-aware release planning demo is understandable,
-- whether decision traces and learning profiles are the right abstractions,
-- what safe validation execution should capture first,
-- what would make this worth following as an open-source project.
-
-I am not asking people to star it. I am trying to test whether the positioning and architecture are legible before pushing toward a larger public alpha.
+- whether the current loop is understandable,
+- whether the limitations are clear,
+- what evidence a local agent should keep after it changes files,
+- what would make this worth following as an open-source devtool.
 ```
 
 ## Telegram / Discord Community Message
@@ -130,11 +155,11 @@ I am not asking people to star it. I am trying to test whether the positioning a
 ### Short Variant
 
 ```text
-I am starting a soft reveal for Hephaestus, an optimization-first agent OS.
+I am starting a soft reveal for Hephaestus, a local self-improving AI agent.
 
-It is early and planning-only: inspect a repo, build a release plan, expose Pareto/QUBO tradeoffs, explain decisions, and record learning signals from simulated outcomes.
+It remembers project context, helps you think, helps you code, validates local work, and records outcomes so future runs are less forgetful.
 
-I am looking for architecture feedback before adding safe command execution.
+Early alpha: scoped, approval-gated, not a full autonomous daemon.
 ```
 
 ### Longer Variant
@@ -142,13 +167,15 @@ I am looking for architecture feedback before adding safe command execution.
 ```text
 I am starting a soft reveal for Hephaestus.
 
-The short version: it is an optimization-first agent OS. The current alpha is local-first and planning-only. It inspects a repo, generates release-readiness tasks, runs an optimizer, exposes Pareto tradeoffs, formulates QUBO decision problems, explains choices, simulates outcomes, and records reviewable learning signals.
+The short version: Hephaestus is a self-improving AI agent for people building ambitious things. It remembers context, helps you think, helps you code, validates its work, and improves from real outcomes.
 
-It does not autonomously edit code or execute repo commands yet. That is intentional. I want the decision trail to be inspectable before the system gets more power.
+The current alpha is local-first and scoped. It can inspect a repo, keep persistent conversation and strategic memory, propose small changes, apply approved patches with checkpoints, run real validation, and record outcomes/learning signals.
+
+It does not do full autonomous coding, run as a daemon, deploy/publish/push, automate browsers, or act as a voice assistant yet.
 
 The core question I am looking for feedback on:
 
-What should an agent prove about its decisions before we let it act?
+What should a local agent remember and verify before you trust it with more autonomy?
 ```
 
 ## GitHub Discussion Draft
@@ -156,30 +183,34 @@ What should an agent prove about its decisions before we let it act?
 ```text
 Title: Soft reveal: Hephaestus public alpha direction
 
-Hephaestus is an optimization-first agent OS with explainable decisions and learning memory.
+Hephaestus is a self-improving AI agent for people building ambitious things.
 
-The current public alpha is intentionally conservative. It is local-first and planning-only: it can inspect a repo, generate release-readiness tasks, optimize a plan, expose Pareto tradeoffs, formulate QUBO problems, explain decisions, persist artifacts, simulate outcomes, and create learning signals.
+It remembers your context, helps you think, helps you code, validates its work, and improves from real outcomes.
 
-It does not edit code autonomously, execute repository commands, deploy, publish, run as a daemon, or claim production autonomy.
+The current public alpha is intentionally scoped and local-first. It can inspect a repo, keep persistent conversations and strategic memory, propose small patches, apply approved changes with checkpoints, run real validation, and record outcomes/learning signals.
 
-The main demo command is:
+It does not do full autonomous coding, deploy, publish, push, run as a daemon, automate browsers, use voice, or claim production autonomy.
 
-uv run heph release plan . --pareto --qubo --evaluate
+Good starting commands:
 
-I am opening this discussion for architecture and positioning feedback before the next major capability phase. The most useful feedback would be around:
+heph ask "What is this project trying to become?"
+heph validate run . --yes
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 
-- whether the planning-only alpha boundary is clear,
-- whether the release planning demo makes the system understandable,
-- whether decision traces expose the right information,
-- what safe validation execution should prove first,
+I am opening this discussion for product, architecture, and positioning feedback. The most useful feedback would be around:
+
+- whether the current loop is clear,
+- whether the alpha boundary is trustworthy,
+- what validation evidence should be shown first,
+- what project memory should feel like in a persistent Studio UI,
 - where the roadmap overpromises or underspecifies the hard parts.
 ```
 
 ## Follow-Up Angles
 
-- What should a decision trace include?
-- Why planning-only is the right alpha boundary.
-- Pareto frontiers for agent tradeoffs.
-- QUBO as an explanation format, not a quantum claim.
-- How learning signals should influence future decisions only after review.
-- Why safe validation execution should come before autonomous editing.
+- Why local project memory changes the feel of AI tooling.
+- What validation evidence an agent should keep after a change.
+- Why small scoped coding loops are the right alpha boundary.
+- How outcome-based learning differs from vague "the model learns" claims.
+- Why Pareto/QUBO belong under the hood, not in the headline.
+- Why a persistent Studio UI should come before always-on autonomy.

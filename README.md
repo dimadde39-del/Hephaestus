@@ -1,194 +1,287 @@
 # Hephaestus
 
-![Hephaestus README hero showing Talos forging an explainable decision graph](docs/assets/brand/hephaestus-readme-hero.png)
+A self-improving AI agent for people building ambitious things.
 
-**A self-improving AI agent for people building ambitious things.**
+Hephaestus remembers your context, helps you think, helps you code, validates
+its work, and improves from real outcomes.
 
-Status: **early alpha, local-first, approval-gated**. Hephaestus can inspect a
-repository, remember context, help think through decisions, propose small scoped
-repo patches, apply approved changes with checkpoints, run real validation, and
-learn from outcomes. Conversations run in deterministic local mode by default
-and can use configured DeepSeek or OpenAI-compatible providers for one-call
-synthesis with budget visibility. User-owned policy profiles keep benign
-creative, development, research, and strategy work practically free while
-preserving approval gates for side effects. It does **not** run as a daemon,
-deploy, publish, push, perform large autonomous rewrites, or claim
-production-ready autonomy.
+Today it can:
 
-```text
-The forge for agents that think before they act.
-```
+- talk with you using persistent project memory;
+- inspect a repo;
+- plan scoped repo changes;
+- propose patches;
+- apply approved patches with checkpoints;
+- run real validation;
+- record outcomes and learning signals.
 
-## Demo First
+It is early. It is not a fully autonomous background agent yet.
+
+## Start Here
+
+From a source checkout, prefix commands with `uv run`. After installation, the
+console command is `heph`.
 
 ```bash
 git clone https://github.com/dimadde39-del/Hephaestus.git hephaestus
 cd hephaestus
 uv sync
 uv run heph doctor
-uv run heph models
-uv run heph release plan . --pareto --qubo --evaluate
 ```
 
-Expected high-level flow:
-
-```text
-Repo inspected
-Release tasks generated
-Pareto tradeoffs compared
-QUBO problems formulated
-Decision traces saved
-Outcomes evaluated
-Learning signals created
-```
-
-![Hephaestus release planning demo terminal screenshot](docs/assets/demo/release-plan-demo.png)
-
-Then inspect the artifacts:
+Try the practical loop first:
 
 ```bash
-uv run heph ask "What is Hephaestus trying to become?" --show-budget
-uv run heph policy set developer
-uv run heph policy evaluate "make a README banner for my AI project"
-uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
-uv run heph discuss "Research plan: compare Hephaestus positioning against open-source agent frameworks." --mode research
-uv run heph policy benchmark run
-uv run heph tools list .
-uv run heph tools run "python --version" --dry-run
-uv run heph tools run "python --version" --yes
-uv run heph validate plan .
-uv run heph validate run . --dry-run
+heph ask "What is this project trying to become?"
+heph discuss "Stress-test this roadmap." --mode strategic
+heph validate run . --yes
+```
+
+In a source checkout, those same commands are:
+
+```bash
+uv run heph ask "What is this project trying to become?"
+uv run heph discuss "Stress-test this roadmap." --mode strategic
 uv run heph validate run . --yes
-uv run heph release plan . --pareto --qubo --with-validation --yes
-uv run heph code plan "Update README wording to mention validation-backed release evidence." --repo .
-uv run heph code propose "Update README wording to mention validation-backed release evidence." --repo .
+```
+
+![Hephaestus README hero showing Talos forging an explainable decision graph](docs/assets/brand/hephaestus-readme-hero.png)
+
+## What Works Today
+
+| Capability | Status |
+|---|---|
+| Persistent conversations | Works |
+| Strategic memory | Works |
+| Repo inspection | Works |
+| Safe local tools | Works |
+| Real validation execution | Works |
+| Repo-aware coding loop | Works for small scoped changes |
+| Full autonomous coding | Not yet |
+| Daemon / 24-7 runtime | Not yet |
+| Studio UI | Next |
+| Voice | Later |
+
+## Try The Current Loop
+
+1. Inspect and talk:
+
+```bash
+heph ask "What release risks are visible in this repo?" --repo .
+```
+
+2. Validate:
+
+```bash
+heph validate run . --yes
+```
+
+3. Propose a code or docs change:
+
+```bash
+heph code propose "Update README wording to mention validation-backed release evidence." --repo .
+```
+
+4. Run the bounded coding loop:
+
+```bash
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
+```
+
+5. See results:
+
+```bash
+heph code results
+```
+
+Use `--yes` only when you want Hephaestus to apply an approved patch. Without
+approval, the loop stays in planning, proposal, and dry-run mode.
+
+## What Hephaestus Is Not Yet
+
+Hephaestus is useful today, but it is still an alpha. It is not:
+
+- a fully autonomous coding agent;
+- a cloud or VPS daemon;
+- a voice or Jarvis-style assistant;
+- a browser automation agent;
+- a replacement for mature coding tools;
+- an uncontrolled self-modifying system.
+
+It does not deploy, publish, push, perform destructive actions, or run broad
+multi-file rewrites on its own. Local side effects require explicit approval.
+
+## Why Care?
+
+Most AI coding tools can answer questions and generate code. Hephaestus is
+focused on the surrounding loop:
+
+```text
+context -> plan -> patch -> validate -> outcome -> memory
+```
+
+The point is not that the model is bigger. The point is that the agent around
+the model remembers what happened, keeps evidence, and makes future work less
+forgetful.
+
+That means you can come back later and inspect the project context, the previous
+conversation, the proposed patch, the validation result, the checkpoint, and the
+learning signal that came out of a success or failure.
+
+## Why Not Just Use ChatGPT Or Claude Code?
+
+Use them. They are excellent models and coding tools.
+
+Hephaestus is different because it wraps model calls inside a local agent loop:
+
+```text
+context -> plan -> patch -> validate -> outcome -> memory
+```
+
+The goal is not to replace the model. The goal is to make the agent around the
+model remember, verify, and improve.
+
+## Why This Is Not Architecture Theater
+
+Early Hephaestus versions were deliberately planning-heavy. That made the
+decision engine, traces, and learning artifacts inspectable, but it also made
+the public story too easy to mistake for a CLI science fair project.
+
+That boundary has changed. Hephaestus now has real local validation execution
+and a repo-aware coding loop for small scoped changes. Evidence can come from
+actual commands, not only simulated outcomes.
+
+It is still early and intentionally bounded. The advanced internals exist to
+support practical agent behavior: remembering context, proposing scoped work,
+validating it, recording what happened, and improving the next loop.
+
+## Useful Commands
+
+Basic conversation and validation:
+
+```bash
+heph ask "What is this project trying to become?"
+heph discuss "Stress-test this roadmap." --mode strategic
+heph validate run . --yes
+```
+
+Repo-aware coding:
+
+```bash
+heph code plan "Update README wording to mention validation-backed release evidence." --repo .
+heph code propose "Update README wording to mention validation-backed release evidence." --repo .
+heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
+heph code results
+```
+
+Advanced release planning:
+
+```bash
+heph release plan . --pareto --qubo --evaluate
+heph release plan . --pareto --qubo --with-validation --yes
+heph release list
+heph release show <release_plan_id>
+heph explain <run_id>
+heph pareto list
+heph qubo list
+heph learn signals
+```
+
+From a source checkout:
+
+```bash
+uv run heph --help
+uv run heph doctor
+uv run heph models
+uv run heph policy set developer
+uv run heph validate run . --dry-run
 uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
-uv run heph discuss "Propose a safe validation plan for this repo." --repo . --propose-tools
-uv run heph discuss "Propose a small safe README improvement." --repo . --propose-code
-uv run heph conversation benchmark list
-uv run heph conversation benchmark run benchmarks/conversation/idea_stress_test.json
-uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
-uv run heph strategy context
-uv run heph release list
-uv run heph release show <release_run_id>
-uv run heph runs
-uv run heph explain <optimizer_run_id>
-uv run heph pareto list
-uv run heph qubo list
+uv run heph release plan . --pareto --qubo --evaluate
+uv run heph release plan . --pareto --qubo --with-validation --yes
 ```
 
-See the full [release plan walkthrough](examples/release_plan_demo.md), the
-[demo screenshot pack](docs/assets/demo/README.md), and the
-[60-90 second demo script](docs/demo_script.md) for a concise tour of what each
-stage means, which parts are real, and which parts are simulated in the current
-alpha.
+## Advanced Engine
 
-## What It Is
+Under the hood, Hephaestus includes machinery for inspecting decisions and
+tradeoffs. This is useful for technical users, but it is not the first thing a
+normal user needs to care about.
 
-Hephaestus is a Python 3.12 agent runtime foundation built around decision
-quality. Ordinary agents often jump from prompt to action. Hephaestus starts by
-making the decision problem explicit: inspect the repo, generate tasks, compare
-plans, surface tradeoffs, explain selections, record outcomes, and turn failures
-into reviewable learning artifacts.
+For complex tradeoffs, Hephaestus can compare options instead of blindly taking
+the first plausible path.
 
-The current public demo is intentionally conservative:
+Advanced internals include:
+
+- decision traces for selected and rejected options;
+- Pareto frontiers for comparing tradeoffs;
+- QUBO and Ising formulations for inspectable binary optimization problems;
+- policy profiles for user-owned execution boundaries;
+- strategic memory for durable goals, assumptions, decisions, and lessons;
+- model routing and context packing.
+
+QUBO here means local classical optimization over binary variables. It is not a
+quantum hardware claim.
+
+## Technical Spine
 
 ```text
-Repo -> Profile -> Tasks -> Optimizer -> Pareto -> QUBO -> Explain -> Outcomes -> Learning Profiles
+repo intelligence
+-> conversation memory
+-> safe tool runtime
+-> repo-aware coding loop
+-> real validation
+-> outcomes
+-> learning
 ```
 
-In one sentence:
+The current architecture is local-first and approval-gated:
 
 ```text
-Hermes learns workflows.
-Hephaestus learns decision quality.
+CLI
+ |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
+ |-- Strategic memory: goals, principles, assumptions, decisions, and lessons
+ |-- Repo intelligence: read-only local inspection and command risk classification
+ |-- Policy profiles: transparent boundaries for local work and side effects
+ |-- Tool runtime: safe file tools, shell gates, patches, checkpoints, observations
+ |-- Validation: repo-derived lint/test/typecheck/build execution through safe tools
+ |-- Coding loop: scoped plans, patch review, approved apply, validation, rollback
+ |-- Release planning: conservative recommendations and validation evidence
+ |-- Advanced engine: decision traces, Pareto, QUBO, routing, outcomes, learning
+ `-- Storage: local SQLite state in .hephaestus/hephaestus.db
 ```
 
-## Why It Is Different
-
-- **Decision traces are first-class.** The system records selected options,
-  rejected alternatives, constraints, metrics, confidence, and rationale.
-- **Planning is optimization-shaped.** Task ordering, model routing, context
-  packing, and budget checks flow through explicit objective functions.
-- **Tradeoffs are visible.** Pareto frontiers show quality, cost, latency, risk,
-  privacy, token usage, safety, and profile alignment instead of hiding
-  everything behind one score.
-- **QUBO/Ising is inspectable.** Binary variables, objectives, constraints, and
-  local solver results make selected decision problems concrete. This is
-  classical local solving, not a quantum hardware claim.
-- **Learning is reviewable.** Outcomes create reflections, learning signals,
-  failure memory drafts, and policy profile suggestions before anything can
-  bias future decisions.
-- **Repo intelligence grounds the plan.** The demo reads real local repo signals
-  such as manifests, lockfiles, scripts, CI config, env file names, and command
-  risk categories before planning.
-- **Conversation is deliberative.** `ask`, `discuss`, and `chat` classify the
-  discussion, retrieve memory/repo context, run internal deliberation passes,
-  suggest memory updates, and trace high-impact strategy or architecture calls.
-- **Strategic memory is explicit.** Goals, ambitions, principles, roadmap
-  decisions, rejected paths, assumptions, and open questions can shape future
-  discussions, but conversation-derived updates are only saved with
-  `--save-memory`, `--save-strategy`, or chat `/save-memory`.
-- **Discussion quality is rubric-backed.** Stress tests, business strategy,
-  product strategy, architecture, roadmap, research planning, and risk analysis
-  use explicit checks so Hephaestus helps the user think better instead of just
-  replying.
-- **Conversation quality is measurable.** Model-backed synthesis routes through
-  provider profiles, prompt assembly, context budgets, and deterministic
-  conversation benchmarks that do not require paid APIs.
-- **Freedom UX is configurable.** Policy profiles such as `developer`,
-  `research`, `local_power_user`, `strict`, and `balanced` make boundaries
-  transparent without turning benign work into a refusal ritual.
+For the deeper module map, see [docs/architecture.md](docs/architecture.md).
 
 ## Current Status
 
 Built:
 
-- Pydantic v2 schemas and a Typer/Rich CLI.
-- SQLite persistence for memory, runs, tasks, decisions, approvals, and release
-  planning artifacts.
-- Optimizer baselines, model routing, context packing, and token budget checks.
-- Benchmark proof reports.
-- Explainable decision traces.
-- Outcome tracking, reflections, learning signals, and failure memory drafts.
-- Decision quality profiles with explicit activation/archive.
-- Pareto tradeoff frontiers and preference profiles.
-- QUBO formulations, local solvers, and QUBO to Ising conversion.
-- Read-only repo intelligence and repo-aware release planning.
-- Conversational text interface with deliberation modes, memory suggestions,
-  repo context, persisted sessions, and high-impact decision traces.
+- Python 3.12 package with a Typer/Rich CLI.
+- SQLite persistence for memory, runs, tasks, decisions, approvals, validation,
+  coding-loop artifacts, and release plans.
+- Persistent conversations with deterministic local mode and optional DeepSeek
+  or OpenAI-compatible provider synthesis.
 - Strategic memory for durable goals, ambitions, principles, constraints,
   assumptions, decisions, rejected paths, lessons, and open questions.
-- Discussion-quality rubrics and research planning mode.
-- Real-provider conversation routing for DeepSeek and OpenAI-compatible APIs,
-  including OpenRouter-style endpoints through the OpenAI-compatible path.
-- Prompt assembly with behavior/policy standards, deliberation mode, rubrics,
-  regular memory, strategic memory, repo context, session context, and context
-  trimming.
-- Conversation budget reporting and deterministic conversation benchmarks.
-- User-owned policy profiles with SQLite-backed active profile state,
-  deterministic request evaluation, over-refusal detection, policy benchmarks,
-  and `heph policy` commands.
+- User-owned policy profiles with visible boundaries and approval gates.
 - Safe local tool runtime for file list/read/search, command dry-runs, safe
-  command execution, patch proposals, checkpointed patch application, rollback,
-  observations, approvals, and trace/outcome links.
+  command execution, patch proposals, checkpoints, rollback, observations, and
+  trace links.
 - Real validation execution for repo-derived lint, test, typecheck, build,
-  format-check, security-check, and custom validation commands through the safe
-  tool runtime.
-- Validation evidence persistence, per-command outcomes, validation learning
-  signals, repeated-failure drafts, and release-readiness score adjustments from
-  real command results.
+  format-check, security-check, and custom validation commands.
 - Repo-aware coding loop for small scoped changes: plan, propose, review, apply
-  with `--yes`, checkpoint, validate, optionally rollback, and record outcomes
-  and learning signals.
+  with `--yes`, checkpoint, validate, optionally rollback, and record outcomes.
+- Release planning with optional validation evidence.
+- Advanced decision machinery: traces, outcomes, learning signals, Pareto
+  frontiers, QUBO formulations, local solvers, model routing, and context
+  packing.
 
 Not built yet:
 
 - Fully autonomous code editing.
 - Large architecture rewrites or unbounded multi-file self-editing.
 - Deploy, publish, push, or destructive command execution.
-- A long-running daemon.
-- A dashboard.
+- A long-running daemon or cloud worker.
+- Studio UI.
 - Browser, desktop, Telegram, or voice automation.
 - Production sandbox execution.
 - Quantum hardware integration.
@@ -198,81 +291,17 @@ Release planning can still run deterministic simulated outcome evaluation with
 validation plan through the safe tool runtime and labels readiness as real
 validation evidence instead of simulated evidence.
 
-## Core Loop
+## More Docs
 
-```text
-Inspect -> Plan -> Propose -> Apply with approval -> Validate -> Learn
-```
-
-Architecture at a glance:
-
-```text
-CLI
- |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
- |-- Policy profiles: user-owned freedom modes, boundaries, and over-refusal checks
- |-- Strategic memory: long-term goals, principles, assumptions, decisions, and context
- |-- Discussion quality: rubrics for stress tests, strategy, architecture, roadmap, and research
- |-- Repo intelligence: read-only local inspection and command risk classification
- |-- Tool runtime: safe file tools, shell gates, patches, checkpoints, observations
- |-- Coding loop: scoped repo plans, patch review, approved apply, validation, rollback
- |-- Release planning: demo orchestration and conservative recommendations
- |-- Optimization core: scheduling, routing, context packing, token budget checks
- |-- Pareto layer: multi-objective candidate frontiers and selections
- |-- QUBO layer: binary formulations, local solvers, Ising conversion
- |-- Decision layer: persisted traces and explanation rendering
- |-- Outcome layer: deterministic evaluations, reflections, learning signals
- |-- Policy learning: reviewable decision quality profiles
- |-- Memory layer: local persistent memories
- `-- Safety layer: approval gates and risk policy schemas
-```
-
-For the deeper module map, see [docs/architecture.md](docs/architecture.md).
-For phase history and upcoming work, see [docs/roadmap.md](docs/roadmap.md).
-For the soft reveal materials, see [docs/public_launch_notes.md](docs/public_launch_notes.md),
-[docs/reveal_strategy.md](docs/reveal_strategy.md), and
-[docs/soft_reveal_checklist.md](docs/soft_reveal_checklist.md).
-
-## Useful Commands
-
-```bash
-uv run heph --help
-uv run heph doctor
-uv run heph policy profiles
-uv run heph policy set developer
-uv run heph policy evaluate "make a README banner for my AI project"
-uv run heph ask "What is Hephaestus trying to become?"
-uv run heph discuss "Stress-test launching before code execution exists." --mode strategic
-uv run heph ask "What context is shaping this?" --show-context
-uv run heph discuss "Research plan: compare Hephaestus positioning against existing open-source agent frameworks." --mode research
-uv run heph strategy memory add --type goal --content "Build Hephaestus toward a 20k-star open-source project."
-uv run heph strategy memory search "20k"
-uv run heph strategy context
-uv run heph ask "What are the release risks in this repo?" --repo .
-uv run heph conversations
-uv run heph repo inspect .
-uv run heph release plan . --pareto --qubo --evaluate
-uv run heph validate plan .
-uv run heph validate run . --dry-run
-uv run heph validate run . --yes
-uv run heph release plan . --pareto --qubo --with-validation --yes
-uv run heph release list
-uv run heph runs
-uv run heph explain <run_id>
-uv run heph explain <run_id> --summary
-uv run heph pareto list
-uv run heph qubo list
-uv run heph learn signals
-uv run heph policy benchmark run
-```
-
-By default, local state is stored in:
-
-```text
-.hephaestus/hephaestus.db
-```
-
-Optional DeepSeek API calls are disabled unless `DEEPSEEK_API_KEY` is set. Tests
-and the public demo do not require paid APIs.
+- [Product positioning](docs/product_positioning.md)
+- [README reality checklist](docs/readme_reality_checklist.md)
+- [Roadmap](docs/roadmap.md)
+- [Release evidence](docs/release_evidence.md)
+- [Repo-aware coding loop](docs/repo_aware_coding_loop.md)
+- [Public launch notes](docs/public_launch_notes.md)
+- [Reveal strategy](docs/reveal_strategy.md)
+- [Demo script](docs/demo_script.md)
+- [Contributor guide](docs/contributor_guide.md)
 
 ## Development
 
@@ -284,12 +313,11 @@ uv run pytest
 uv run mypy
 uv run heph doctor
 uv run heph validate run . --dry-run
-uv run heph release plan . --pareto --qubo --evaluate
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 uv run heph release plan . --pareto --qubo --with-validation --yes
 ```
 
 Contributors should start with [CONTRIBUTING.md](CONTRIBUTING.md) and
 [docs/contributor_guide.md](docs/contributor_guide.md). The short version:
-focus on core decision quality, repo-aware planning, explainability, learning
-memory, and safe execution foundations. Voice, dashboards, random integrations,
-and always-on automation are intentionally later.
+improve the loop that helps Hephaestus remember, reason, propose scoped work,
+validate outcomes, and learn from evidence.

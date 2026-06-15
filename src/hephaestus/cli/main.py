@@ -249,7 +249,7 @@ console = Console()
 
 app = typer.Typer(
     name="heph",
-    help="Hephaestus: an optimization-first agent runtime foundation.",
+    help="Hephaestus: a self-improving local AI agent for project memory, scoped coding, and validation.",
     no_args_is_help=True,
 )
 memory_app = typer.Typer(help="Persistent local memory commands.", no_args_is_help=True)

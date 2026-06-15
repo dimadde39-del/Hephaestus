@@ -1,190 +1,186 @@
 # 60-90 Second Demo Script
 
-This is the exact soft reveal demo path. It is meant to feel calm, concrete,
-and honest: early, real, and intentionally planning-only.
+This is the current soft reveal demo path. It should feel calm, concrete, and
+honest: early, real, local-first, and intentionally scoped.
 
 ## 1. What Hephaestus Is
 
 Say:
 
 ```text
-Hephaestus is an optimization-first agent OS. The current alpha does not edit
-code or execute repo commands. It inspects a repo, plans before acting, exposes
-tradeoffs, explains decisions, and records learning signals from simulated
-outcomes.
+Hephaestus is a self-improving AI agent for people building ambitious things.
+It remembers project context, helps you think, helps you code, validates its
+work, and records outcomes so future runs are less forgetful.
 ```
 
-Show the README hero or first terminal frame.
+Show the README top section.
 
 Time: 8-10 seconds.
 
-## 2. Repo Inspection
+## 2. Talk With Project Context
 
 Run:
 
 ```bash
-uv run heph repo inspect .
+uv run heph ask "What is this project trying to become?" --repo .
 ```
 
 Say:
 
 ```text
-First it reads the repository locally. It detects stack signals, validation
-commands, risk signals, and repo-aware tasks. This is read-only inspection.
+First, it can talk about the project with local context. Conversations are
+persisted, and important goals or decisions can become strategic memory when I
+choose to save them.
 ```
 
 Point at:
 
-- detected package manager,
-- validation commands,
-- risk signals,
-- generated repo tasks.
+- the direct answer,
+- any repo context shown,
+- budget/context metadata if enabled.
 
 Time: 10-12 seconds.
 
-## 3. Release Plan
+## 3. Validate Locally
 
 Run:
 
 ```bash
-uv run heph release plan . --pareto --qubo --evaluate
+uv run heph validate run . --yes
 ```
 
 Say:
 
 ```text
-This is the main demo. Hephaestus turns repo signals into a release-readiness
-plan, runs the optimizer, compares Pareto tradeoffs, formulates QUBO problems,
-saves decision traces, simulates outcomes, and creates learning signals.
+Hephaestus can turn repo signals into a validation plan and run supported local
+validation commands through its safe tool runtime. This creates real evidence,
+not just a simulated readiness label.
 ```
 
 Point at:
 
-- release plan ID,
-- optimizer run ID,
-- readiness score,
-- `needs_validation`,
-- linked artifacts.
+- validation result ID,
+- command statuses,
+- evidence mode,
+- linked outcomes or traces.
 
-Time: 25-30 seconds.
+Time: 12-15 seconds.
 
-## 4. Pareto Tradeoffs
-
-Use the first frontier ID from the release output.
+## 4. Propose A Scoped Change
 
 Run:
 
 ```bash
-uv run heph pareto show <frontier_id>
-```
-
-Optional standalone comparison:
-
-```bash
-uv run heph pareto compare examples/repo_release_demo.json
+uv run heph code propose "Update README wording to mention validation-backed release evidence." --repo .
 ```
 
 Say:
 
 ```text
-The system does not hide everything behind one score. Pareto frontiers expose
-what was selected, what was dominated, and what tradeoffs were accepted.
+For small scoped repo changes, it plans the change, proposes a patch, reviews
+the scope, and tells me what approval would be needed before anything is
+applied.
 ```
 
-Time: 8-10 seconds.
+Point at:
 
-## 5. QUBO Formulation
+- expected files,
+- proposed diff,
+- risk/review summary,
+- approval requirement.
 
-Use the first QUBO problem ID from the release output.
+Time: 12-15 seconds.
+
+## 5. Run The Bounded Coding Loop
 
 Run:
 
 ```bash
-uv run heph qubo show <problem_id>
+uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 ```
 
 Say:
 
 ```text
-Some decision surfaces are also encoded as QUBO problems. This is local
-classical solving, not a quantum hardware claim. The point is inspectable binary
-optimization: variables, objective terms, constraints, and the selected
-assignment.
+In dry-run mode, the loop stays non-mutating. With explicit approval, it can
+apply a scoped patch, create a checkpoint, run validation, and record outcomes.
+It is not an unbounded autonomous coder.
 ```
 
-Time: 8-10 seconds.
+Time: 10-12 seconds.
 
-## 6. Explainability
-
-Use the optimizer run ID from the release output.
+## 6. Inspect Results
 
 Run:
 
 ```bash
-uv run heph explain <optimizer_run_id> --summary
+uv run heph code results
 ```
 
 Say:
 
 ```text
-Every important decision gets a trace: selected option, rejected alternatives,
-constraints, confidence, and rationale. The summary is short for the demo; the
-full trace is available with the same command without `--summary`.
+The useful part is the record: request, plan, patch, validation status,
+checkpoint, outcome, and learning signals. The system keeps evidence instead of
+asking me to trust a chat transcript.
 ```
 
 Time: 8-10 seconds.
 
-## 7. Learning Signals
+## 7. Optional Advanced Engine
 
-Use the optimizer run ID from the release output.
-
-Run:
+Run only if the audience is technical and there is time:
 
 ```bash
-uv run heph learn signals --run <optimizer_run_id>
+uv run heph release plan . --pareto --qubo --with-validation --yes
 ```
 
 Say:
 
 ```text
-Because this alpha does not execute commands yet, outcomes are deterministic
-simulations over decision traces. The useful part is the shape of the loop:
-decisions create outcomes, outcomes create reviewable learning signals.
+For deeper release planning, Hephaestus can compare tradeoffs, persist decision
+traces, and use Pareto/QUBO internals to make complex choices inspectable. That
+engine supports the loop; it is not the headline.
 ```
 
-Time: 8-10 seconds.
+Time: 10-15 seconds.
 
 ## 8. Honest Close
 
 Say:
 
 ```text
-What works today is repo inspection, planning, optimization, Pareto/QUBO
-inspection, explanations, persistence, and simulated learning signals. What is
-not built yet is autonomous editing, command execution, dashboard, daemon, or
-voice. The next serious step is safe validation execution.
+What works today is conversation memory, repo inspection, safe local tools, real
+validation, small scoped coding loops, outcomes, and learning signals. What is
+not built yet is full autonomous coding, daemon mode, Studio UI, browser
+automation, voice, or deploy/publish/push execution.
+
+The next phase is a persistent Studio interface: readable chat history, run
+history, validation evidence, coding-loop results, checkpoints, and outcomes in
+one place.
 ```
 
 Time: 8-10 seconds.
 
 ## Do Not Claim
 
-- Do not claim Hephaestus autonomously edits code.
-- Do not claim tests or builds passed unless you ran them separately.
-- Do not claim production autonomy.
+- Do not claim Hephaestus handles full autonomous coding.
+- Do not claim local validation proves production readiness.
+- Do not claim deploy/publish/push execution.
 - Do not imply QUBO means quantum hardware or quantum speedups.
-- Do not mention voice, Jarvis, Telegram, dashboard, daemon, or browser
-  automation as near-term reveal features.
+- Do not describe learning as model weight training.
+- Do not mention voice, Jarvis, Telegram, daemon, or browser automation as
+  current product features.
 
 ## Suggested Sequence
 
 ```text
-README hero
-repo inspect
-release plan
-pareto show or compare
-qubo show
-explain --summary
-learn signals
-limitations and next step
+README top
+ask with repo context
+validate run
+code propose
+code run --dry-run
+code results
+optional release plan with Pareto/QUBO
+limitations and next phase
 ```
