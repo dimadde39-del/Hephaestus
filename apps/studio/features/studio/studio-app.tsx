@@ -9,6 +9,7 @@ import { ConversationSidebar } from "@/features/conversations/conversation-sideb
 import { Composer } from "@/features/messages/composer";
 import { MessageTimeline } from "@/features/messages/message-timeline";
 import { SearchPanel } from "@/features/search/search-panel";
+import { AppShell } from "@/features/studio/app-shell";
 import { StudioApiClient, StudioApiError } from "@/lib/api/client";
 import { useKeyboardShortcuts } from "@/lib/shortcuts/use-keyboard-shortcuts";
 import type {
@@ -26,6 +27,9 @@ import type {
 
 const LAST_CONVERSATION_KEY = "heph:studio:lastConversationId";
 const SCROLL_PREFIX = "heph:studio:scroll:";
+const APPEARANCE_KEY = "heph:studio:appearance";
+
+export type AppearancePreference = "system" | "light" | "dark";
 
 export function StudioApp() {
   const api = useMemo(() => new StudioApiClient(), []);
@@ -56,6 +60,11 @@ export function StudioApp() {
   const [restoreScrollPosition, setRestoreScrollPosition] = useState<number | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileContextOpen, setMobileContextOpen] = useState(false);
+  const [contextCollapsed, setContextCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [appearance, setAppearance] = useState<AppearancePreference>(() =>
+    readAppearancePreference(),
+  );
 
   const refreshConversations = useCallback(
     async (query = sidebarQuery) => {
@@ -182,6 +191,26 @@ export function StudioApp() {
     return () => window.clearTimeout(timer);
   }, [api, includeArchivedSearch, searchOpen, searchQuery]);
 
+  useEffect(() => {
+    localStorage.setItem(APPEARANCE_KEY, appearance);
+    const root = document.documentElement;
+    root.dataset.appearance = appearance;
+
+    function applyResolvedTheme() {
+      const resolved =
+        appearance === "system" ? (prefersDarkMode() ? "dark" : "light") : appearance;
+      root.dataset.theme = resolved;
+    }
+
+    applyResolvedTheme();
+    if (appearance !== "system" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", applyResolvedTheme);
+    return () => media.removeEventListener("change", applyResolvedTheme);
+  }, [appearance]);
+
   const createConversation = useCallback(async () => {
     const created = await api.createConversation({
       mode,
@@ -307,54 +336,120 @@ export function StudioApp() {
 
   const headerTitle = conversationDetail?.conversation.title ?? "Hephaestus Studio";
   const providerLabel = provider?.active_label ?? config?.provider_label ?? "Local deterministic mode";
+  const activeRepoName =
+    conversationDetail?.conversation.repo_name ??
+    repos.find((repo) => repo.id === repoProfileId)?.name ??
+    null;
 
   return (
-    <main className="studio-shell">
-      <ConversationSidebar
-        activeConversationId={activeConversationId}
-        conversations={conversations}
-        mobileOpen={mobileSidebarOpen}
-        onArchiveConversation={(conversation) => void archiveConversation(conversation)}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-        onNewConversation={() => void createConversation()}
-        onOpenConversation={(conversationId) => {
-          void openConversation(conversationId);
-          setMobileSidebarOpen(false);
-        }}
-        onOpenSearch={() => setSearchOpen(true)}
-        onPinConversation={(conversation) => void pinConversation(conversation)}
-        onQueryChange={setSidebarQuery}
-        onRenameConversation={(conversationId, title) =>
-          void renameConversation(conversationId, title)
-        }
-        onToggleArchived={() => setShowArchived((value) => !value)}
-        query={sidebarQuery}
-        showArchived={showArchived}
-      />
-
-      <section className="chat-column" aria-label="Message timeline">
+    <AppShell
+      composer={
+        <Composer
+          disabled={pending || bootLoading}
+          mode={mode}
+          modes={modes}
+          onModeChange={(nextMode) => void updateMode(nextMode)}
+          onRepoChange={(nextRepoId) => void updateRepo(nextRepoId)}
+          onSendMessage={(message) => void sendMessage(message)}
+          providerLabel={providerLabel}
+          repoProfileId={repoProfileId}
+          repos={repos}
+        />
+      }
+      context={
+        <ContextDrawer
+          collapsed={contextCollapsed}
+          detail={conversationDetail}
+          mobileOpen={mobileContextOpen}
+          mode={mode}
+          onCloseMobile={() => setMobileContextOpen(false)}
+          onToggleCollapsed={() => setContextCollapsed((value) => !value)}
+          policy={policy}
+          provider={provider}
+          repos={repos}
+        />
+      }
+      contextCollapsed={contextCollapsed}
+      sidebarCollapsed={sidebarCollapsed}
+      header={
         <header className="chat-header">
           <IconButton
             className="mobile-only"
             icon={Menu}
             label="Open conversations"
-            onClick={() => setMobileSidebarOpen(true)}
+            onClick={() => {
+              setSidebarCollapsed(false);
+              setMobileSidebarOpen(true);
+            }}
           />
-          <div>
-            <p className="eyebrow">Persistent conversation</p>
+          <div className="chat-title">
+            <p>Conversation</p>
             <h1>{headerTitle}</h1>
+            {activeRepoName ? <span>{activeRepoName}</span> : null}
           </div>
           <div className="chat-header-actions">
             <IconButton icon={Search} label="Search" onClick={() => setSearchOpen(true)} />
             <IconButton
+              className="desktop-only"
+              icon={PanelRight}
+              label={contextCollapsed ? "Open context" : "Collapse context"}
+              onClick={() => setContextCollapsed((value) => !value)}
+            />
+            <IconButton
               className="mobile-only"
               icon={PanelRight}
               label="Open context"
-              onClick={() => setMobileContextOpen(true)}
+              onClick={() => {
+                setContextCollapsed(false);
+                setMobileContextOpen(true);
+              }}
             />
           </div>
         </header>
-
+      }
+      search={
+        <SearchPanel
+          includeArchived={includeArchivedSearch}
+          loading={searchLoading}
+          onClose={() => setSearchOpen(false)}
+          onOpenResult={openSearchResult}
+          onQueryChange={setSearchQuery}
+          onToggleArchived={() => setIncludeArchivedSearch((value) => !value)}
+          open={searchOpen}
+          query={searchQuery}
+          results={searchResults}
+        />
+      }
+      sidebar={
+        <ConversationSidebar
+          activeConversationId={activeConversationId}
+          activeRepoName={activeRepoName}
+          appearance={appearance}
+          collapsed={sidebarCollapsed}
+          conversations={conversations}
+          mobileOpen={mobileSidebarOpen}
+          onAppearanceChange={setAppearance}
+          onArchiveConversation={(conversation) => void archiveConversation(conversation)}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+          onNewConversation={() => void createConversation()}
+          onOpenConversation={(conversationId) => {
+            void openConversation(conversationId);
+            setMobileSidebarOpen(false);
+          }}
+          onOpenSearch={() => setSearchOpen(true)}
+          onPinConversation={(conversation) => void pinConversation(conversation)}
+          onQueryChange={setSidebarQuery}
+          onRenameConversation={(conversationId, title) =>
+            void renameConversation(conversationId, title)
+          }
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+          onToggleArchived={() => setShowArchived((value) => !value)}
+          providerLabel={providerLabel}
+          query={sidebarQuery}
+          showArchived={showArchived}
+        />
+      }
+      timeline={
         <MessageTimeline
           activeMessageId={activeMessageId}
           error={sendError}
@@ -369,42 +464,8 @@ export function StudioApp() {
           pending={pending}
           restoreScrollPosition={restoreScrollPosition}
         />
-
-        <Composer
-          disabled={pending || bootLoading}
-          mode={mode}
-          modes={modes}
-          onModeChange={(nextMode) => void updateMode(nextMode)}
-          onRepoChange={(nextRepoId) => void updateRepo(nextRepoId)}
-          onSendMessage={(message) => void sendMessage(message)}
-          providerLabel={providerLabel}
-          repoProfileId={repoProfileId}
-          repos={repos}
-        />
-      </section>
-
-      <ContextDrawer
-        detail={conversationDetail}
-        mobileOpen={mobileContextOpen}
-        mode={mode}
-        onCloseMobile={() => setMobileContextOpen(false)}
-        policy={policy}
-        provider={provider}
-        repos={repos}
-      />
-
-      <SearchPanel
-        includeArchived={includeArchivedSearch}
-        loading={searchLoading}
-        onClose={() => setSearchOpen(false)}
-        onOpenResult={openSearchResult}
-        onQueryChange={setSearchQuery}
-        onToggleArchived={() => setIncludeArchivedSearch((value) => !value)}
-        open={searchOpen}
-        query={searchQuery}
-        results={searchResults}
-      />
-    </main>
+      }
+    />
   );
 }
 
@@ -450,4 +511,18 @@ function readScrollPosition(conversationId: string) {
   }
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readAppearancePreference(): AppearancePreference {
+  if (typeof window === "undefined") {
+    return "system";
+  }
+  const stored = localStorage.getItem(APPEARANCE_KEY);
+  return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+}
+
+function prefersDarkMode() {
+  return typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-color-scheme: dark)").matches
+    : true;
 }

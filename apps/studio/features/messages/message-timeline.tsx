@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, RefreshCw } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
@@ -69,7 +69,7 @@ export function MessageTimeline({
       {messages.length === 0 ? <EmptyConversation /> : null}
       <div className="message-stack" aria-live="polite">
         {messages.map((message) => (
-          <MessageBubble
+          <MessageBlock
             highlighted={message.id === activeMessageId}
             key={message.id}
             message={message}
@@ -86,25 +86,26 @@ function EmptyConversation() {
   return (
     <section className="empty-conversation" aria-label="Empty conversation">
       <div className="talos-quiet-mark" />
-      <h1>Start a conversation.</h1>
-      <p>Discuss an idea, inspect a repo, or plan a scoped change.</p>
+      <h1>What are we working on?</h1>
+      <p>Start with a question, a repo, or a change you want to think through.</p>
       <div className="starter-actions" aria-label="Starter prompts">
-        <span>Discuss a project</span>
-        <span>Inspect a repo</span>
-        <span>Stress-test an idea</span>
-        <span>Plan a code change</span>
+        <span>Discuss an idea</span>
+        <span>Open a repo</span>
+        <span>Plan a change</span>
+        <span>Review recent work</span>
       </div>
     </section>
   );
 }
 
-interface MessageBubbleProps {
+interface MessageBlockProps {
   message: StudioMessage;
   highlighted: boolean;
 }
 
-function MessageBubble({ message, highlighted }: MessageBubbleProps) {
+function MessageBlock({ message, highlighted }: MessageBlockProps) {
   const [copied, setCopied] = useState(false);
+  const reduceMotion = useReducedMotion();
   const isUser = message.role === "user";
 
   async function copyMessage() {
@@ -116,13 +117,14 @@ function MessageBubble({ message, highlighted }: MessageBubbleProps) {
   return (
     <motion.article
       animate={{ opacity: 1, y: 0 }}
-      className={`message-bubble ${isUser ? "user" : "assistant"} ${highlighted ? "is-highlighted" : ""}`}
+      className={`message-block ${isUser ? "user" : "assistant"} ${highlighted ? "is-highlighted" : ""}`}
       data-message-id={message.id}
-      initial={{ opacity: 0, y: 6 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
+      data-role={message.role}
+      initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.16, ease: "easeOut" }}
     >
       <header>
-        <span>{isUser ? "You" : "Hephaestus"}</span>
+        <span className="message-author">{isUser ? "You" : "Hephaestus"}</span>
         <time dateTime={message.created_at}>{formatMessageTime(message.created_at)}</time>
         <IconButton
           icon={copied ? Check : Copy}
@@ -145,9 +147,9 @@ function MessageBubble({ message, highlighted }: MessageBubbleProps) {
 
 function PendingMessage() {
   return (
-    <article className="message-bubble assistant pending" aria-label="Hephaestus is responding">
+    <article className="message-block assistant pending" aria-label="Hephaestus is responding">
       <header>
-        <span>Hephaestus</span>
+        <span className="message-author">Hephaestus</span>
       </header>
       <div className="typing-line">
         <i />

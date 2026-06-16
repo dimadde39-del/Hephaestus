@@ -37,9 +37,24 @@ const modes = [
 
 describe("StudioApp", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     window.localStorage.clear();
     window.history.replaceState(null, "", "/");
-    vi.restoreAllMocks();
+    document.documentElement.removeAttribute("data-theme");
+    document.documentElement.removeAttribute("data-appearance");
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("prefers-color-scheme: dark"),
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
   });
 
   it("renders the conversation sidebar, provider indicator, and context drawer", async () => {
@@ -51,7 +66,33 @@ describe("StudioApp", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Provider: Local deterministic mode")).toBeInTheDocument();
     expect(screen.getByLabelText("Conversation mode")).toHaveValue("strategic");
-    expect(screen.getByText("2 regular / 1 strategic")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Thread details" })).toBeInTheDocument();
+    expect(screen.getByText("No linked artifacts yet.")).toBeInTheDocument();
+  });
+
+  it("persists system, light, and dark appearance settings locally", async () => {
+    const user = userEvent.setup();
+    installFetchMock();
+    renderStudio();
+
+    await screen.findByRole("heading", { name: "Validation-backed coding loop" });
+    expect(screen.getByRole("button", { name: "System" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(document.documentElement.dataset.theme).toBe("dark");
+
+    await user.click(screen.getByRole("button", { name: "Light" }));
+    expect(window.localStorage.getItem("heph:studio:appearance")).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    await user.click(screen.getByRole("button", { name: "Dark" }));
+    expect(window.localStorage.getItem("heph:studio:appearance")).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+
+    await user.click(screen.getByRole("button", { name: "System" }));
+    expect(window.localStorage.getItem("heph:studio:appearance")).toBe("system");
+    expect(document.documentElement.dataset.appearance).toBe("system");
   });
 
   it("creates a conversation with the New chat action and keyboard shortcut", async () => {
@@ -81,6 +122,23 @@ describe("StudioApp", () => {
     expect(screen.getByText("Hermes remains complementary, not replaced.")).toBeInTheDocument();
   });
 
+  it("uses a readable conversation structure without replacing exact messages", async () => {
+    installFetchMock();
+    renderStudio();
+
+    const userMessage = await screen.findByText("Please preserve exact chat history.");
+    const assistantMessage = screen.getByText("Persistent chat keeps original messages.");
+    const userArticle = userMessage.closest("article");
+    const assistantArticle = assistantMessage.closest("article");
+
+    expect(userArticle).toHaveClass("message-block", "user");
+    expect(userArticle).toHaveAttribute("data-role", "user");
+    expect(assistantArticle).toHaveClass("message-block", "assistant");
+    expect(assistantArticle).toHaveAttribute("data-role", "assistant");
+    expect(screen.getByText("bash")).toBeInTheDocument();
+    expect(screen.queryByText(/context resume/i)).not.toBeInTheDocument();
+  });
+
   it("sends a message and shows the pending state", async () => {
     const deferred = createDeferred<Response>();
     installFetchMock({ postMessageResponse: deferred.promise });
@@ -96,6 +154,26 @@ describe("StudioApp", () => {
 
     expect((await screen.findAllByText("Add exact history tests")).length).toBeGreaterThan(0);
     expect(screen.getByText("Persisted agent response for Add exact history tests")).toBeInTheDocument();
+  });
+
+  it("sends with Enter and keeps Shift+Enter as a newline", async () => {
+    const { fetchSpy } = installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    await screen.findByRole("heading", { name: "Validation-backed coding loop" });
+    const input = screen.getByLabelText("Message Hephaestus");
+    await user.click(input);
+    await user.keyboard("Line one{Shift>}{Enter}{/Shift}Line two");
+    expect(input).toHaveValue("Line one\nLine two");
+
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/api/conversations/conv_1/messages"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
   });
 
   it("shows a retryable error when sending fails", async () => {
@@ -172,6 +250,28 @@ describe("StudioApp", () => {
       );
     });
     expect(screen.getByLabelText("Repository context")).toHaveValue("repo_1");
+  });
+
+  it("collapses the right context drawer", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    await screen.findByRole("heading", { name: "Validation-backed coding loop" });
+    await user.click(screen.getAllByRole("button", { name: "Collapse context" })[0]);
+    expect(document.querySelector(".context-drawer.is-collapsed")).toBeInTheDocument();
+  });
+
+  it("collapses the sidebar into a compact rail", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    await screen.findByRole("heading", { name: "Validation-backed coding loop" });
+    await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByLabelText("Conversations")).toHaveClass("is-collapsed");
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New chat" })).toBeInTheDocument();
   });
 
   it("opens the responsive sidebar drawer", async () => {
@@ -343,7 +443,12 @@ function createState() {
   const messages: Record<string, StudioMessage[]> = {
     conv_1: [
       message("msg_1", "conv_1", "user", "Please preserve exact chat history."),
-      message("msg_2", "conv_1", "assistant", "Persistent chat keeps original messages."),
+      message(
+        "msg_2",
+        "conv_1",
+        "assistant",
+        "Persistent chat keeps original messages.\n\n```bash\nuv run heph studio doctor\n```",
+      ),
     ],
     conv_2: [
       message("msg_3", "conv_2", "user", "Clarify positioning against Hermes exactly."),

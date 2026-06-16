@@ -1,18 +1,36 @@
 "use client";
 
-import { Archive, Edit3, PanelLeftClose, Pin, PinOff, Plus, Search } from "lucide-react";
-import Image from "next/image";
+import {
+  Archive,
+  Edit3,
+  Monitor,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  Settings,
+  Sun,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { IconButton } from "@/components/icon-button";
+import { WorkspaceSwitcher } from "@/features/studio/workspace-switcher";
+import type { AppearancePreference } from "@/features/studio/studio-app";
 import type { ConversationSummary } from "@/lib/types";
 
 interface ConversationSidebarProps {
   conversations: ConversationSummary[];
   activeConversationId: string | null;
+  activeRepoName: string | null;
   query: string;
   showArchived: boolean;
   mobileOpen: boolean;
+  collapsed: boolean;
+  appearance: AppearancePreference;
+  providerLabel: string;
   onQueryChange: (value: string) => void;
   onNewConversation: () => void;
   onOpenConversation: (conversationId: string) => void;
@@ -21,15 +39,21 @@ interface ConversationSidebarProps {
   onRenameConversation: (conversationId: string, title: string) => void;
   onOpenSearch: () => void;
   onToggleArchived: () => void;
+  onToggleCollapsed: () => void;
+  onAppearanceChange: (appearance: AppearancePreference) => void;
   onCloseMobile: () => void;
 }
 
 export function ConversationSidebar({
   conversations,
   activeConversationId,
+  activeRepoName,
   query,
   showArchived,
   mobileOpen,
+  collapsed,
+  appearance,
+  providerLabel,
   onQueryChange,
   onNewConversation,
   onOpenConversation,
@@ -38,6 +62,8 @@ export function ConversationSidebar({
   onRenameConversation,
   onOpenSearch,
   onToggleArchived,
+  onToggleCollapsed,
+  onAppearanceChange,
   onCloseMobile,
 }: ConversationSidebarProps) {
   const pinned = useMemo(
@@ -59,16 +85,39 @@ export function ConversationSidebar({
     [conversations],
   );
 
-  return (
-    <aside className={`conversation-sidebar ${mobileOpen ? "is-open" : ""}`} aria-label="Conversations">
-      <div className="sidebar-top">
-        <div className="studio-brand">
-          <Image alt="" height={30} priority src="/talos-mark.svg" width={30} />
-          <div>
-            <span>Hephaestus</span>
-            <strong>Studio</strong>
-          </div>
+  if (collapsed) {
+    return (
+      <aside className="conversation-sidebar is-collapsed" aria-label="Conversations">
+        <div className="sidebar-top">
+          <WorkspaceSwitcher collapsed providerLabel={providerLabel} repoName={activeRepoName} />
+          <IconButton
+            className="desktop-only"
+            icon={PanelLeftOpen}
+            label="Expand sidebar"
+            onClick={onToggleCollapsed}
+          />
         </div>
+        <nav className="sidebar-rail-actions" aria-label="Primary">
+          <IconButton icon={Plus} label="New chat" onClick={onNewConversation} />
+          <IconButton icon={Search} label="Search" onClick={onOpenSearch} />
+        </nav>
+      </aside>
+    );
+  }
+
+  return (
+    <aside
+      className={`conversation-sidebar ${mobileOpen ? "is-open" : ""}`}
+      aria-label="Conversations"
+    >
+      <div className="sidebar-top">
+        <WorkspaceSwitcher providerLabel={providerLabel} repoName={activeRepoName} />
+        <IconButton
+          className="desktop-only"
+          icon={PanelLeftClose}
+          label="Collapse sidebar"
+          onClick={onToggleCollapsed}
+        />
         <IconButton
           className="mobile-only"
           icon={PanelLeftClose}
@@ -77,21 +126,23 @@ export function ConversationSidebar({
         />
       </div>
 
-      <button className="new-chat-button" onClick={onNewConversation} type="button">
-        <Plus aria-hidden="true" size={17} />
-        New chat
-      </button>
+      <div className="sidebar-actions">
+        <button className="new-chat-button" onClick={onNewConversation} type="button">
+          <Plus aria-hidden="true" size={17} />
+          New chat
+        </button>
 
-      <label className="sidebar-search">
-        <Search aria-hidden="true" size={16} />
-        <input
-          aria-label="Search conversations"
-          onChange={(event) => onQueryChange(event.target.value)}
-          onFocus={onOpenSearch}
-          placeholder="Search conversations"
-          value={query}
-        />
-      </label>
+        <label className="sidebar-search">
+          <Search aria-hidden="true" size={16} />
+          <input
+            aria-label="Search conversations"
+            onChange={(event) => onQueryChange(event.target.value)}
+            onFocus={onOpenSearch}
+            placeholder="Search history"
+            value={query}
+          />
+        </label>
+      </div>
 
       <div className="conversation-list" role="list">
         <ConversationSection
@@ -114,10 +165,17 @@ export function ConversationSidebar({
           onRenameConversation={onRenameConversation}
           title="Recent"
         />
-        <button className="archive-toggle" onClick={onToggleArchived} type="button">
-          <Archive aria-hidden="true" size={15} />
-          {showArchived ? "Hide archived" : "Show archived"}
-          <span>{archived.length}</span>
+        <button
+          aria-label={showArchived ? "Hide archived conversations" : "Show archived conversations"}
+          className={`archive-toggle ${showArchived ? "is-active" : ""}`}
+          onClick={onToggleArchived}
+          type="button"
+        >
+          <span>
+            <Archive aria-hidden="true" size={15} />
+            Archived
+          </span>
+          <strong>{archived.length}</strong>
         </button>
         {showArchived ? (
           <ConversationSection
@@ -132,7 +190,54 @@ export function ConversationSidebar({
           />
         ) : null}
       </div>
+      <section className="sidebar-settings" aria-label="Settings">
+        <div className="settings-title">
+          <Settings aria-hidden="true" size={15} />
+          <span>Settings</span>
+        </div>
+        <div className="appearance-control" aria-label="Appearance">
+          <AppearanceButton
+            active={appearance === "system"}
+            icon={Monitor}
+            label="System"
+            onClick={() => onAppearanceChange("system")}
+          />
+          <AppearanceButton
+            active={appearance === "light"}
+            icon={Sun}
+            label="Light"
+            onClick={() => onAppearanceChange("light")}
+          />
+          <AppearanceButton
+            active={appearance === "dark"}
+            icon={Moon}
+            label="Dark"
+            onClick={() => onAppearanceChange("dark")}
+          />
+        </div>
+      </section>
     </aside>
+  );
+}
+
+interface AppearanceButtonProps {
+  active: boolean;
+  icon: typeof Monitor;
+  label: string;
+  onClick: () => void;
+}
+
+function AppearanceButton({ active, icon: Icon, label, onClick }: AppearanceButtonProps) {
+  return (
+    <button
+      aria-pressed={active}
+      className={active ? "is-active" : ""}
+      onClick={onClick}
+      type="button"
+    >
+      <Icon aria-hidden="true" size={14} />
+      {label}
+    </button>
   );
 }
 
@@ -205,8 +310,12 @@ function ConversationRow({
   }
 
   return (
-    <article className={`conversation-row ${active ? "is-active" : ""}`} role="listitem">
+    <article
+      className={`conversation-row ${active ? "is-active" : ""}`}
+      role="listitem"
+    >
       <button
+        aria-current={active ? "page" : undefined}
         className="conversation-row-main"
         onClick={() => onOpenConversation(conversation.id)}
         type="button"
@@ -235,7 +344,6 @@ function ConversationRow({
           <span className="conversation-title">{conversation.title}</span>
         )}
         <span className="conversation-meta">
-          {conversation.repo_name ? <b>{conversation.repo_name}</b> : null}
           <time dateTime={conversation.updated_at}>{formatConversationTime(conversation.updated_at)}</time>
         </span>
         {conversation.last_message_preview ? (
