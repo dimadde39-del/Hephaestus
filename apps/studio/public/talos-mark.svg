@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Hephaestus anvil decision graph mark">
+  <defs>
+    <linearGradient id="bronzeMetal" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFC14D"/>
+      <stop offset="22%" stop-color="#D08A3A"/>
+      <stop offset="58%" stop-color="#B87333"/>
+      <stop offset="100%" stop-color="#7B451D"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#B87333" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 172 L205 112 L256 172 L315 122 L366 174" stroke-width="16"/>
+    <path d="M205 112 L226 216 L256 172 L286 218 L315 122" stroke-width="10" opacity="0.86"/>
+  </g>
+  <g fill="url(#bronzeMetal)" stroke="#5A2D11" stroke-width="8">
+    <circle cx="150" cy="172" r="20"/>
+    <circle cx="205" cy="112" r="20"/>
+    <circle cx="256" cy="172" r="20"/>
+    <circle cx="315" cy="122" r="20"/>
+    <circle cx="366" cy="174" r="20"/>
+  </g>
+  <g fill="url(#bronzeMetal)" stroke="#5A2D11" stroke-linejoin="round" stroke-width="8">
+    <path d="M198 232 L226 284 L256 232 L286 284 L314 232 L326 310 H186 Z"/>
+    <path d="M110 310 H402 L378 352 H136 Z"/>
+    <path d="M148 352 H334 L306 406 H176 Z"/>
+    <path d="M198 406 H286 L312 438 H172 Z"/>
+  </g>
+</svg>

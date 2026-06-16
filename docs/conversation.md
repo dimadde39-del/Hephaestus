@@ -8,9 +8,12 @@ directly while genuinely harmful requests stay bounded. Phase 5E lets
 conversation turns propose safe tool actions for the user to run manually.
 Phase 5F adds validation-specific proposals without allowing chat to auto-run
 validation. Phase 5G adds coding-plan proposals without allowing chat to edit
-files automatically.
+files automatically. Phase 5.5A adds Studio, a local web interface for reading
+and continuing the exact same persisted conversations.
 
 ```bash
+uv run heph studio
+uv run heph studio doctor
 uv run heph ask "What is Hephaestus trying to become?"
 uv run heph ask "What is Hephaestus trying to become?" --show-budget
 uv run heph discuss "Stress-test launching before code execution exists." --mode strategic --show-context
@@ -46,6 +49,9 @@ uv run heph chat --repo . --propose-code
 uv run heph chat --session <session_id>
 uv run heph conversations
 uv run heph conversation show <session_id>
+uv run heph studio --no-open
+uv run heph studio --port 8741
+uv run heph studio doctor
 uv run heph conversation benchmark list
 uv run heph conversation benchmark run
 ```
@@ -56,6 +62,34 @@ supports `/exit`, `/memory`, `/mode <mode>`, `/repo <path>`, `/summary`, and
 `/save-memory`. It also supports `/propose-code <request>` for a planning-only
 coding loop proposal. In Phase 5B, `/save-memory` saves both normal memory
 candidates and strategic memory candidates from the last response.
+
+Studio uses the same conversation storage as these CLI commands. Conversations
+created in `heph chat`, `heph ask`, or `heph discuss` appear in Studio, and
+Studio conversations remain readable through `heph conversation show`.
+
+## Studio Persistent History
+
+Studio is intentionally not a "context resume" generator. Opening a
+conversation reads the saved session and messages from SQLite:
+
+```text
+persist exact messages -> reopen the same conversation -> read the timeline -> continue naturally
+```
+
+It does not:
+
+- generate automatic daily summaries;
+- create "where you left off" cards;
+- replace old messages with compressed context;
+- call a model when the user merely opens an old conversation.
+
+The user can search titles, user messages, and assistant messages locally, open
+a result, and continue the same conversation. Search is deterministic SQL in
+Phase 5.5A and does not consume model tokens.
+
+Conversation titles are deterministic when the first user message is sent:
+Studio derives a concise title from that message without a model call. Manual
+renames are preserved.
 
 ## Pipeline
 

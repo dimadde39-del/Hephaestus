@@ -34,7 +34,10 @@ That means the core system should be able to answer:
 - Improve decision traces and explanation quality without making them the public
   headline.
 - Keep policy learning reviewable and reversible.
-- Prepare the persistent Studio interface before Phase 6.
+- Keep Studio chat excellent: exact persisted messages, searchable history,
+  local provider clarity, and no automatic recap on reopen.
+- Prepare Phase 5.5B workbench views for coding requests, validation evidence,
+  approvals, checkpoints, outcomes, and tool actions.
 
 ## Deferred Work
 
@@ -59,9 +62,21 @@ uv run ruff check .
 uv run pytest
 uv run mypy
 uv run heph doctor
+uv run heph studio doctor
 uv run heph validate run . --dry-run
 uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 uv run heph release plan . --pareto --qubo --with-validation --yes
+```
+
+Studio frontend commands:
+
+```bash
+cd apps/studio
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
 ## Design Expectations
@@ -73,6 +88,11 @@ uv run heph release plan . --pareto --qubo --with-validation --yes
 - Make unsafe or simulated behavior visible in the output.
 - Add explanations near the decision, not as an afterthought.
 - Keep future execution gated by risk classification and approval records.
+- In Studio, prefer the chat timeline and conversation history over dashboard
+  surfaces. Advanced internals should be linked deliberately, not dumped into
+  the first screen.
+- Never add automatic conversation summaries as the default continuity
+  mechanism. Exact message history is the Phase 5.5A contract.
 
 ## Good First Issue Areas
 
@@ -81,3 +101,5 @@ uv run heph release plan . --pareto --qubo --with-validation --yes
 - Improve wording in Rich renderers without changing behavior.
 - Add small benchmark fixtures that stress one clear optimizer behavior.
 - Add examples that show how to inspect saved artifacts.
+- Add focused Studio UI tests for persistent chat, search, and conversation
+  metadata without adding mocked production behavior.

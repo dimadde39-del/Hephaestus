@@ -18,11 +18,28 @@ Conversation has three practical provider modes:
 CLI examples:
 
 ```bash
+uv run heph studio
 uv run heph ask "What is Hephaestus trying to become?" --show-budget
 uv run heph discuss "Stress-test this plan." --mode strategic --provider local
 uv run heph conversation benchmark run --provider local
 uv run heph conversation benchmark run --provider real
 ```
+
+## Studio Provider Status
+
+Studio uses the same provider routing as CLI conversation commands. The main UI
+shows a restrained provider indicator and the context drawer shows a little more
+detail:
+
+- `Local deterministic mode` when no API key is configured or local fallback is
+  selected.
+- `DeepSeek` when `DEEPSEEK_API_KEY` is configured and selected by auto routing.
+- `OpenAI-compatible: <model>` when the OpenAI-compatible settings are present.
+
+Opening an existing conversation never calls a provider. A provider is only used
+when the user submits a new message. If no real provider is configured, Studio
+still works with deterministic local responses and explains that limitation in
+provider status instead of repeating warnings under every message.
 
 ## DeepSeek
 
@@ -103,7 +120,8 @@ uv run heph ask "..." --show-budget
 
 ## Limitations
 
-Phase 5D is still text-only. It does not execute shell commands, edit files,
-browse, run a daemon, or perform autonomous workflows. Research mode prepares a
-research plan; it does not claim live research unless a later phase adds an
-explicit research tool.
+Phase 5.5A is still text-first. It does not execute shell commands, edit files,
+browse, run a daemon, or perform autonomous workflows from Studio. Research mode
+prepares a research plan; it does not claim live research unless a later phase
+adds an explicit research tool. Studio workbench views for validation runs,
+patch diffs, approvals, outcomes, and tool actions are deferred to Phase 5.5B.

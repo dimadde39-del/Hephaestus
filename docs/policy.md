@@ -69,6 +69,27 @@ prompts can still be discussed. When execution happens through `heph tools`, the
 runtime records the active profile, risk level, approval decision, result, and
 observation.
 
+## Studio Integration
+
+`heph studio` exposes the same active policy profile in the local web UI. The
+context drawer shows the profile name and type so the user can see which
+boundary is active while chatting, but Studio does not turn policy evaluations
+into the main timeline.
+
+Studio stays local-first:
+
+- it binds to `127.0.0.1` by default;
+- it avoids wildcard CORS;
+- it serves conversations through typed local APIs instead of direct frontend
+  SQLite access;
+- it does not expose protected file contents;
+- it sends conversation text only to the configured provider when the user
+  submits a message;
+- it works in deterministic local mode without API keys.
+
+Changing the active policy profile through CLI commands affects Studio because
+both surfaces use the same SQLite policy repository.
+
 ## Coding Loop Integration
 
 `heph code plan` and `heph code propose` are local analysis/proposal actions and

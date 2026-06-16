@@ -213,6 +213,9 @@ from hephaestus.strategic_memory.renderer import (
     build_strategic_memory_detail,
     build_strategic_memory_table,
 )
+from hephaestus.studio.launcher import run_studio, studio_doctor
+from hephaestus.studio.security import DEFAULT_STUDIO_HOST, DEFAULT_STUDIO_PORT, studio_url
+from hephaestus.studio.services import StudioService
 from hephaestus.tool_runtime import (
     ShellCommandRequest,
     ToolRuntime,
@@ -279,6 +282,10 @@ policy_benchmark_app = typer.Typer(
 strategy_app = typer.Typer(help="Strategic context and memory commands.", no_args_is_help=True)
 strategy_memory_app = typer.Typer(help="Strategic memory commands.", no_args_is_help=True)
 tools_app = typer.Typer(help="Safe local tool runtime commands.", no_args_is_help=True)
+studio_app = typer.Typer(
+    help="Local Hephaestus Studio web interface.",
+    invoke_without_command=True,
+)
 tool_patch_app = typer.Typer(help="Patch proposal and apply commands.", no_args_is_help=True)
 tool_checkpoint_app = typer.Typer(help="Checkpoint and rollback commands.", no_args_is_help=True)
 tool_action_app = typer.Typer(help="Tool action inspection commands.", no_args_is_help=True)
@@ -306,6 +313,7 @@ app.add_typer(conversation_app, name="conversation")
 app.add_typer(policy_app, name="policy")
 app.add_typer(strategy_app, name="strategy")
 app.add_typer(tools_app, name="tools")
+app.add_typer(studio_app, name="studio")
 
 
 class DemoScenario(BaseModel):
@@ -368,6 +376,64 @@ def doctor() -> None:
             f"quality threshold {DEFAULT_CONFIG.required_quality:.2f}"
         ),
     )
+    console.print(table)
+
+
+@studio_app.callback(invoke_without_command=True)
+def studio(
+    context: typer.Context,
+    port: Annotated[
+        int,
+        typer.Option("--port", min=1, max=65535, help="Local Studio port."),
+    ] = DEFAULT_STUDIO_PORT,
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Bind host. Defaults to loopback only."),
+    ] = DEFAULT_STUDIO_HOST,
+    no_open: Annotated[
+        bool,
+        typer.Option("--no-open", help="Do not open a browser automatically."),
+    ] = False,
+) -> None:
+    """Start the local Hephaestus Studio server."""
+
+    if context.invoked_subcommand is not None:
+        return
+    service = StudioService()
+    config = service.config(host=host, port=port)
+    console.print(f"Hephaestus Studio: {studio_url(host, port)}")
+    console.print(f"Database: {config.database_path}")
+    console.print(f"Policy profile: {config.active_policy_profile}")
+    console.print(f"Conversation provider: {config.provider_label}")
+    console.print("Press Ctrl+C to stop.")
+    try:
+        run_studio(host=host, port=port, open_browser=not no_open)
+    except RuntimeError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    except KeyboardInterrupt:
+        console.print("\nStopped Hephaestus Studio.")
+
+
+@studio_app.command("doctor")
+def studio_doctor_command(
+    port: Annotated[
+        int,
+        typer.Option("--port", min=1, max=65535, help="Local Studio port to check."),
+    ] = DEFAULT_STUDIO_PORT,
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Bind host to check."),
+    ] = DEFAULT_STUDIO_HOST,
+) -> None:
+    """Check Studio dependencies, local server readiness, and active configuration."""
+
+    table = Table(title="Hephaestus Studio Doctor")
+    table.add_column("Check")
+    table.add_column("Status")
+    table.add_column("Detail")
+    for check in studio_doctor(host=host, port=port):
+        table.add_row(check.name, check.status, check.detail)
     console.print(table)
 
 

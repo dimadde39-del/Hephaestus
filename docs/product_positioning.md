@@ -33,6 +33,7 @@ This is the public-facing identity. It should appear before advanced internals.
 ### Layer 2: Practical Capabilities
 
 - Persistent conversations.
+- Studio persistent chat for reopening exact message history.
 - Strategic memory.
 - Repo inspection.
 - Safe local tools.
@@ -50,6 +51,7 @@ context -> plan -> patch -> validate -> outcome -> memory
 Example commands:
 
 ```bash
+heph studio
 heph ask "What is this project trying to become?"
 heph validate run . --yes
 heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
@@ -85,6 +87,9 @@ story rather than replace it.
 - Do not imply full autonomous coding.
 - Do not imply daemon/VPS, browser automation, voice, deploy, publish, or push
   support exists today.
+- Do not imply Studio already has full coding-loop, validation, approval,
+  checkpoint, outcome, Pareto, or QUBO workbench views. Phase 5.5A is persistent
+  chat first.
 - Do not describe learning as model weight training.
 - Do not imply local validation proves external release safety.
 - Do not call it a replacement for mature coding tools.
@@ -102,6 +107,18 @@ story rather than replace it.
 | inspectable decisions | decision traces, selected/rejected alternatives |
 | scoped local approval | policy profiles, safety decisions, checkpoints |
 | advanced optimization | QUBO/Ising formulation, local solver |
+
+Studio copy should stay especially concrete:
+
+```text
+Open yesterday's conversation.
+Read the original messages.
+Continue where you stopped.
+```
+
+Do not describe Studio continuity as automatic summarization. The current
+product mechanism is exact persisted messages, searchable history, and normal
+continuation through the same conversation system.
 
 Use the external term first. Add the internal term only when the reader needs
 implementation detail.

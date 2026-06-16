@@ -45,6 +45,31 @@ uv run heph discuss "Stress-test this roadmap." --mode strategic
 uv run heph validate run . --yes
 ```
 
+## Hephaestus Studio
+
+Open yesterday's conversation.
+Read the original messages.
+Continue where you stopped.
+
+Studio is the local web interface for persistent Hephaestus conversations. It
+shows the exact saved user and agent messages, lets you create, reopen, search,
+pin, rename, and archive chats, and continues through the same conversation
+system used by the CLI. It does not spend model tokens on an automatic recap
+when a chat opens.
+
+```bash
+uv sync --extra studio
+uv run heph studio
+uv run heph studio --no-open
+uv run heph studio doctor
+```
+
+By default Studio binds to `http://127.0.0.1:8741`, uses the local SQLite
+database at `.hephaestus/hephaestus.db`, and falls back to deterministic local
+mode when no provider key is configured.
+
+![Hephaestus Studio persistent chat](docs/assets/studio/studio-chat.png)
+
 ![Hephaestus README hero showing Talos forging an explainable decision graph](docs/assets/brand/hephaestus-readme-hero.png)
 
 ## What Works Today
@@ -57,9 +82,10 @@ uv run heph validate run . --yes
 | Safe local tools | Works |
 | Real validation execution | Works |
 | Repo-aware coding loop | Works for small scoped changes |
+| Studio persistent chat | Works |
 | Full autonomous coding | Not yet |
 | Daemon / 24-7 runtime | Not yet |
-| Studio UI | Next |
+| Studio agent workbench views | Next |
 | Voice | Later |
 
 ## Try The Current Loop
@@ -185,6 +211,7 @@ validating it, recording what happened, and improving the next loop.
 Basic conversation and validation:
 
 ```bash
+heph studio
 heph ask "What is this project trying to become?"
 heph discuss "Stress-test this roadmap." --mode strategic
 heph validate run . --yes
@@ -262,6 +289,7 @@ The current architecture is local-first and approval-gated:
 
 ```text
 CLI
+ |-- Studio: local web UI for exact persistent chat history and search
  |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
  |-- Strategic memory: goals, principles, assumptions, decisions, and lessons
  |-- Repo intelligence: read-only local inspection and command risk classification
@@ -295,6 +323,9 @@ Built:
   format-check, security-check, and custom validation commands.
 - Repo-aware coding loop for small scoped changes: plan, propose, review, apply
   with `--yes`, checkpoint, validate, optionally rollback, and record outcomes.
+- Local Studio persistent chat UI with searchable exact-message history,
+  conversation metadata, mode/repo selectors, provider status, and policy
+  context.
 - Release planning with optional validation evidence.
 - Advanced decision machinery: traces, outcomes, learning signals, Pareto
   frontiers, QUBO formulations, local solvers, model routing, and context
@@ -306,7 +337,8 @@ Not built yet:
 - Large architecture rewrites or unbounded multi-file self-editing.
 - Deploy, publish, push, or destructive command execution.
 - A long-running daemon or cloud worker.
-- Studio UI.
+- Studio workbench screens for coding-loop diffs, validation evidence,
+  approvals, checkpoints, outcomes, and tool actions.
 - Browser, desktop, Telegram, or voice automation.
 - Production sandbox execution.
 - Quantum hardware integration.
@@ -323,6 +355,9 @@ validation evidence instead of simulated evidence.
 - [Roadmap](docs/roadmap.md)
 - [Release evidence](docs/release_evidence.md)
 - [Repo-aware coding loop](docs/repo_aware_coding_loop.md)
+- [Studio](docs/studio.md)
+- [Studio architecture](docs/studio_architecture.md)
+- [Studio chat history](docs/studio_chat_history.md)
 - [Public launch notes](docs/public_launch_notes.md)
 - [Reveal strategy](docs/reveal_strategy.md)
 - [Demo script](docs/demo_script.md)
@@ -337,6 +372,7 @@ uv run ruff check .
 uv run pytest
 uv run mypy
 uv run heph doctor
+uv run heph studio doctor
 uv run heph validate run . --dry-run
 uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 uv run heph release plan . --pareto --qubo --with-validation --yes

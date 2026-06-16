@@ -14,8 +14,9 @@ spine, but they are not the public headline.
 
 ## Current Sequence
 
-- Phase 5G.5: README Reality / Product Positioning Pass.
-- Phase 5.5: Hephaestus Studio / Persistent Interface Layer.
+- Phase 5.5A: Studio Foundation + Persistent Chat.
+- Phase 5.5B: Agent Workbench.
+- Phase 5.5C: Advanced Views + Packaging + Polish.
 - Phase 6A: Personal Context + Project Memory UX.
 - Phase 6B: Skill Forge.
 - Phase 6C: Skill Evaluation + Quarantine.
@@ -24,8 +25,10 @@ spine, but they are not the public headline.
 - Phase 6F: Capability Forge.
 - Phase 7: Always-On Runtime / VPS / Telegram / async work.
 
-Phase 5.5 is mandatory before Phase 6. Persistent readable chat history and
-run history must come before broader skill and autonomy work.
+Phase 5.5 is mandatory before Phase 6. Phase 5.5A establishes the persistent
+chat product surface first; Phase 5.5B should add coding-loop, validation,
+approval, checkpoint, outcome, and tool-action workbench views; Phase 5.5C can
+then add deeper advanced engine and packaging polish.
 
 ## Complete
 
@@ -288,17 +291,46 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
   docs, and GitHub-facing setup notes align around the same message.
 - Product positioning and README reality checklist docs capture the new rules.
 
+### Phase 5.5A: Studio Foundation + Persistent Chat
+
+- Local `heph studio` launcher with loopback default binding, browser opening,
+  port/host options, and `heph studio doctor`.
+- FastAPI Studio backend under `src/hephaestus/studio/` with typed endpoints
+  for health, config, conversations, messages, search, modes, active policy,
+  provider status, and recent repos.
+- Next.js Studio app under `apps/studio/` with a polished persistent chat
+  layout: conversation sidebar, timeline, composer, search panel, and context
+  drawer.
+- Existing CLI conversations appear in Studio, and Studio-created sessions
+  remain readable through existing CLI conversation commands.
+- Exact-message continuity: reopen a conversation, read the original
+  chronological timeline, and continue without automatic summaries or recaps.
+- Conversation metadata for deterministic titles, manual rename, pin/archive,
+  last opened time, optional workspace path, and optional repo profile.
+- Local SQL search across conversation titles, user messages, and agent
+  messages, with archived conversations behind an explicit filter.
+- Mode, repo, active policy, and provider state are visible without leading the
+  UI with internals.
+- Screenshots and Studio documentation added under `docs/assets/studio/` and
+  `docs/studio*.md`.
+
 ## Upcoming
 
-### Phase 5.5: Hephaestus Studio / Persistent Interface Layer
+### Phase 5.5B: Hephaestus Agent Workbench
 
-- Beautiful persistent interface for readable chat history, run history,
-  coding-loop results, validation evidence, outcomes, checkpoints, approvals,
-  decision traces, and advanced Pareto/QUBO views.
-- Core principle: persistent readable chat history, not automatic context
-  summaries. Users should be able to open the same chat tomorrow, read exact
-  previous messages, inspect runs visually, and continue naturally.
-- This interface layer is mandatory before Phase 6.
+- Beautiful, useful views for coding requests, patch diffs, validation runs,
+  approvals, checkpoints, rollback options, outcomes, tool actions, and release
+  plans.
+- Keep the persistent conversation as the main product surface; workbench views
+  should be linked context, not a replacement for chat.
+- Keep advanced QUBO/Pareto/decision internals secondary.
+
+### Phase 5.5C: Advanced Views + Packaging + Polish
+
+- Add deeper advanced engine views for decision traces, Pareto frontiers, QUBO
+  formulations, learning internals, and model economy analytics.
+- Improve static asset packaging and local startup polish.
+- Continue to avoid Electron/Tauri unless the local web path has proven stable.
 
 ### Phase 6A: Personal Context + Project Memory UX
 

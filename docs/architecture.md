@@ -49,6 +49,17 @@ This is still not full autonomy. It handles small docs, tests, config/help text,
 and clear bugfix-style changes. Conversation turns can propose coding plans, but
 they do not edit files automatically.
 
+Phase 5.5A adds the first local Studio surface:
+
+```text
+Exact Conversation Messages -> Studio API -> Persistent Chat UI -> Reopen -> Continue
+```
+
+Studio does not replace old messages with summaries and does not generate an
+automatic recap when a conversation opens. It reads the same SQLite
+conversation tables as the CLI, displays the original timeline, and lets the
+user continue through the existing conversation service.
+
 ## Core Modules
 
 - `core`: shared runtime settings, privacy/risk levels, and event schemas.
@@ -90,6 +101,10 @@ they do not edit files automatically.
   memory/repo context retrieval, internal deliberation passes, prompts, session
   orchestration, SQLite persistence, Rich renderers, and high-impact trace
   integration.
+- `studio`: FastAPI local app, typed schemas, repository/service layer, CLI
+  launcher, local-first security helpers, static frontend serving, conversation
+  search, metadata updates, provider/policy exposure, and exact-message chat
+  APIs for the Next.js Studio client.
 - `strategic_memory`: typed strategic memories for goals, ambitions,
   constraints, preferences, principles, assumptions, decisions, rejected paths,
   lessons, and open questions, plus SQLite persistence, recall, conflict
@@ -135,6 +150,7 @@ User goal
   -> Real validation evidence / release readiness update
   -> Optional scoped coding loop / checkpointed patch
   -> Coding validation / rollback decision
+  -> Optional Studio reopening of exact conversation history
   -> Optional safe tool runtime action
   -> Benchmark report / persisted run
   -> ExecutionPlan
@@ -199,6 +215,13 @@ history before any daemon process exists.
 - Keep freedom UX explicit: benign creative, development, research, and strategy
   work is allowed; destructive or external side effects require approval;
   genuinely harmful requests are blocked briefly.
+- Keep Studio local-first: bind to `127.0.0.1` by default, avoid wildcard CORS,
+  serve protected files only through explicit safe APIs, and show provider and
+  policy status without turning the chat UI into an internals dashboard.
+- Keep continuity literal: persistent chat history is exact messages,
+  chronological reopening, search, and continuation. Automatic summaries,
+  daily recaps, and hidden compression are future opt-in features at most, not
+  Phase 5.5A behavior.
 
 ## Conversation Architecture
 
@@ -227,6 +250,51 @@ analysis create conversation-linked optimization traces. The trace records
 assumptions, options, recommendation, confidence, next move, memory used,
 strategic memory used, strategic memories suggested, rubric name, and rubric
 score so later outcome learning can evaluate discussion quality.
+
+## Studio Architecture
+
+Phase 5.5A adds `apps/studio/` and `src/hephaestus/studio/`. The frontend is a
+Next.js App Router static export that calls the local Python API. The backend is
+a FastAPI app launched by `heph studio`, mounted on loopback by default, and
+able to serve the exported frontend when `apps/studio/out` exists.
+
+The Studio backend reuses existing repositories instead of creating a separate
+database:
+
+```text
+Next.js Studio
+  -> FastAPI /api
+  -> StudioService
+  -> ConversationService + ConversationRepository
+  -> conversation_sessions / conversation_messages
+```
+
+SQLite migration 16 adds only missing Studio metadata to
+`conversation_sessions`: `display_title`, `is_pinned`, `last_opened_at`, and
+`workspace_path`. Studio reuses the existing `archived` and `repo_profile_id`
+columns instead of adding duplicates. Message bodies remain in
+`conversation_messages`.
+
+The primary Studio API surface is:
+
+```text
+/api/health
+/api/config
+/api/conversations
+/api/conversations/{session_id}
+/api/conversations/{session_id}/messages
+/api/search
+/api/modes
+/api/policy/active
+/api/providers/status
+/api/repos/recent
+```
+
+Search is deterministic local SQL over titles, user messages, and agent
+messages. Posting a message persists the exact user text, calls the existing
+conversation orchestrator with the selected mode and optional repo context, and
+then returns the exact persisted assistant message. Opening a conversation only
+reads stored data; it does not call a model.
 
 ## Repo Intelligence Architecture
 

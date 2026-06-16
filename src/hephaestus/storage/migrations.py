@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -1014,6 +1014,29 @@ CREATE INDEX IF NOT EXISTS idx_coding_results_status
 ON coding_loop_results(status, created_at DESC);
 """
 
+MIGRATION_16 = """
+ALTER TABLE conversation_sessions
+ADD COLUMN display_title TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE conversation_sessions
+ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE conversation_sessions
+ADD COLUMN last_opened_at TEXT;
+
+ALTER TABLE conversation_sessions
+ADD COLUMN workspace_path TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_studio_activity
+ON conversation_sessions(is_pinned DESC, archived, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_last_opened
+ON conversation_sessions(last_opened_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_workspace
+ON conversation_sessions(workspace_path, updated_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -1134,6 +1157,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (15, datetime.now(UTC).isoformat()),
+        )
+    if 16 not in applied_versions:
+        connection.executescript(MIGRATION_16)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (16, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

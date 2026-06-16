@@ -9,3 +9,9 @@ dist/
 .env
 .env.*
 !.env.example
+node_modules/
+apps/studio/node_modules/
+apps/studio/.next/
+apps/studio/out/
+apps/studio/coverage/
+*.tsbuildinfo
