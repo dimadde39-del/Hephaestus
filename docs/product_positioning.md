@@ -34,6 +34,11 @@ This is the public-facing identity. It should appear before advanced internals.
 
 - Persistent conversations.
 - Studio persistent chat for reopening exact message history.
+- Studio memory control.
+- Studio Workbench for coding, validation, checkpoints, release evidence, and
+  outcomes.
+- Studio Settings for local providers, usage estimates, backup, export, and
+  restore.
 - Strategic memory.
 - Repo inspection.
 - Safe local tools.
@@ -87,9 +92,10 @@ story rather than replace it.
 - Do not imply full autonomous coding.
 - Do not imply daemon/VPS, browser automation, voice, deploy, publish, or push
   support exists today.
-- Do not imply Studio already has full coding-loop, validation, approval,
-  checkpoint, outcome, Pareto, or QUBO workbench views. Phase 5.5A is persistent
-  chat first.
+- Do not imply Studio is an always-on app or cloud service. It is a local
+  browser-served app.
+- Do not imply Claude Code coding parity until Phase 5.6 benchmark evidence
+  supports it.
 - Do not describe learning as model weight training.
 - Do not imply local validation proves external release safety.
 - Do not call it a replacement for mature coding tools.
@@ -114,6 +120,8 @@ Studio copy should stay especially concrete:
 Open yesterday's conversation.
 Read the original messages.
 Continue where you stopped.
+Review what Hephaestus remembers.
+Back up your local data.
 ```
 
 Do not describe Studio continuity as automatic summarization. The current
@@ -150,6 +158,26 @@ repo context -> scoped patch -> checkpoint -> validation -> outcome -> learning
 That is the distinction: repo-aware coding, validation-backed work, checkpoints,
 outcome learning, and decision-quality improvement. Hephaestus is still early
 and should not claim full always-on companion maturity yet.
+
+## Claude Code Parity Language
+
+Hephaestus can aspire to Claude Code-level coding quality, but public language
+must stay evidence-based. Phase 5.6 is the parity program and requires same
+model, same repo snapshot, same task, same budget, hidden validation, multiple
+runs, and median results.
+
+Before that evidence exists, say:
+
+```text
+Hephaestus is building toward stronger coding quality with reproducible
+benchmarks.
+```
+
+Do not say:
+
+```text
+Hephaestus matches or beats Claude Code.
+```
 
 ## Explaining QUBO/Pareto Without Looking Ridiculous
 

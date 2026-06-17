@@ -15,13 +15,21 @@ from hephaestus.models import ModelProvider
 from hephaestus.policy.repository import PolicyRepository
 from hephaestus.repo.repository import RepoProfileRepository
 from hephaestus.storage.sqlite import get_default_database_path
+from hephaestus.studio.experience import StudioExperienceRepository
 from hephaestus.studio.repository import EMPTY_CONVERSATION_TITLE, StudioRepository
 from hephaestus.studio.schemas import (
+    AdvancedDecisionDetail,
+    AdvancedDecisionListResponse,
+    AdvancedParetoDetail,
+    AdvancedQuboDetail,
     ArchiveConversationRequest,
+    BackupResponse,
     ConversationDetail,
+    ConversationExportRequest,
     ConversationListResponse,
     ConversationSummary,
     CreateConversationRequest,
+    ExportResponse,
     ModeOption,
     PinConversationRequest,
     PolicyProfileResponse,
@@ -30,12 +38,30 @@ from hephaestus.studio.schemas import (
     ProviderStatusItem,
     ProviderStatusResponse,
     RecentRepo,
+    RestoreBackupResponse,
     SearchResponse,
     StudioConfigResponse,
     StudioHealthResponse,
+    StudioMemoryCreateRequest,
+    StudioMemoryDeleteRequest,
+    StudioMemoryDetail,
+    StudioMemoryListResponse,
+    StudioMemoryPatchRequest,
+    StudioMemoryScope,
+    StudioMemoryState,
+    StudioMemorySuggestionListResponse,
+    StudioMemorySuggestionSaveRequest,
     StudioMessage,
+    StudioProviderConfig,
+    StudioProviderListResponse,
+    StudioProviderTestResponse,
+    StudioProviderUpsertRequest,
+    StudioSettingsPatchRequest,
+    StudioSettingsResponse,
+    StudioUsageResponse,
     UpdateConversationRequest,
 )
+from hephaestus.studio.security import studio_url
 from hephaestus.studio.workbench import WorkbenchService
 
 
@@ -57,6 +83,7 @@ class StudioService:
         self.policy_repository = PolicyRepository(self.database_path)
         self.repo_repository = RepoProfileRepository(self.database_path)
         self.workbench = WorkbenchService(self.database_path)
+        self.experience = StudioExperienceRepository(self.database_path)
         self.static_assets_available = static_assets_available
 
     def health(self) -> StudioHealthResponse:
@@ -187,6 +214,15 @@ class StudioService:
         if summary is None:
             raise RuntimeError("Conversation disappeared after message persistence.")
         messages = self.repository.list_messages(session_id)
+        self.experience.record_conversation_usage(
+            conversation_id=session_id,
+            message_id=response.message_id,
+            provider_model=response.provider_model,
+            estimated_input_tokens=response.input_tokens,
+            estimated_output_tokens=response.output_tokens,
+            estimated_cost=response.estimated_cost,
+            context_trimmed=response.budget.context_trimmed,
+        )
         return PostMessageResponse(
             conversation=summary,
             messages=messages,
@@ -342,6 +378,199 @@ class StudioService:
         """Return recent repo profiles for optional context attachment."""
 
         return self.repository.list_recent_repos(limit=limit)
+
+    def list_memories(
+        self,
+        *,
+        query: str = "",
+        type_filter: str | None = None,
+        scope: StudioMemoryScope | None = None,
+        project: str | None = None,
+        repo_profile_id: str | None = None,
+        source: str | None = None,
+        stability: str | None = None,
+        state: StudioMemoryState = StudioMemoryState.ACTIVE,
+        limit: int = 200,
+    ) -> StudioMemoryListResponse:
+        """List Studio-visible memories."""
+
+        return self.experience.list_memories(
+            query=query,
+            type_filter=type_filter,
+            scope=scope,
+            project=project,
+            repo_profile_id=repo_profile_id,
+            source=source,
+            stability=stability,
+            state=state,
+            limit=limit,
+        )
+
+    def get_memory(self, memory_id: str) -> StudioMemoryDetail | None:
+        """Return one Studio-visible memory."""
+
+        return self.experience.get_memory(memory_id)
+
+    def create_memory(self, request: StudioMemoryCreateRequest) -> StudioMemoryDetail:
+        """Create a memory from Studio."""
+
+        return self.experience.create_memory(request)
+
+    def patch_memory(
+        self,
+        memory_id: str,
+        request: StudioMemoryPatchRequest,
+    ) -> StudioMemoryDetail | None:
+        """Patch a memory from Studio."""
+
+        return self.experience.patch_memory(memory_id, request)
+
+    def archive_memory(self, memory_id: str) -> StudioMemoryDetail | None:
+        """Archive one memory."""
+
+        return self.experience.archive_memory(memory_id)
+
+    def restore_memory(self, memory_id: str) -> StudioMemoryDetail | None:
+        """Restore one archived memory."""
+
+        return self.experience.restore_memory(memory_id)
+
+    def delete_memory(
+        self,
+        memory_id: str,
+        request: StudioMemoryDeleteRequest,
+    ) -> bool:
+        """Permanently delete one memory."""
+
+        return self.experience.delete_memory(memory_id, request)
+
+    def list_memory_suggestions(self) -> StudioMemorySuggestionListResponse:
+        """List pending memory suggestions."""
+
+        return self.experience.list_memory_suggestions()
+
+    def save_memory_suggestion(
+        self,
+        suggestion_id: str,
+        request: StudioMemorySuggestionSaveRequest,
+    ) -> StudioMemoryDetail | None:
+        """Save a reviewed memory suggestion."""
+
+        return self.experience.save_memory_suggestion(suggestion_id, request)
+
+    def ignore_memory_suggestion(self, suggestion_id: str) -> bool:
+        """Ignore a pending memory suggestion."""
+
+        return self.experience.ignore_memory_suggestion(suggestion_id)
+
+    def providers(self) -> StudioProviderListResponse:
+        """Return redacted provider configuration."""
+
+        return self.experience.list_providers()
+
+    def create_provider(self, request: StudioProviderUpsertRequest) -> StudioProviderConfig:
+        """Create a provider configuration."""
+
+        return self.experience.create_provider(request)
+
+    def update_provider(
+        self,
+        provider_id: str,
+        request: StudioProviderUpsertRequest,
+    ) -> StudioProviderConfig | None:
+        """Update a provider configuration."""
+
+        return self.experience.update_provider(provider_id, request)
+
+    def delete_provider(self, provider_id: str) -> bool:
+        """Remove a provider configuration."""
+
+        return self.experience.delete_provider(provider_id)
+
+    def test_provider(self, provider_id: str) -> StudioProviderTestResponse | None:
+        """Test a provider configuration."""
+
+        return self.experience.test_provider(provider_id)
+
+    def settings(self, *, host: str = "127.0.0.1", port: int = 8741) -> StudioSettingsResponse:
+        """Return Studio settings."""
+
+        return self.experience.get_settings(
+            database_path=str(self.database_path),
+            local_api_url=studio_url(host, port),
+            static_assets_available=self.static_assets_available,
+        )
+
+    def patch_settings(
+        self,
+        request: StudioSettingsPatchRequest,
+        *,
+        host: str = "127.0.0.1",
+        port: int = 8741,
+    ) -> StudioSettingsResponse:
+        """Patch Studio settings."""
+
+        return self.experience.patch_settings(
+            request,
+            database_path=str(self.database_path),
+            local_api_url=studio_url(host, port),
+            static_assets_available=self.static_assets_available,
+        )
+
+    def usage(self, *, limit: int = 100) -> StudioUsageResponse:
+        """Return model usage and economy data."""
+
+        return self.experience.usage(limit=limit)
+
+    def decisions(
+        self,
+        *,
+        category: str | None = None,
+        repo: str | None = None,
+        limit: int = 100,
+    ) -> AdvancedDecisionListResponse:
+        """Return secondary decision traces."""
+
+        return self.experience.list_decisions(category=category, repo=repo, limit=limit)
+
+    def decision_detail(self, trace_id: str) -> AdvancedDecisionDetail | None:
+        """Return one secondary decision trace."""
+
+        return self.experience.decision_detail(trace_id)
+
+    def pareto_detail(self, frontier_id: str) -> AdvancedParetoDetail | None:
+        """Return one Pareto frontier detail."""
+
+        return self.experience.pareto_detail(frontier_id)
+
+    def qubo_detail(self, problem_id: str) -> AdvancedQuboDetail | None:
+        """Return one QUBO detail."""
+
+        return self.experience.qubo_detail(problem_id)
+
+    def export_conversation(
+        self,
+        conversation_id: str,
+        request: ConversationExportRequest,
+    ) -> ExportResponse | None:
+        """Export one conversation."""
+
+        return self.experience.export_conversation(conversation_id, request)
+
+    def export_memories(self) -> ExportResponse:
+        """Export memories."""
+
+        return self.experience.export_memories()
+
+    def backup(self) -> BackupResponse:
+        """Create a database backup."""
+
+        return self.experience.backup_database()
+
+    def restore(self, *, backup_path: str, confirm: bool) -> RestoreBackupResponse:
+        """Restore a compatible backup."""
+
+        return self.experience.restore_database(backup_path, confirm=confirm)
 
     def _repo_path_for_request(self, request: PostMessageRequest) -> str | None:
         if request.workspace_path is not None:

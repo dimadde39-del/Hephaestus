@@ -121,6 +121,19 @@ coding requests.
 Pareto and QUBO details are under "Advanced optimization details" and collapsed
 by default.
 
+Phase 5.5C also exposes dedicated Advanced routes for users who deliberately
+want to inspect decision traces, Pareto frontiers, or QUBO formulations:
+
+```text
+/advanced/decisions
+/advanced/decisions/{trace_id}
+/advanced/pareto/{frontier_id}
+/advanced/qubo/{problem_id}
+```
+
+Workbench remains the practical work surface; Advanced is for inspection, not
+for steering the main product experience.
+
 ## Outcomes
 
 Outcome views use human language:
@@ -157,3 +170,11 @@ Studio can call existing Python orchestrators for selected operations:
 
 Studio does not expose arbitrary shell input, deploy, dependency installation,
 Git push, or external messaging in this phase.
+
+## Degraded States
+
+Workbench uses the same Phase 5.5C degraded-state language as the rest of
+Studio. Missing repos, missing validation tools, unavailable linked artifacts,
+and stale/corrupted references should state what happened, whether existing
+data is safe, and what the user can do next. Stack traces and raw SQLite payloads
+do not appear in normal Workbench views.

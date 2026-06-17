@@ -17,7 +17,11 @@ import type {
   ReleaseDetailResponse,
   ReleaseSummary,
   SearchResult,
+  StudioMemoryDetail,
   StudioMessage,
+  StudioProviderConfig,
+  StudioSettings,
+  StudioUsageResponse,
   ToolActionDetailResponse,
   ToolActionSummary,
   TrustSettingsResponse,
@@ -415,6 +419,96 @@ describe("StudioApp", () => {
 
     expect(await screen.findByRole("heading", { name: "README positioning update" })).toBeInTheDocument();
   });
+
+  it("shows short first-run onboarding and persists skip", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio({ onboarding: true });
+
+    expect(await screen.findByRole("heading", { name: "Welcome to Hephaestus Studio" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(window.localStorage.getItem("heph:studio:onboardingComplete")).toBe("true");
+  });
+
+  it("opens Memory, edits a memory, and reviews suggestions", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    await screen.findByRole("heading", { name: "Validation-backed coding loop" });
+    await user.click(screen.getByRole("button", { name: "Memory" }));
+
+    expect(await screen.findByLabelText("Search memories")).toBeInTheDocument();
+    const memoryRow = screen
+      .getAllByText("Prefer validation-backed release evidence.")
+      .map((element) => element.closest("button"))
+      .find((element) => element);
+    expect(memoryRow).not.toBeNull();
+    await user.click(memoryRow as HTMLButtonElement);
+    const detailRegion = await screen.findByRole("region", { name: "Memory list and detail" });
+    const summaryInput = within(detailRegion).getByPlaceholderText("Short human-readable belief");
+    await user.clear(summaryInput);
+    await user.type(summaryInput, "Validate before release");
+    await user.click(within(detailRegion).getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText("Validate before release")).toBeInTheDocument();
+    const suggestion = screen.getByText("It affects how future coding work is judged.").closest("article");
+    expect(suggestion).not.toBeNull();
+    await user.click(within(suggestion as HTMLElement).getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Prefer validation-backed release evidence." })
+    ).toBeInTheDocument();
+  });
+
+  it("opens Settings models, handles secret fields, usage, backup, and export", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    await screen.findByRole("heading", { name: "Validation-backed coding loop" });
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(await screen.findByRole("button", { name: "Models" }));
+
+    expect(await screen.findByText("Usage and Economy")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Provider API key"), "sk-secret-test");
+    await user.type(screen.getByLabelText("Model"), "gpt-test");
+    await user.type(screen.getByLabelText("Base URL"), "fake://openai");
+    await user.click(screen.getByRole("button", { name: "Save provider" }));
+
+    expect(screen.queryByText("sk-secret-test")).not.toBeInTheDocument();
+    expect(await screen.findByText("Solved without a model call")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Test connection" }).at(-1)!);
+    expect(await screen.findByText("Fake provider endpoint accepted for local validation.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Data" }));
+    await user.click(await screen.findByRole("button", { name: "Create backup" }));
+    expect(await screen.findByText(/hephaestus-backup\.db/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Markdown conversation" }));
+    expect(await screen.findByText("conversation.md")).toBeInTheDocument();
+  });
+
+  it("opens Advanced decision, Pareto, and QUBO views with table fallbacks", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/advanced/decisions");
+    renderStudio();
+
+    expect(await screen.findByText("Choose validation-backed release path.")).toBeInTheDocument();
+    await user.click(screen.getByText("Choose validation-backed release path."));
+    expect(await screen.findByText("Validation evidence reduces release risk.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Decisions" }));
+    await user.click(await screen.findByText("Model route tradeoff"));
+    expect(await screen.findByText("Accessible table")).toBeInTheDocument();
+    expect(screen.getAllByText("Balanced").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Decisions" }));
+    await user.click(await screen.findByText("Context packing"));
+    expect(await screen.findByText("Pack context within a token budget.")).toBeInTheDocument();
+    expect(screen.getByText("Mathematical details")).toBeInTheDocument();
+  });
 });
 
 interface FetchMockOptions {
@@ -548,6 +642,10 @@ function installFetchMock(options: FetchMockOptions = {}) {
         ),
       });
     }
+    const studioResponse = handleStudioExperienceRequest(path, method, state, init);
+    if (studioResponse) {
+      return studioResponse;
+    }
     const workbenchResponse = handleWorkbenchRequest(path, method, init);
     if (workbenchResponse) {
       return workbenchResponse;
@@ -603,7 +701,21 @@ function createState() {
       message("msg_4", "conv_2", "assistant", "Hermes remains complementary, not replaced."),
     ],
   };
-  return { conversations, messages };
+  const memories: StudioMemoryDetail[] = [memoryDetail()];
+  const providers: StudioProviderConfig[] = [localProvider()];
+  const settings: StudioSettings = {
+    active_policy_profile: "balanced",
+    appearance: "system",
+    browser_auto_open: true,
+    debug_logging: false,
+    density: "comfortable",
+    deterministic_mode: true,
+    developer_details: false,
+    recent_repo_behavior: "remember",
+    reduced_motion: false,
+    startup_route: "/",
+  };
+  return { conversations, memories, messages, providers, settings };
 }
 
 function postMessagePayload(sessionId: string, content: string) {
@@ -690,6 +802,417 @@ function searchResults(): SearchResult[] {
       is_archived: false,
     },
   ];
+}
+
+function handleStudioExperienceRequest(
+  path: string,
+  method: string,
+  state: ReturnType<typeof createState>,
+  init?: RequestInit,
+) {
+  if (path === "/memories" && method === "GET") {
+    return jsonResponse({
+      memories: state.memories,
+      total: state.memories.length,
+      filters: {},
+      suggestions_pending: 1,
+    });
+  }
+  if (path === "/memories" && method === "POST") {
+    const body = parseBody(init);
+    const memory = memoryDetail({
+      id: `mem_${state.memories.length + 1}`,
+      content: String(body.content ?? ""),
+      summary: String(body.summary ?? body.content ?? ""),
+      type: String(body.type ?? "project_fact"),
+      type_label: "Project fact",
+      kind: body.kind === "regular" ? "regular" : "strategic",
+      scope: body.scope === "repo" ? "repo" : "project",
+    });
+    state.memories.unshift(memory);
+    return jsonResponse(memory, 201);
+  }
+  const memoryArchiveMatch = /^\/memories\/([^/]+)\/archive$/.exec(path);
+  if (memoryArchiveMatch && method === "POST") {
+    const memory = updateMemoryState(state, memoryArchiveMatch[1], { archived: true });
+    return jsonResponse(memory);
+  }
+  const memoryRestoreMatch = /^\/memories\/([^/]+)\/restore$/.exec(path);
+  if (memoryRestoreMatch && method === "POST") {
+    const memory = updateMemoryState(state, memoryRestoreMatch[1], { archived: false });
+    return jsonResponse(memory);
+  }
+  const memoryMatch = /^\/memories\/([^/]+)$/.exec(path);
+  if (memoryMatch && method === "GET") {
+    return jsonResponse(state.memories.find((memory) => memory.id === memoryMatch[1]));
+  }
+  if (memoryMatch && method === "PATCH") {
+    const body = parseBody(init);
+    const memory = updateMemoryState(state, memoryMatch[1], {
+      content: String(body.content ?? state.memories[0].content),
+      summary: String(body.summary ?? state.memories[0].summary),
+    });
+    return jsonResponse(memory);
+  }
+  if (memoryMatch && method === "DELETE") {
+    state.memories = state.memories.filter((memory) => memory.id !== memoryMatch[1]);
+    return new Response(null, { status: 204 });
+  }
+  if (path === "/memory-suggestions" && method === "GET") {
+    return jsonResponse({
+      suggestions: [
+        {
+          id: "suggestion_1",
+          proposed_memory: "Prefer validation-backed release evidence.",
+          why_it_may_matter: "It affects how future coding work is judged.",
+          proposed_type: "preference",
+          proposed_type_label: "Preference",
+          proposed_scope: "project",
+          proposed_stability: "long_term",
+          source: "conversation",
+          source_link: { label: "Validation-backed coding loop", href: "/conversations/conv_1" },
+          confidence: 0.78,
+          importance: 0.72,
+          status: "suggested",
+          created_at: now,
+        },
+      ],
+      total: 1,
+    });
+  }
+  const suggestionSaveMatch = /^\/memory-suggestions\/([^/]+)\/save$/.exec(path);
+  if (suggestionSaveMatch && method === "POST") {
+    const memory = memoryDetail({
+      id: "mem_suggestion",
+      summary: "Prefer validation-backed release evidence.",
+      content: "Prefer validation-backed release evidence.",
+      type: "preference",
+      type_label: "Preference",
+    });
+    state.memories.unshift(memory);
+    return jsonResponse(memory);
+  }
+  const suggestionIgnoreMatch = /^\/memory-suggestions\/([^/]+)\/ignore$/.exec(path);
+  if (suggestionIgnoreMatch && method === "POST") {
+    return new Response(null, { status: 204 });
+  }
+  if (path === "/settings" && method === "GET") {
+    return jsonResponse(settingsResponse(state.settings));
+  }
+  if (path === "/settings" && method === "PATCH") {
+    state.settings = { ...state.settings, ...parseBody(init) };
+    return jsonResponse(settingsResponse(state.settings));
+  }
+  if (path === "/providers" && method === "GET") {
+    return jsonResponse(providerList(state.providers));
+  }
+  if (path === "/providers" && method === "POST") {
+    const body = parseBody(init);
+    const provider = providerConfig({
+      id: `provider_${state.providers.length + 1}`,
+      base_url: String(body.base_url ?? ""),
+      model: String(body.model ?? ""),
+      name: String(body.name ?? "OpenAI-compatible"),
+      provider_type: String(body.provider_type ?? "openai-compatible"),
+    });
+    state.providers.push(provider);
+    return jsonResponse(provider, 201);
+  }
+  const providerTestMatch = /^\/providers\/([^/]+)\/test$/.exec(path);
+  if (providerTestMatch && method === "POST") {
+    return jsonResponse({
+      id: providerTestMatch[1],
+      status: providerTestMatch[1] === "local" ? "local_mode" : "configured",
+      message: "Fake provider endpoint accepted for local validation.",
+    });
+  }
+  const providerMatch = /^\/providers\/([^/]+)$/.exec(path);
+  if (providerMatch && method === "PATCH") {
+    state.providers = state.providers.map((provider) =>
+      provider.id === providerMatch[1] ? { ...provider, default_for_conversation: true } : provider,
+    );
+    return jsonResponse(state.providers.find((provider) => provider.id === providerMatch[1]));
+  }
+  if (providerMatch && method === "DELETE") {
+    state.providers = state.providers.filter((provider) => provider.id !== providerMatch[1]);
+    return new Response(null, { status: 204 });
+  }
+  if (path === "/usage" && method === "GET") {
+    return jsonResponse(usageResponse());
+  }
+  if (path === "/advanced/decisions" && method === "GET") {
+    return jsonResponse(advancedList());
+  }
+  const decisionMatch = /^\/advanced\/decisions\/([^/]+)$/.exec(path);
+  if (decisionMatch && method === "GET") {
+    return jsonResponse(decisionDetail());
+  }
+  const paretoMatch = /^\/advanced\/pareto\/([^/]+)$/.exec(path);
+  if (paretoMatch && method === "GET") {
+    return jsonResponse(paretoDetail());
+  }
+  const quboMatch = /^\/advanced\/qubo\/([^/]+)$/.exec(path);
+  if (quboMatch && method === "GET") {
+    return jsonResponse(quboDetail());
+  }
+  const exportConversationMatch = /^\/export\/conversation\/([^/]+)$/.exec(path);
+  if (exportConversationMatch && method === "POST") {
+    const body = parseBody(init);
+    const format = body.format === "json" ? "json" : "markdown";
+    return jsonResponse({
+      filename: `conversation.${format === "json" ? "json" : "md"}`,
+      format,
+      content: format === "json" ? "[{\"role\":\"user\"}]" : "## user\n\nPlease preserve exact chat history.",
+      includes_secrets: false,
+    });
+  }
+  if (path === "/export/memories" && method === "POST") {
+    return jsonResponse({
+      filename: "hephaestus-memories.json",
+      format: "json",
+      content: JSON.stringify(state.memories),
+      includes_secrets: false,
+    });
+  }
+  if (path === "/backup" && method === "POST") {
+    return jsonResponse({
+      path: "C:/tmp/hephaestus-backup.db",
+      schema_version: 18,
+      created_at: now,
+      size_bytes: 4096,
+    });
+  }
+  if (path === "/restore" && method === "POST") {
+    return jsonResponse({
+      restored: true,
+      message: "Backup restored. Reload Studio to refresh open views.",
+      schema_version: 18,
+    });
+  }
+  return null;
+}
+
+function memoryDetail(overrides: Partial<StudioMemoryDetail> = {}): StudioMemoryDetail {
+  return {
+    id: overrides.id ?? "mem_1",
+    kind: overrides.kind ?? "strategic",
+    type: overrides.type ?? "project_fact",
+    type_label: overrides.type_label ?? "Project fact",
+    summary: overrides.summary ?? "Prefer validation-backed release evidence.",
+    content: overrides.content ?? "Prefer validation-backed release evidence for coding work.",
+    scope: overrides.scope ?? "project",
+    project: overrides.project ?? "default",
+    repo_profile_id: overrides.repo_profile_id ?? "repo_1",
+    repo_name: overrides.repo_name ?? "Hephaestus",
+    source: overrides.source ?? "manual",
+    confidence: overrides.confidence ?? 0.82,
+    importance: overrides.importance ?? 0.76,
+    stability: overrides.stability ?? "long_term",
+    created_at: overrides.created_at ?? now,
+    updated_at: overrides.updated_at ?? now,
+    archived: overrides.archived ?? false,
+    linked_conversation_id: overrides.linked_conversation_id ?? "conv_1",
+    conflict_count: overrides.conflict_count ?? 0,
+    evidence: overrides.evidence ?? [],
+    linked_conversation:
+      overrides.linked_conversation ?? { label: "Validation-backed coding loop", href: "/conversations/conv_1" },
+    linked_work: overrides.linked_work ?? [],
+    conflict_warnings: overrides.conflict_warnings ?? [],
+    history: overrides.history ?? [{ at: now, event: "Created", detail: "" }],
+  };
+}
+
+function updateMemoryState(
+  state: ReturnType<typeof createState>,
+  memoryId: string,
+  patch: Partial<StudioMemoryDetail>,
+) {
+  let updated = state.memories.find((memory) => memory.id === memoryId);
+  if (!updated) {
+    updated = memoryDetail({ id: memoryId });
+  }
+  updated = { ...updated, ...patch, updated_at: now };
+  state.memories = [updated, ...state.memories.filter((memory) => memory.id !== memoryId)];
+  return updated;
+}
+
+function localProvider(): StudioProviderConfig {
+  return providerConfig({
+    id: "local",
+    provider_type: "local",
+    name: "Local deterministic",
+    model: "deterministic",
+    status: "local_mode",
+    status_label: "Local mode",
+    default_for_conversation: true,
+  });
+}
+
+function providerConfig(overrides: Partial<StudioProviderConfig>): StudioProviderConfig {
+  return {
+    id: overrides.id ?? "provider_1",
+    provider_type: overrides.provider_type ?? "openai-compatible",
+    name: overrides.name ?? "OpenAI-compatible",
+    model: overrides.model ?? "gpt-test",
+    base_url: overrides.base_url ?? "fake://openai",
+    configured: overrides.configured ?? true,
+    status: overrides.status ?? "configured",
+    status_label: overrides.status_label ?? "Configured",
+    status_detail: overrides.status_detail ?? "Configured",
+    intended_roles: overrides.intended_roles ?? ["conversation"],
+    context_window: overrides.context_window ?? 128000,
+    input_cost_per_million: overrides.input_cost_per_million ?? 0.1,
+    output_cost_per_million: overrides.output_cost_per_million ?? 0.2,
+    default_for_conversation: overrides.default_for_conversation ?? false,
+    created_at: overrides.created_at ?? now,
+    updated_at: overrides.updated_at ?? now,
+  };
+}
+
+function providerList(providers: StudioProviderConfig[]) {
+  const local = providers.find((provider) => provider.id === "local") ?? localProvider();
+  return {
+    providers,
+    default_provider_id: providers.find((provider) => provider.default_for_conversation)?.id ?? "local",
+    local_mode: local,
+    storage_note: "Provider secrets are stored locally and never returned by API responses.",
+  };
+}
+
+function settingsResponse(settings: StudioSettings) {
+  return {
+    settings,
+    database_path: "C:/tmp/hephaestus.db",
+    schema_version: 18,
+    local_api_url: "http://127.0.0.1:8741",
+    static_assets_available: true,
+  };
+}
+
+function usageResponse(): StudioUsageResponse {
+  return {
+    aggregate: {
+      cost_per_validated_successful_coding_task: null,
+      deterministic_operations: 4,
+      estimated_cost: 0,
+      estimated_model_calls_this_week: 1,
+      provider_usage: { local: 4 },
+    },
+    estimate_note: "Token and cost values are estimates unless the provider returned usage.",
+    events: [
+      {
+        id: "usage_1",
+        task_type: "conversation",
+        provider: "local",
+        model: "deterministic",
+        provider_model: "local/fake-balanced",
+        message: "Solved without a model call",
+        estimated_input_tokens: 120,
+        estimated_output_tokens: 80,
+        estimated_cost: 0,
+        deterministic: true,
+        context_trimmed: false,
+        success: true,
+        linked_conversation: { label: "Validation-backed coding loop", href: "/conversations/conv_1" },
+        created_at: now,
+      },
+    ],
+  };
+}
+
+function advancedList() {
+  return {
+    decisions: [
+      {
+        id: "trace_1",
+        decision_type: "optimization",
+        decision: "Choose validation-backed release path.",
+        selected_option: "validation-first",
+        confidence: 0.84,
+        outcome: "outcome_1",
+        repo: "Hephaestus",
+        occurred_at: now,
+        href: "/advanced/decisions/trace_1",
+      },
+    ],
+    total: 1,
+    pareto_frontiers: [
+      { id: "frontier_1", title: "Model route tradeoff", kind: "pareto", created_at: now, linked_work: [] },
+    ],
+    qubo_problems: [
+      { id: "qubo_1", title: "Context packing", kind: "qubo", created_at: now, linked_work: [] },
+    ],
+  };
+}
+
+function decisionDetail() {
+  return {
+    ...advancedList().decisions[0],
+    alternatives: ["fast route: less validation"],
+    reasons: ["Validation evidence reduces release risk."],
+    assumptions: ["Repo validation commands are available."],
+    evidence: ["confidence: 0.84"],
+    linked_work: [{ label: "Outcome", href: "/workbench/outcomes/outcome_1" }],
+    later_evidence_supported: "linked outcome available",
+    developer_payload: { tags: ["release"] },
+  };
+}
+
+function paretoDetail() {
+  return {
+    id: "frontier_1",
+    title: "Model route tradeoff",
+    objective_x: "quality",
+    objective_y: "cost",
+    selected_candidate_id: "candidate_a",
+    preference_profile: "balanced",
+    explanation: "These were the strongest non-dominated options.",
+    tradeoffs: ["Higher quality costs more."],
+    candidates: [
+      {
+        id: "candidate_a",
+        label: "Balanced",
+        x: 0.85,
+        y: 0.2,
+        is_frontier: true,
+        selected: true,
+        rationale: "Best balance.",
+        objectives: { quality: 0.85, cost: 0.2 },
+      },
+      {
+        id: "candidate_b",
+        label: "Cheap",
+        x: 0.7,
+        y: 0.05,
+        is_frontier: true,
+        selected: false,
+        rationale: "Lower cost.",
+        objectives: { quality: 0.7, cost: 0.05 },
+      },
+    ],
+    created_at: now,
+  };
+}
+
+function quboDetail() {
+  return {
+    id: "qubo_1",
+    purpose: "Pack context within a token budget.",
+    problem_type: "context_packing",
+    solver_used: "local exhaustive",
+    selected_solution: "memory A",
+    objective_value: -1.2,
+    feasible: true,
+    variables: [
+      { id: "x_a", label: "memory A", selected: true },
+      { id: "x_b", label: "memory B", selected: false },
+    ],
+    constraints: ["Stay within token budget."],
+    comparison_with_heuristic: "Heuristic baseline selected memory B.",
+    explanation: "This is a classical/local binary optimization formulation.",
+    mathematical_details: { linear_terms: 2, quadratic_terms: 1 },
+    created_at: now,
+  };
 }
 
 function handleWorkbenchRequest(path: string, method: string, init?: RequestInit) {
@@ -1194,6 +1717,9 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-function renderStudio() {
+function renderStudio({ onboarding = false }: { onboarding?: boolean } = {}) {
+  if (!onboarding) {
+    window.localStorage.setItem("heph:studio:onboardingComplete", "true");
+  }
   return render(createElement(StudioApp));
 }

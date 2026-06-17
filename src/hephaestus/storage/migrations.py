@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -1049,6 +1049,95 @@ CREATE INDEX IF NOT EXISTS idx_studio_trust_settings_updated
 ON studio_trust_settings(updated_at DESC);
 """
 
+MIGRATION_18 = """
+ALTER TABLE memories
+ADD COLUMN updated_at TEXT;
+
+ALTER TABLE memories
+ADD COLUMN archived_at TEXT;
+
+ALTER TABLE memories
+ADD COLUMN scope TEXT NOT NULL DEFAULT 'project';
+
+ALTER TABLE memories
+ADD COLUMN repo_profile_id TEXT REFERENCES repo_profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE memories
+ADD COLUMN conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL;
+
+ALTER TABLE memories
+ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '[]';
+
+ALTER TABLE memories
+ADD COLUMN stability TEXT NOT NULL DEFAULT 'medium_term';
+
+ALTER TABLE memories
+ADD COLUMN human_type TEXT NOT NULL DEFAULT '';
+
+UPDATE memories
+SET updated_at = COALESCE(updated_at, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_memories_studio_scope
+ON memories(scope, project, archived_at, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_memories_repo
+ON memories(repo_profile_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS studio_provider_configs (
+    id TEXT PRIMARY KEY,
+    provider_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    base_url TEXT NOT NULL DEFAULT '',
+    api_key_secret TEXT,
+    context_window INTEGER,
+    input_cost_per_million REAL,
+    output_cost_per_million REAL,
+    intended_roles_json TEXT NOT NULL DEFAULT '[]',
+    default_for_conversation INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'not_configured',
+    status_detail TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_studio_provider_configs_default
+ON studio_provider_configs(default_for_conversation, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS studio_settings (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS studio_usage_events (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+    message_id TEXT REFERENCES conversation_messages(id) ON DELETE SET NULL,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    task_type TEXT NOT NULL DEFAULT 'conversation',
+    provider TEXT NOT NULL DEFAULT 'local',
+    model TEXT NOT NULL DEFAULT 'deterministic',
+    provider_model TEXT NOT NULL DEFAULT 'local/deterministic',
+    estimated_input_tokens INTEGER NOT NULL DEFAULT 0,
+    estimated_output_tokens INTEGER NOT NULL DEFAULT 0,
+    estimated_cost REAL NOT NULL DEFAULT 0,
+    deterministic INTEGER NOT NULL DEFAULT 1,
+    context_trimmed INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 1,
+    summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    raw_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_studio_usage_events_created
+ON studio_usage_events(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_studio_usage_events_provider
+ON studio_usage_events(provider, model, created_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -1181,6 +1270,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (17, datetime.now(UTC).isoformat()),
+        )
+    if 18 not in applied_versions:
+        connection.executescript(MIGRATION_18)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (18, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

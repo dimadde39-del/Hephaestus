@@ -73,6 +73,18 @@ Simple conflict detection flags obvious tensions, such as a saved roadmap memory
 that says to launch before execution and a new candidate that says not to launch
 before execution.
 
+## Studio Management
+
+Studio Memory manages strategic memory alongside regular memory. Strategic
+items can be searched, filtered by type/scope/repo/archive state, edited,
+archived, restored, deleted with confirmation, and linked back to conversations
+or work artifacts when available.
+
+Conflict warnings are shown in memory detail so the user can correct
+Hephaestus' belief without inspecting internal tables. Resolving simple
+conflicts marks open conflict records resolved; it does not delete the
+underlying memories unless the user explicitly deletes them.
+
 ## Phase 5C Conversation Use
 
 Strategic memory has the highest priority in the conversation prompt budget.

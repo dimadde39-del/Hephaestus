@@ -61,7 +61,7 @@ def create_studio_app(
         CORSMiddleware,
         allow_origins=allowed_cors_origins(host=host, port=port),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type"],
     )
     app.state.studio_service = StudioService(

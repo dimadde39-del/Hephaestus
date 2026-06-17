@@ -76,6 +76,25 @@ Project goals, roadmap decisions, technical preferences, and open-source
 strategy can be suggested normally. Potentially sensitive personal details are
 not auto-saved and should only be persisted by explicit user choice.
 
+## Studio Memory
+
+Studio adds a first-class Memory area for reviewing and correcting what
+Hephaestus believes:
+
+- search and filter regular and strategic memories;
+- inspect content, summary, scope, type, confidence, source, evidence, links,
+  conflicts, and history when available;
+- create and edit memories;
+- archive, restore, and delete with explicit confirmation;
+- review suggestions from conversations and outcomes with Save, Edit, or
+  Ignore.
+
+Studio uses human labels such as Goal, Constraint, Preference, Principle,
+Strategic decision, Rejected path, Lesson learned, Open question, Project fact,
+and Working style. It does not show embeddings or raw database payloads.
+
+See [Studio Memory](studio_memory.md).
+
 ## CLI
 
 ```bash

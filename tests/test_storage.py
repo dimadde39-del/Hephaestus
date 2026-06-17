@@ -68,11 +68,21 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         coding_results_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'coding_loop_results'"
         ).fetchone()
+        studio_provider_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'studio_provider_configs'"
+        ).fetchone()
+        studio_settings_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'studio_settings'"
+        ).fetchone()
+        studio_usage_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'studio_usage_events'"
+        ).fetchone()
         conversation_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(conversation_sessions)")
         }
+        memory_columns = {row[1] for row in connection.execute("PRAGMA table_info(memories)")}
 
-    assert migration_count[0] == 17
+    assert migration_count[0] == 18
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
     assert pareto_table[0] == "pareto_frontiers"
@@ -88,6 +98,9 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
     assert validation_plans_table[0] == "validation_plans"
     assert coding_requests_table[0] == "coding_requests"
     assert coding_results_table[0] == "coding_loop_results"
+    assert studio_provider_table[0] == "studio_provider_configs"
+    assert studio_settings_table[0] == "studio_settings"
+    assert studio_usage_table[0] == "studio_usage_events"
     assert {
         "display_title",
         "is_pinned",
@@ -96,6 +109,16 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         "workspace_path",
         "repo_profile_id",
     }.issubset(conversation_columns)
+    assert {
+        "updated_at",
+        "archived_at",
+        "scope",
+        "repo_profile_id",
+        "conversation_id",
+        "evidence_json",
+        "stability",
+        "human_type",
+    }.issubset(memory_columns)
 
 
 def test_memory_persists_across_repository_instances(tmp_path) -> None:

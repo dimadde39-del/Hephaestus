@@ -28,18 +28,33 @@ uv run heph conversation benchmark run --provider real
 ## Studio Provider Status
 
 Studio uses the same provider routing as CLI conversation commands. The main UI
-shows a restrained provider indicator and the context drawer shows a little more
-detail:
+shows a restrained provider indicator and Settings -> Models provides the full
+local configuration surface:
 
 - `Local deterministic mode` when no API key is configured or local fallback is
   selected.
 - `DeepSeek` when `DEEPSEEK_API_KEY` is configured and selected by auto routing.
 - `OpenAI-compatible: <model>` when the OpenAI-compatible settings are present.
+- `OpenRouter` through the OpenAI-compatible base URL/model path.
 
 Opening an existing conversation never calls a provider. A provider is only used
 when the user submits a new message. If no real provider is configured, Studio
 still works with deterministic local responses and explains that limitation in
 provider status instead of repeating warnings under every message.
+
+Settings -> Models can:
+
+- add or update a provider;
+- test connectivity;
+- choose the default conversation provider/model;
+- remove a configuration;
+- return to local deterministic mode;
+- store optional context-window and cost metadata;
+- reserve future role fields for coding and review providers.
+
+Normal API responses never return stored API keys. Studio stores provider
+secrets in the local SQLite database and relies on OS file permissions in this
+phase. OS keychain integration remains future work.
 
 ## DeepSeek
 
@@ -118,10 +133,33 @@ Use:
 uv run heph ask "..." --show-budget
 ```
 
+## Studio Usage Economy
+
+Settings -> Models includes a restrained usage view:
+
+- model calls this week;
+- deterministic operations;
+- estimated input/output tokens;
+- estimated cost when metadata is configured;
+- provider/model used;
+- task type and success/failure where linked.
+
+The UI labels heuristic values as estimates. It uses practical messages such
+as:
+
+```text
+Solved without a model call
+One model call used
+Context trimmed to fit budget
+Estimated cost: ...
+```
+
+Adaptive multi-model routing is not implemented yet; the data model prepares
+for a later Adaptive Work Router / Model Economy phase.
+
 ## Limitations
 
-Phase 5.5A is still text-first. It does not execute shell commands, edit files,
-browse, run a daemon, or perform autonomous workflows from Studio. Research mode
-prepares a research plan; it does not claim live research unless a later phase
-adds an explicit research tool. Studio workbench views for validation runs,
-patch diffs, approvals, outcomes, and tool actions are deferred to Phase 5.5B.
+Studio remains text-first and Workbench-bounded. It does not browse, run a
+daemon, perform autonomous workflows, or adaptively route between multiple
+models. Research mode prepares a research plan; it does not claim live research
+unless a later phase adds an explicit research tool.

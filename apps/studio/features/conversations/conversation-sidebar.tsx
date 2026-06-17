@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  Brain,
   Edit3,
   Hammer,
   Monitor,
@@ -33,11 +34,14 @@ interface ConversationSidebarProps {
   collapsed: boolean;
   appearance: AppearancePreference;
   providerLabel: string;
-  activeSection: "chat" | "workbench";
+  activeSection: "chat" | "workbench" | "memory" | "settings" | "advanced";
   onQueryChange: (value: string) => void;
   onNewConversation: () => void;
   onOpenChat: () => void;
   onOpenWorkbench: () => void;
+  onOpenMemory: () => void;
+  onOpenSettings: () => void;
+  onOpenAdvanced: () => void;
   onOpenConversation: (conversationId: string) => void;
   onPinConversation: (conversation: ConversationSummary) => void;
   onArchiveConversation: (conversation: ConversationSummary) => void;
@@ -64,6 +68,9 @@ export function ConversationSidebar({
   onNewConversation,
   onOpenChat,
   onOpenWorkbench,
+  onOpenMemory,
+  onOpenSettings,
+  onOpenAdvanced,
   onOpenConversation,
   onPinConversation,
   onArchiveConversation,
@@ -118,6 +125,18 @@ export function ConversationSidebar({
             label="Workbench"
             onClick={onOpenWorkbench}
           />
+          <IconButton
+            active={activeSection === "memory"}
+            icon={Brain}
+            label="Memory"
+            onClick={onOpenMemory}
+          />
+          <IconButton
+            active={activeSection === "settings"}
+            icon={Settings}
+            label="Settings"
+            onClick={onOpenSettings}
+          />
           <IconButton icon={Plus} label="New chat" onClick={onNewConversation} />
           <IconButton icon={Search} label="Search" onClick={onOpenSearch} />
         </nav>
@@ -165,6 +184,24 @@ export function ConversationSidebar({
           >
             <Hammer aria-hidden="true" size={16} />
             Workbench
+          </button>
+          <button
+            aria-current={activeSection === "memory" ? "page" : undefined}
+            className={activeSection === "memory" ? "is-active" : ""}
+            onClick={onOpenMemory}
+            type="button"
+          >
+            <Brain aria-hidden="true" size={16} />
+            Memory
+          </button>
+          <button
+            aria-current={activeSection === "settings" ? "page" : undefined}
+            className={activeSection === "settings" ? "is-active" : ""}
+            onClick={onOpenSettings}
+            type="button"
+          >
+            <Settings aria-hidden="true" size={16} />
+            Settings
           </button>
         </nav>
         <button className="new-chat-button" onClick={onNewConversation} type="button">
@@ -255,6 +292,13 @@ export function ConversationSidebar({
             onClick={() => onAppearanceChange("dark")}
           />
         </div>
+        <button
+          className={`advanced-nav-button ${activeSection === "advanced" ? "is-active" : ""}`}
+          onClick={onOpenAdvanced}
+          type="button"
+        >
+          Advanced
+        </button>
       </section>
     </aside>
   );

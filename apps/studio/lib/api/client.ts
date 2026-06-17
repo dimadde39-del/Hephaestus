@@ -1,4 +1,9 @@
 import type {
+  AdvancedDecisionDetail,
+  AdvancedDecisionListResponse,
+  AdvancedParetoDetail,
+  AdvancedQuboDetail,
+  BackupResponse,
   ConversationDetail,
   ConversationListResponse,
   ConversationSummary,
@@ -19,9 +24,25 @@ import type {
   PostMessageResponse,
   ProviderStatusResponse,
   RecentRepo,
+  RestoreBackupResponse,
   ReleaseDetailResponse,
   ReleaseListResponse,
   SearchResponse,
+  StudioMemoryCreateRequest,
+  StudioMemoryDetail,
+  StudioMemoryListResponse,
+  StudioMemoryPatchRequest,
+  StudioMemoryScope,
+  StudioMemoryState,
+  StudioMemorySuggestionListResponse,
+  StudioProviderConfig,
+  StudioProviderListResponse,
+  StudioProviderTestResponse,
+  StudioProviderUpsertRequest,
+  StudioSettingsPatchRequest,
+  StudioSettingsResponse,
+  StudioUsageResponse,
+  ExportResponse,
   StudioConfig,
   StudioHealth,
   StudioMessage,
@@ -164,6 +185,196 @@ export class StudioApiClient {
 
   recentRepos() {
     return this.request<RecentRepo[]>("/repos/recent");
+  }
+
+  memories(params: {
+    q?: string;
+    type?: string;
+    scope?: StudioMemoryScope;
+    project?: string;
+    repoProfileId?: string;
+    source?: string;
+    stability?: string;
+    state?: StudioMemoryState;
+    limit?: number;
+  } = {}) {
+    const search = new URLSearchParams();
+    if (params.q) search.set("q", params.q);
+    if (params.type) search.set("type", params.type);
+    if (params.scope) search.set("scope", params.scope);
+    if (params.project) search.set("project", params.project);
+    if (params.repoProfileId) search.set("repo_profile_id", params.repoProfileId);
+    if (params.source) search.set("source", params.source);
+    if (params.stability) search.set("stability", params.stability);
+    if (params.state) search.set("state", params.state);
+    if (params.limit) search.set("limit", String(params.limit));
+    return this.request<StudioMemoryListResponse>(`/memories?${search.toString()}`);
+  }
+
+  memory(memoryId: string) {
+    return this.request<StudioMemoryDetail>(`/memories/${encodeURIComponent(memoryId)}`);
+  }
+
+  createMemory(payload: StudioMemoryCreateRequest) {
+    return this.request<StudioMemoryDetail>("/memories", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  updateMemory(memoryId: string, payload: StudioMemoryPatchRequest) {
+    return this.request<StudioMemoryDetail>(`/memories/${encodeURIComponent(memoryId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  archiveMemory(memoryId: string) {
+    return this.request<StudioMemoryDetail>(`/memories/${encodeURIComponent(memoryId)}/archive`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  restoreMemory(memoryId: string) {
+    return this.request<StudioMemoryDetail>(`/memories/${encodeURIComponent(memoryId)}/restore`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  deleteMemory(memoryId: string, confirm = true) {
+    return this.request<void>(`/memories/${encodeURIComponent(memoryId)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ confirm }),
+    });
+  }
+
+  memorySuggestions() {
+    return this.request<StudioMemorySuggestionListResponse>("/memory-suggestions");
+  }
+
+  saveMemorySuggestion(suggestionId: string) {
+    return this.request<StudioMemoryDetail>(
+      `/memory-suggestions/${encodeURIComponent(suggestionId)}/save`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    );
+  }
+
+  ignoreMemorySuggestion(suggestionId: string) {
+    return this.request<void>(`/memory-suggestions/${encodeURIComponent(suggestionId)}/ignore`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  settings() {
+    return this.request<StudioSettingsResponse>("/settings");
+  }
+
+  updateSettings(payload: StudioSettingsPatchRequest) {
+    return this.request<StudioSettingsResponse>("/settings", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  providers() {
+    return this.request<StudioProviderListResponse>("/providers");
+  }
+
+  createProvider(payload: StudioProviderUpsertRequest) {
+    return this.request<StudioProviderConfig>("/providers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  updateProvider(providerId: string, payload: StudioProviderUpsertRequest) {
+    return this.request<StudioProviderConfig>(`/providers/${encodeURIComponent(providerId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  deleteProvider(providerId: string) {
+    return this.request<void>(`/providers/${encodeURIComponent(providerId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  testProvider(providerId: string) {
+    return this.request<StudioProviderTestResponse>(
+      `/providers/${encodeURIComponent(providerId)}/test`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    );
+  }
+
+  usage(limit = 100) {
+    const search = new URLSearchParams({ limit: String(limit) });
+    return this.request<StudioUsageResponse>(`/usage?${search.toString()}`);
+  }
+
+  advancedDecisions(params: { category?: string; repo?: string; limit?: number } = {}) {
+    const search = new URLSearchParams();
+    if (params.category) search.set("category", params.category);
+    if (params.repo) search.set("repo", params.repo);
+    if (params.limit) search.set("limit", String(params.limit));
+    return this.request<AdvancedDecisionListResponse>(
+      `/advanced/decisions?${search.toString()}`,
+    );
+  }
+
+  advancedDecision(traceId: string) {
+    return this.request<AdvancedDecisionDetail>(
+      `/advanced/decisions/${encodeURIComponent(traceId)}`,
+    );
+  }
+
+  advancedPareto(frontierId: string) {
+    return this.request<AdvancedParetoDetail>(
+      `/advanced/pareto/${encodeURIComponent(frontierId)}`,
+    );
+  }
+
+  advancedQubo(problemId: string) {
+    return this.request<AdvancedQuboDetail>(
+      `/advanced/qubo/${encodeURIComponent(problemId)}`,
+    );
+  }
+
+  exportConversation(sessionId: string, format: "markdown" | "json") {
+    return this.request<ExportResponse>(`/export/conversation/${encodeURIComponent(sessionId)}`, {
+      method: "POST",
+      body: JSON.stringify({ format }),
+    });
+  }
+
+  exportMemories() {
+    return this.request<ExportResponse>("/export/memories", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  backup() {
+    return this.request<BackupResponse>("/backup", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  restoreBackup(backupPath: string, confirm = true) {
+    return this.request<RestoreBackupResponse>("/restore", {
+      method: "POST",
+      body: JSON.stringify({ backup_path: backupPath, confirm }),
+    });
   }
 
   workbenchOverview() {
@@ -315,6 +526,9 @@ export class StudioApiClient {
     });
     if (!response.ok) {
       throw await apiErrorFromResponse(response);
+    }
+    if (response.status === 204) {
+      return undefined as T;
     }
     return (await response.json()) as T;
   }

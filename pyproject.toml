@@ -45,6 +45,13 @@ heph = "hephaestus.cli.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hephaestus"]
+artifacts = ["src/hephaestus/studio/static/**"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"apps/studio/out" = "hephaestus/studio/static"
+
+[tool.hatch.build.targets.sdist.force-include]
+"apps/studio/out" = "apps/studio/out"
 
 [tool.pytest.ini_options]
 addopts = "-q"

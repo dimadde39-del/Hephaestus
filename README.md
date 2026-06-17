@@ -49,6 +49,7 @@ uv run heph validate run . --yes
 
 Talk in Chat.
 Inspect real work in Workbench.
+Control what Hephaestus remembers in Memory.
 
 Studio is the local web interface for persistent Hephaestus conversations. It
 shows the exact saved user and agent messages, lets you create, reopen, search,
@@ -61,11 +62,28 @@ diffs, validation evidence, checkpoints, rollback, tool actions, release
 evidence, outcomes, and meaningful approvals without making the chat timeline a
 dashboard.
 
+Memory is the third Studio surface. It shows regular and strategic memories in
+plain language, lets you create, edit, archive, restore, delete, and resolve
+simple conflicts, and reviews memory suggestions before anything durable is
+saved.
+
+Settings covers local startup behavior, appearance, provider/model
+configuration, trust policy, usage estimates, exports, backups, and restore.
+Provider secrets are stored locally and are never returned by normal API
+responses or exports.
+
 ```bash
 uv sync --extra studio
 uv run heph studio
 uv run heph studio --no-open
 uv run heph studio doctor
+```
+
+Installed package flow:
+
+```bash
+uv tool install "hephaestus[studio]"
+heph studio
 ```
 
 By default Studio binds to `http://127.0.0.1:8741`, uses the local SQLite
@@ -86,6 +104,9 @@ mode when no provider key is configured.
 | Repo-aware coding loop | Works for small scoped changes |
 | Studio persistent chat | Works |
 | Studio agent workbench views | Works |
+| Studio memory management | Works |
+| Studio provider/model settings | Works |
+| Studio backup/export/restore | Works |
 | Full autonomous coding | Not yet |
 | Daemon / 24-7 runtime | Not yet |
 | Voice | Later |

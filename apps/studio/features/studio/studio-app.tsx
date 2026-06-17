@@ -6,9 +6,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconButton } from "@/components/icon-button";
 import { ContextDrawer } from "@/features/context/context-drawer";
 import { ConversationSidebar } from "@/features/conversations/conversation-sidebar";
+import { AdvancedApp, type AdvancedRoute } from "@/features/advanced/advanced-app";
+import { MemoryApp, type MemoryRoute } from "@/features/memory/memory-app";
 import { Composer } from "@/features/messages/composer";
 import { MessageTimeline } from "@/features/messages/message-timeline";
+import { Onboarding } from "@/features/onboarding/onboarding";
 import { SearchPanel } from "@/features/search/search-panel";
+import { SettingsApp, type SettingsRoute } from "@/features/settings/settings-app";
 import { AppShell } from "@/features/studio/app-shell";
 import { WorkbenchApp, type WorkbenchRoute } from "@/features/workbench/workbench-app";
 import { StudioApiClient, StudioApiError } from "@/lib/api/client";
@@ -29,12 +33,16 @@ import type {
 const LAST_CONVERSATION_KEY = "heph:studio:lastConversationId";
 const SCROLL_PREFIX = "heph:studio:scroll:";
 const APPEARANCE_KEY = "heph:studio:appearance";
+const ONBOARDING_KEY = "heph:studio:onboardingComplete";
 
 export type AppearancePreference = "system" | "light" | "dark";
 
 type StudioRoute =
   | { section: "chat"; conversationId: string | null; messageId: string | null }
-  | WorkbenchRoute;
+  | WorkbenchRoute
+  | MemoryRoute
+  | SettingsRoute
+  | AdvancedRoute;
 
 export function StudioApp() {
   const api = useMemo(() => new StudioApiClient(), []);
@@ -75,6 +83,7 @@ export function StudioApp() {
   const [appearance, setAppearance] = useState<AppearancePreference>(() =>
     readAppearancePreference(),
   );
+  const [onboardingOpen, setOnboardingOpen] = useState(() => readOnboardingOpen());
 
   const refreshConversations = useCallback(
     async (query = sidebarQuery) => {
@@ -158,6 +167,9 @@ export function StudioApp() {
         if (initialRoute.section === "workbench") {
           setContextCollapsed(true);
         }
+        if (initialRoute.section !== "chat") {
+          setContextCollapsed(true);
+        }
       } finally {
         if (!cancelled) {
           setBootLoading(false);
@@ -185,12 +197,19 @@ export function StudioApp() {
       if (nextRoute.section === "workbench") {
         setContextCollapsed(true);
       }
+      if (nextRoute.section !== "chat") {
+        setContextCollapsed(true);
+      }
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [openConversation]);
 
   function navigateToHref(href: string) {
+    if (href === "/" || href === "/conversations") {
+      openChatHome();
+      return;
+    }
     if (href.startsWith("/conversations/")) {
       const url = new URL(href, window.location.origin);
       const id = decodeURIComponent(url.pathname.split("/")[2] ?? "");
@@ -205,6 +224,27 @@ export function StudioApp() {
     if (href.startsWith("/workbench")) {
       window.history.pushState(null, "", href);
       setRoute(parseWorkbenchRoute(href));
+      setContextCollapsed(true);
+      setMobileSidebarOpen(false);
+      return;
+    }
+    if (href.startsWith("/memory")) {
+      window.history.pushState(null, "", href);
+      setRoute(parseMemoryRoute(href));
+      setContextCollapsed(true);
+      setMobileSidebarOpen(false);
+      return;
+    }
+    if (href.startsWith("/settings")) {
+      window.history.pushState(null, "", href);
+      setRoute(parseSettingsRoute(href));
+      setContextCollapsed(true);
+      setMobileSidebarOpen(false);
+      return;
+    }
+    if (href.startsWith("/advanced")) {
+      window.history.pushState(null, "", href);
+      setRoute(parseAdvancedRoute(href));
       setContextCollapsed(true);
       setMobileSidebarOpen(false);
       return;
@@ -227,6 +267,18 @@ export function StudioApp() {
 
   function openWorkbenchHome() {
     navigateToHref("/workbench");
+  }
+
+  function openMemoryHome() {
+    navigateToHref("/memory");
+  }
+
+  function openSettingsHome() {
+    navigateToHref("/settings");
+  }
+
+  function openAdvancedHome() {
+    navigateToHref("/advanced/decisions");
   }
 
   useEffect(() => {
@@ -396,7 +448,7 @@ export function StudioApp() {
     });
   }
 
-  const isWorkbench = route.section === "workbench";
+  const isChat = route.section === "chat";
   const headerTitle = conversationDetail?.conversation.title ?? "Hephaestus Studio";
   const providerLabel = provider?.active_label ?? config?.provider_label ?? "Local deterministic mode";
   const activeRepoName =
@@ -405,9 +457,10 @@ export function StudioApp() {
     null;
 
   return (
+    <>
     <AppShell
       composer={
-        isWorkbench ? null : (
+        isChat ? (
           <Composer
             disabled={pending || bootLoading}
             mode={mode}
@@ -419,7 +472,7 @@ export function StudioApp() {
             repoProfileId={repoProfileId}
             repos={repos}
           />
-        )
+        ) : null
       }
       context={
         <ContextDrawer
@@ -434,10 +487,10 @@ export function StudioApp() {
           repos={repos}
         />
       }
-      contextCollapsed={isWorkbench ? true : contextCollapsed}
+      contextCollapsed={isChat ? contextCollapsed : true}
       sidebarCollapsed={sidebarCollapsed}
       header={
-        isWorkbench ? (
+        !isChat ? (
           <header className="chat-header">
             <IconButton
               className="mobile-only"
@@ -449,9 +502,9 @@ export function StudioApp() {
               }}
             />
             <div className="chat-title">
-              <p>Workbench</p>
-              <h1>Agent Workbench</h1>
-              <span>Real work, validation, checkpoints, and approvals</span>
+              <p>{routeHeader(route).eyebrow}</p>
+              <h1>{routeHeader(route).title}</h1>
+              <span>{routeHeader(route).subtitle}</span>
             </div>
           </header>
         ) : (
@@ -507,7 +560,7 @@ export function StudioApp() {
       sidebar={
         <ConversationSidebar
           activeConversationId={activeConversationId}
-          activeSection={isWorkbench ? "workbench" : "chat"}
+          activeSection={route.section}
           activeRepoName={activeRepoName}
           appearance={appearance}
           collapsed={sidebarCollapsed}
@@ -524,6 +577,9 @@ export function StudioApp() {
           }}
           onOpenSearch={() => setSearchOpen(true)}
           onOpenWorkbench={openWorkbenchHome}
+          onOpenMemory={openMemoryHome}
+          onOpenSettings={openSettingsHome}
+          onOpenAdvanced={openAdvancedHome}
           onPinConversation={(conversation) => void pinConversation(conversation)}
           onQueryChange={setSidebarQuery}
           onRenameConversation={(conversationId, title) =>
@@ -537,7 +593,7 @@ export function StudioApp() {
         />
       }
       timeline={
-        isWorkbench ? (
+        route.section === "workbench" ? (
           <WorkbenchApp
             api={api}
             conversations={conversations}
@@ -545,6 +601,20 @@ export function StudioApp() {
             repos={repos}
             route={route.section === "workbench" ? route : { section: "workbench", area: "overview", id: null }}
           />
+        ) : route.section === "memory" ? (
+          <MemoryApp api={api} onNavigate={navigateToHref} repos={repos} route={route} />
+        ) : route.section === "settings" ? (
+          <SettingsApp
+            api={api}
+            conversations={conversations}
+            onAppearanceChange={setAppearance}
+            onNavigate={navigateToHref}
+            policy={policy}
+            providerStatus={provider}
+            route={route}
+          />
+        ) : route.section === "advanced" ? (
+          <AdvancedApp api={api} onNavigate={navigateToHref} route={route} />
         ) : (
           <MessageTimeline
             activeMessageId={activeMessageId}
@@ -564,6 +634,17 @@ export function StudioApp() {
         )
       }
     />
+    {onboardingOpen ? (
+      <Onboarding
+        onComplete={() => {
+          localStorage.setItem(ONBOARDING_KEY, "true");
+          setOnboardingOpen(false);
+        }}
+        onNavigate={navigateToHref}
+        repos={repos}
+      />
+    ) : null}
+    </>
   );
 }
 
@@ -609,11 +690,76 @@ function readStudioRouteFromLocation(): StudioRoute {
   if (window.location.pathname.startsWith("/workbench")) {
     return parseWorkbenchRoute(window.location.href);
   }
+  if (window.location.pathname.startsWith("/memory")) {
+    return parseMemoryRoute(window.location.href);
+  }
+  if (window.location.pathname.startsWith("/settings")) {
+    return parseSettingsRoute(window.location.href);
+  }
+  if (window.location.pathname.startsWith("/advanced")) {
+    return parseAdvancedRoute(window.location.href);
+  }
   return {
     section: "chat",
     conversationId: readConversationIdFromLocation(),
     messageId: readMessageIdFromLocation(),
   };
+}
+
+function parseMemoryRoute(href: string): MemoryRoute {
+  const url = parseStudioUrl(href);
+  const [, root, rawId] = url.pathname.split("/");
+  if (root !== "memory") {
+    return { section: "memory", id: null };
+  }
+  return { section: "memory", id: rawId ? decodeURIComponent(rawId) : null };
+}
+
+const settingsAreas = new Set<SettingsRoute["area"]>([
+  "general",
+  "models",
+  "policy",
+  "data",
+  "appearance",
+  "advanced",
+]);
+
+function parseSettingsRoute(href: string): SettingsRoute {
+  const url = parseStudioUrl(href);
+  const [, root, rawArea] = url.pathname.split("/");
+  if (root !== "settings") {
+    return { section: "settings", area: "general" };
+  }
+  const area =
+    rawArea && settingsAreas.has(rawArea as SettingsRoute["area"])
+      ? (rawArea as SettingsRoute["area"])
+      : "general";
+  return { section: "settings", area };
+}
+
+function parseAdvancedRoute(href: string): AdvancedRoute {
+  const url = parseStudioUrl(href);
+  const [, root, rawArea, rawId] = url.pathname.split("/");
+  if (root !== "advanced") {
+    return { section: "advanced", area: "decisions", id: null };
+  }
+  if (rawArea === "pareto") {
+    return { section: "advanced", area: "pareto", id: rawId ? decodeURIComponent(rawId) : null };
+  }
+  if (rawArea === "qubo") {
+    return { section: "advanced", area: "qubo", id: rawId ? decodeURIComponent(rawId) : null };
+  }
+  return {
+    section: "advanced",
+    area: "decisions",
+    id: rawId ? decodeURIComponent(rawId) : null,
+  };
+}
+
+function parseStudioUrl(href: string) {
+  return typeof window === "undefined"
+    ? new URL(href, "http://localhost")
+    : new URL(href, window.location.origin);
 }
 
 const workbenchAreas = new Set<WorkbenchRoute["area"]>([
@@ -628,10 +774,7 @@ const workbenchAreas = new Set<WorkbenchRoute["area"]>([
 ]);
 
 function parseWorkbenchRoute(href: string): WorkbenchRoute {
-  const url =
-    typeof window === "undefined"
-      ? new URL(href, "http://localhost")
-      : new URL(href, window.location.origin);
+  const url = parseStudioUrl(href);
   const [, root, rawArea, rawId] = url.pathname.split("/");
   if (root !== "workbench") {
     return { section: "workbench", area: "overview", id: null };
@@ -643,6 +786,42 @@ function parseWorkbenchRoute(href: string): WorkbenchRoute {
     section: "workbench",
     area,
     id: rawId ? decodeURIComponent(rawId) : null,
+  };
+}
+
+function routeHeader(route: StudioRoute) {
+  if (route.section === "workbench") {
+    return {
+      eyebrow: "Workbench",
+      title: "Agent Workbench",
+      subtitle: "Real work, validation, checkpoints, and approvals",
+    };
+  }
+  if (route.section === "memory") {
+    return {
+      eyebrow: "Memory",
+      title: "Memory",
+      subtitle: "See, correct, and scope what Hephaestus remembers",
+    };
+  }
+  if (route.section === "settings") {
+    return {
+      eyebrow: "Settings",
+      title: "Settings",
+      subtitle: "Models, trust, appearance, and local data controls",
+    };
+  }
+  if (route.section === "advanced") {
+    return {
+      eyebrow: "Advanced",
+      title: "Advanced Internals",
+      subtitle: "Decision traces, Pareto tradeoffs, and QUBO formulations",
+    };
+  }
+  return {
+    eyebrow: "Conversation",
+    title: "Hephaestus Studio",
+    subtitle: "Chat remains the main workspace",
   };
 }
 
@@ -661,6 +840,13 @@ function readAppearancePreference(): AppearancePreference {
   }
   const stored = localStorage.getItem(APPEARANCE_KEY);
   return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+}
+
+function readOnboardingOpen() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return localStorage.getItem(ONBOARDING_KEY) !== "true";
 }
 
 function prefersDarkMode() {

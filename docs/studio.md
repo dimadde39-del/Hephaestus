@@ -1,17 +1,22 @@
 # Hephaestus Studio
 
-Studio is the local web interface for persistent Hephaestus chat and readable
-agent work inspection.
+Studio is the local web interface for persistent Hephaestus chat, readable
+agent work inspection, memory control, and local configuration.
 
 ```text
 Talk in Chat.
 Inspect real work in Workbench.
+Control durable context in Memory.
+Configure local behavior in Settings.
 ```
 
 Chat remains the default startup route and the primary product surface.
 Workbench is a second route family for understanding what the agent did, what
 changed, whether validation passed, whether rollback exists, and whether
 Hephaestus needs a meaningful decision from the user.
+Memory and Settings are deliberately quieter than Chat and Workbench, but they
+are first-class routes. Advanced internals are secondary and require deliberate
+navigation.
 
 ## Install And Run
 
@@ -58,6 +63,50 @@ passed.
   confirmation.
 - Open linked Workbench artifacts from compact chat cards without changing the
   original messages.
+- Review, create, edit, archive, restore, and delete regular and strategic
+  memories.
+- Save or ignore conversation memory suggestions without modal interruption.
+- Configure local deterministic, DeepSeek, and OpenAI-compatible providers
+  without exposing stored API keys.
+- Show restrained model usage estimates, deterministic operations, and provider
+  usage.
+- Export conversations as exact Markdown or JSON, export memories as JSON, back
+  up the SQLite database, and restore compatible backups.
+- Inspect advanced decision traces, Pareto frontiers, and QUBO formulations
+  through secondary Advanced routes.
+
+## Navigation
+
+The product hierarchy is:
+
+```text
+Chat -> Workbench -> Memory -> Settings -> Advanced
+```
+
+Current deep-link route families:
+
+```text
+/conversations/{session_id}
+/workbench
+/workbench/coding/{request_id}
+/workbench/validation/{result_id}
+/workbench/checkpoints/{checkpoint_id}
+/workbench/releases/{release_plan_id}
+/memory
+/memory/{memory_id}
+/settings
+/settings/models
+/settings/policy
+/settings/data
+/settings/appearance
+/advanced/decisions
+/advanced/decisions/{trace_id}
+/advanced/pareto/{frontier_id}
+/advanced/qubo/{problem_id}
+```
+
+Browser back/forward follows the route state. Chat remains the default route;
+there is no dashboard home page.
 
 ## Workbench
 
@@ -89,6 +138,43 @@ truncated by the backend and marked in the UI.
 
 See [Studio Workbench](studio_workbench.md) for the full user-facing shape and
 [Studio trust and approvals](studio_trust_and_approvals.md) for autonomy modes.
+
+## Memory
+
+Memory shows what Hephaestus believes is worth carrying forward. It combines
+regular project memories and strategic memories behind human labels such as
+Goal, Constraint, Preference, Principle, Strategic decision, Rejected path,
+Lesson learned, Open question, Project fact, and Working style.
+
+List filters cover search, type, scope, repo, and archive state. Detail views
+show content, summary, scope, confidence, source, evidence, linked
+conversation/work, simple conflict warnings, and history when available.
+
+See [Studio Memory](studio_memory.md).
+
+## Settings
+
+Settings is organized into General, Appearance, Models, Policy and Trust, Data,
+and Advanced. Model settings support local deterministic mode, DeepSeek, and
+OpenAI-compatible providers including OpenRouter-compatible endpoints.
+
+Secrets are stored locally in the Studio SQLite database and never returned by
+normal API responses. Exports exclude secrets.
+
+See [Studio Model Settings](studio_model_settings.md) and
+[Studio Backup And Export](studio_backup_and_export.md).
+
+## Onboarding
+
+First run opens a short non-blocking onboarding flow:
+
+1. Welcome.
+2. Choose local deterministic mode or configure a provider.
+3. Choose a repo/workspace or skip.
+4. Choose trust/autonomy mode.
+5. Start a conversation.
+
+Skipping onboarding is persisted locally in the browser.
 
 ## Persistent History
 
@@ -176,11 +262,17 @@ The built static frontend is exported to `apps/studio/out/` and can be served
 by the Python backend. Build artifacts and `node_modules` are intentionally not
 committed.
 
+See [Studio Packaging](studio_packaging.md) for wheel/sdist validation and
+temporary install smoke tests.
+
 ## Current Limitations
 
 - No streaming stop/cancel button yet.
 - No Electron or Tauri packaging.
 - Workbench actions are synchronous with clear loading states rather than fake
   streaming.
-- Advanced Pareto/QUBO/decision-trace UI remains deferred to Phase 5.5C.
 - Search is simple SQL rather than FTS.
+- Provider key storage is local SQLite with OS file permissions; OS keychain
+  integration remains future work.
+- Advanced views show structured decision artifacts only, not private
+  chain-of-thought.

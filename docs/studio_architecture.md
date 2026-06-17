@@ -1,8 +1,10 @@
 # Studio Architecture
 
 Phase 5.5A added a local chat app without creating a second conversation
-system. Phase 5.5B adds Workbench projections over the existing runtime records
-without creating a second agent runtime.
+system. Phase 5.5B added Workbench projections over the existing runtime
+records without creating a second agent runtime. Phase 5.5C adds Memory,
+Settings, Advanced, export/backup, onboarding, and packaging polish through the
+same local API boundary.
 
 ```text
 apps/studio Next.js static export
@@ -33,6 +35,7 @@ The app shell is organized around:
 - typed API client.
 - Workbench feature folders for coding, diffs, validation, checkpoints, tool
   actions, release evidence, outcomes, and trust settings.
+- Memory, Settings, Advanced, and Onboarding feature folders.
 
 The visual direction follows the Hephaestus brand: charcoal and iron surfaces,
 bronze and forge gold accents, ember warmth, restrained cyan, and small Talos
@@ -47,6 +50,8 @@ The backend lives in `src/hephaestus/studio/`:
 - `api.py`: typed API routes.
 - `schemas.py`: request and response schemas.
 - `services.py`: Studio orchestration and provider/policy/repo exposure.
+- `experience.py`: Studio memory, provider/model settings, usage economy,
+  advanced decision/Pareto/QUBO views, export, backup, and restore.
 - `workbench.py`: typed Workbench projections over coding-loop, validation,
   tool-runtime, checkpoint, release, outcome, and policy records.
 - `repository.py`: conversation metadata, message reads, search, memory counts,
@@ -101,6 +106,32 @@ GET  /api/outcomes
 GET  /api/outcomes/{outcome_id}
 GET  /api/trust
 PATCH /api/trust
+GET  /api/memories
+POST /api/memories
+GET  /api/memories/{memory_id}
+PATCH /api/memories/{memory_id}
+POST /api/memories/{memory_id}/archive
+POST /api/memories/{memory_id}/restore
+DELETE /api/memories/{memory_id}
+GET  /api/memory-suggestions
+POST /api/memory-suggestions/{suggestion_id}/save
+POST /api/memory-suggestions/{suggestion_id}/ignore
+GET  /api/settings
+PATCH /api/settings
+GET  /api/providers
+POST /api/providers
+PATCH /api/providers/{provider_id}
+DELETE /api/providers/{provider_id}
+POST /api/providers/{provider_id}/test
+GET  /api/usage
+GET  /api/advanced/decisions
+GET  /api/advanced/decisions/{trace_id}
+GET  /api/advanced/pareto/{frontier_id}
+GET  /api/advanced/qubo/{problem_id}
+POST /api/export/conversation/{session_id}
+POST /api/export/memories
+POST /api/backup
+POST /api/restore
 ```
 
 Posting a message:
@@ -153,6 +184,17 @@ SQLite migration 17 adds `studio_trust_settings` for local Workbench autonomy
 preferences. These preferences map to existing policy profiles and implemented
 runtime actions; they cannot override hard destructive blocks.
 
+SQLite migration 18 adds Studio metadata for memory management, local provider
+configuration, Studio settings, and usage events:
+
+- regular memory scope/type/source/evidence/archive columns;
+- `studio_provider_configs`;
+- `studio_settings`;
+- `studio_usage_events`.
+
+Provider API responses are redacted. The stored secret column is never returned
+by normal routes, export routes, or frontend screenshots.
+
 ## Static Frontend Serving
 
 `pnpm build` exports the frontend to `apps/studio/out/`. When that directory is
@@ -160,8 +202,11 @@ present, the Python backend serves it. App routes such as
 `/conversations/{session_id}` fall back to `index.html` so browser reload and
 deep links work.
 
-If static assets are missing, `heph studio doctor` reports it. Developers can
-still run the Next dev server against the Python API.
+Packaged wheels include the static export under
+`hephaestus/studio/static/`. Static asset resolution checks packaged assets
+first, then the source checkout export. If static assets are missing,
+`heph studio doctor` reports actionable guidance. Developers can still run the
+Next dev server against the Python API.
 
 ## Local-First Security
 
@@ -181,12 +226,16 @@ Security boundaries:
 - no model call for opening or searching history;
 - no data sent externally except submitted messages sent to the configured
   provider.
+- no provider secret exposure through normal API responses;
+- no secrets in conversation or memory exports;
+- no frontend SQLite queries.
 
 ## Phase Boundary
 
-Phase 5.5B intentionally stops at practical Workbench visibility and selected
-safe actions. It does not add deploy, dependency installation, Git push,
-external messaging, arbitrary shell input, or fake streaming cancellation.
-Phase 5.5C can add advanced decision trace, Pareto, QUBO, memory management,
-provider/model settings, model economy visibility, onboarding, and packaging
-polish.
+Phase 5.5C intentionally stops at polished local Studio operation. It does not
+add deploy, dependency installation, Git push, external messaging, browser
+automation, arbitrary shell input, daemon runtime, adaptive multi-model routing,
+Skill Forge, Capability Forge, or autonomous coding loops.
+
+Phase 5.6 is the Claude Code Parity Program: same model, same repo snapshot,
+same task, same budget, hidden validation, multiple runs, and median results.

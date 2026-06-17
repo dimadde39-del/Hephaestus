@@ -123,6 +123,29 @@ objective value.
 When validation runs exist, `heph validate show <validation_result_id>` links
 command evidence back to the validation run and decision traces.
 
+## Studio Advanced Views
+
+Phase 5.5C exposes decision traces through secondary Studio routes:
+
+```text
+/advanced/decisions
+/advanced/decisions/{trace_id}
+/advanced/pareto/{frontier_id}
+/advanced/qubo/{problem_id}
+```
+
+These views show structured decision artifacts only: decision, selected option,
+alternatives, reasons, assumptions, confidence, evidence, outcome, linked work,
+and whether later evidence supported the decision. They do not expose private
+chain-of-thought and do not render giant JSON payloads by default.
+
+Pareto views show candidate labels, objective axes, selected candidate,
+dominated/non-dominated status, preference profile, tradeoff explanation, and a
+table fallback. QUBO views lead with the human purpose, selected solution,
+constraints, local solver, objective value, and heuristic comparison before any
+mathematical details. QUBO remains classical/local and does not imply quantum
+advantage.
+
 ## Pareto Traces
 
 Phase 3D represents each Pareto selection as an `optimization` decision trace

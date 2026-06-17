@@ -36,8 +36,12 @@ That means the core system should be able to answer:
 - Keep policy learning reviewable and reversible.
 - Keep Studio chat excellent: exact persisted messages, searchable history,
   local provider clarity, and no automatic recap on reopen.
-- Prepare Phase 5.5B workbench views for coding requests, validation evidence,
-  approvals, checkpoints, outcomes, and tool actions.
+- Keep Studio complete and quiet: Chat first, Workbench second, Memory third,
+  Settings fourth, Advanced deliberately secondary.
+- Strengthen memory control, provider settings, backup/export, accessibility,
+  packaging, and public-alpha validation.
+- Prepare Phase 5.6 coding-quality benchmarks before making Claude Code parity
+  claims.
 
 ## Deferred Work
 
@@ -93,6 +97,13 @@ pnpm build
   the first screen.
 - Never add automatic conversation summaries as the default continuity
   mechanism. Exact message history is the Phase 5.5A contract.
+- Never expose provider secrets through API responses, exports, screenshots, or
+  docs.
+- For advanced views, show structured decision artifacts only. Do not expose
+  private chain-of-thought.
+- Claims about coding parity require reproducible benchmark evidence: same
+  model, same repo snapshot, same task, same budget, hidden validation,
+  multiple runs, and median results.
 
 ## Good First Issue Areas
 
@@ -103,3 +114,6 @@ pnpm build
 - Add examples that show how to inspect saved artifacts.
 - Add focused Studio UI tests for persistent chat, search, and conversation
   metadata without adding mocked production behavior.
+- Add focused Studio tests for memory suggestions, provider redaction,
+  backup/restore, degraded states, accessibility-critical keyboard flows, and
+  narrow viewport behavior.

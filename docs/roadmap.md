@@ -17,7 +17,8 @@ spine, but they are not the public headline.
 - Phase 5.5A: Studio Foundation + Persistent Chat.
 - Phase 5.5B: Agent Workbench.
 - Phase 5.5C: Advanced Views + Packaging + Polish.
-- Phase 6A: Personal Context + Project Memory UX.
+- Phase 5.6: Claude Code Parity Program.
+- Phase 6A: Personal Context + Project Memory Expansion.
 - Phase 6B: Skill Forge.
 - Phase 6C: Skill Evaluation + Quarantine.
 - Phase 6D: Adaptive Work Router / Model Economy.
@@ -25,10 +26,11 @@ spine, but they are not the public headline.
 - Phase 6F: Capability Forge.
 - Phase 7: Always-On Runtime / VPS / Telegram / async work.
 
-Phase 5.5 is mandatory before Phase 6. Phase 5.5A establishes the persistent
-chat product surface first; Phase 5.5B should add coding-loop, validation,
-approval, checkpoint, outcome, and tool-action workbench views; Phase 5.5C can
-then add deeper advanced engine and packaging polish.
+Phase 5.5 is mandatory before Phase 5.6. Phase 5.5A establishes the persistent
+chat product surface first; Phase 5.5B adds coding-loop, validation, approval,
+checkpoint, outcome, and tool-action workbench views; Phase 5.5C completes the
+local Studio surface with memory, settings, advanced views, onboarding,
+backup/export, and packaging polish.
 
 ## Complete
 
@@ -341,23 +343,66 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Compact chat artifact cards link conversations to Workbench without replacing
   exact message history.
 
+### Phase 5.5C: Studio Advanced Views + Packaging + Polish
+
+- Main Studio navigation is complete: Chat, Workbench, Memory, Settings, with
+  Advanced as deliberate secondary access.
+- Memory area manages regular and strategic memories with search, type/scope
+  filters, repo filters, archive state, detail editing, evidence, links,
+  conflict warnings, archive/restore/delete, and suggestion review.
+- Settings covers General, Appearance, Models, Policy and Trust, Data, and
+  Advanced local details.
+- Provider/model settings support local deterministic, DeepSeek, and
+  OpenAI-compatible providers, including OpenRouter-compatible base URLs,
+  connectivity tests, role metadata, context windows, and cost metadata.
+- Secrets remain local and are redacted from normal API responses and exports.
+- Usage/economy view shows model calls, deterministic operations, estimated
+  tokens/cost, context trimming, provider usage, and no-model operations.
+- Advanced views expose structured decision traces, Pareto frontiers, and QUBO
+  formulations without private chain-of-thought or raw JSON by default.
+- First-run onboarding is short and skippable.
+- Data management supports conversation export, memory export, full database
+  backup, compatible restore, and incompatible-schema rejection.
+- Package build includes static frontend assets when `apps/studio/out` exists;
+  doctor commands report missing assets with guidance.
+- Public-alpha checklist, screenshots, and focused accessibility/performance
+  notes are documented.
+
 ## Upcoming
 
-### Phase 5.5C: Advanced Views + Packaging + Polish
+### Phase 5.6: Claude Code Parity Program
 
-- Add deeper advanced engine views for decision traces, Pareto frontiers, QUBO
-  formulations, learning internals, and model economy analytics.
-- Improve static asset packaging and local startup polish.
-- Continue to avoid Electron/Tauri unless the local web path has proven stable.
+Establish reproducible coding-quality benchmarks before making parity claims.
 
-### Phase 6A: Personal Context + Project Memory UX
+Required controls:
 
-- Make user/project memory visible, editable, searchable, and reviewable in
-  Studio.
-- Separate exact chat history, saved memories, strategic memories, outcomes, and
-  learning signals.
-- Let users inspect why context was recalled instead of relying on opaque
-  summaries.
+- same model;
+- same repo snapshot;
+- same task;
+- same budget;
+- hidden validation;
+- multiple runs;
+- median results.
+
+Primary metrics:
+
+- task completion rate;
+- hidden tests passed;
+- regression rate;
+- iterations to success;
+- human intervention;
+- token cost per successful task;
+- time to successful validation;
+- unnecessary files and LOC.
+
+Hephaestus must not publicly claim Claude Code parity until benchmark evidence
+supports it.
+
+### Phase 6A: Personal Context + Project Memory Expansion
+
+- Build on Studio Memory with richer recall explanations, verification,
+  project/persona boundaries, and memory lifecycle review.
+- Keep sensitive personal context explicit and user-owned.
 
 ### Phase 6B: Skill Forge
 

@@ -263,3 +263,513 @@ class StudioError(BaseModel):
 
     code: str
     message: str
+
+
+class StudioLink(BaseModel):
+    """A safe user-facing link to another Studio route."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    href: str
+
+
+class StudioMemoryKind(StrEnum):
+    """Memory storage surfaces shown by Studio."""
+
+    REGULAR = "regular"
+    STRATEGIC = "strategic"
+
+
+class StudioMemoryScope(StrEnum):
+    """User-facing memory scope vocabulary."""
+
+    GLOBAL = "global"
+    PROJECT = "project"
+    REPO = "repo"
+    CONVERSATION = "conversation"
+
+
+class StudioMemoryState(StrEnum):
+    """Archive state filter for memory list queries."""
+
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    ALL = "all"
+
+
+class StudioMemoryEvidence(BaseModel):
+    """Evidence displayed on a memory detail view."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str = ""
+    content: str
+    kind: str = "conversation"
+    source_id: str | None = None
+    confidence: float = Field(default=0.7, ge=0, le=1)
+
+
+class StudioMemoryHistoryItem(BaseModel):
+    """A lightweight memory history entry when the database can infer one."""
+
+    model_config = ConfigDict(frozen=True)
+
+    at: datetime
+    event: str
+    detail: str = ""
+
+
+class StudioMemorySummary(BaseModel):
+    """Memory list item normalized across regular and strategic memory stores."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    kind: StudioMemoryKind
+    type: str
+    type_label: str
+    summary: str
+    scope: StudioMemoryScope
+    project: str | None = None
+    repo_profile_id: str | None = None
+    repo_name: str | None = None
+    source: str
+    confidence: float = Field(ge=0, le=1)
+    importance: float = Field(ge=0, le=1)
+    stability: str
+    created_at: datetime
+    updated_at: datetime
+    archived: bool = False
+    linked_conversation_id: str | None = None
+    conflict_count: int = Field(default=0, ge=0)
+
+
+class StudioMemoryDetail(StudioMemorySummary):
+    """Full inspectable memory detail without embeddings or raw database payloads."""
+
+    content: str
+    evidence: list[StudioMemoryEvidence] = Field(default_factory=list)
+    linked_conversation: StudioLink | None = None
+    linked_work: list[StudioLink] = Field(default_factory=list)
+    conflict_warnings: list[str] = Field(default_factory=list)
+    history: list[StudioMemoryHistoryItem] = Field(default_factory=list)
+
+
+class StudioMemoryListResponse(BaseModel):
+    """Filtered memory list response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    memories: list[StudioMemorySummary]
+    total: int
+    filters: dict[str, str | None]
+    suggestions_pending: int = Field(default=0, ge=0)
+
+
+class StudioMemoryCreateRequest(BaseModel):
+    """Create a Studio-visible memory."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: StudioMemoryKind = StudioMemoryKind.STRATEGIC
+    type: str = "project_fact"
+    content: str = Field(min_length=1)
+    summary: str = ""
+    scope: StudioMemoryScope = StudioMemoryScope.PROJECT
+    project: str | None = "default"
+    repo_profile_id: str | None = None
+    conversation_id: str | None = None
+    confidence: float = Field(default=0.75, ge=0, le=1)
+    importance: float = Field(default=0.6, ge=0, le=1)
+    stability: str = "medium_term"
+    source: str = "manual"
+    evidence: list[StudioMemoryEvidence] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class StudioMemoryPatchRequest(BaseModel):
+    """Patch mutable memory metadata."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str | None = None
+    content: str | None = Field(default=None, min_length=1)
+    summary: str | None = None
+    scope: StudioMemoryScope | None = None
+    project: str | None = None
+    repo_profile_id: str | None = None
+    conversation_id: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    importance: float | None = Field(default=None, ge=0, le=1)
+    stability: str | None = None
+    source: str | None = None
+    evidence: list[StudioMemoryEvidence] | None = None
+    tags: list[str] | None = None
+    resolve_conflicts: bool = False
+
+
+class StudioMemoryDeleteRequest(BaseModel):
+    """Explicit confirmation for permanent memory deletion."""
+
+    model_config = ConfigDict(frozen=True)
+
+    confirm: bool = False
+
+
+class StudioMemorySuggestion(BaseModel):
+    """A pending memory suggestion requiring explicit user action."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    proposed_memory: str
+    why_it_may_matter: str
+    proposed_type: str
+    proposed_type_label: str
+    proposed_scope: StudioMemoryScope
+    proposed_stability: str
+    source: str
+    source_link: StudioLink | None = None
+    confidence: float = Field(ge=0, le=1)
+    importance: float = Field(ge=0, le=1)
+    status: str
+    created_at: datetime
+
+
+class StudioMemorySuggestionListResponse(BaseModel):
+    """Pending memory suggestion list."""
+
+    model_config = ConfigDict(frozen=True)
+
+    suggestions: list[StudioMemorySuggestion]
+    total: int
+
+
+class StudioMemorySuggestionSaveRequest(BaseModel):
+    """Save a suggestion, optionally edited by the user."""
+
+    model_config = ConfigDict(frozen=True)
+
+    edited_memory: StudioMemoryCreateRequest | None = None
+
+
+class StudioProviderStatus(StrEnum):
+    """Provider configuration status shown in Studio."""
+
+    CONFIGURED = "configured"
+    NOT_CONFIGURED = "not_configured"
+    CONNECTION_FAILED = "connection_failed"
+    LOCAL_MODE = "local_mode"
+
+
+class StudioProviderConfig(BaseModel):
+    """Redacted provider/model configuration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    provider_type: str
+    name: str
+    model: str
+    base_url: str
+    configured: bool
+    status: StudioProviderStatus
+    status_label: str
+    status_detail: str
+    intended_roles: list[str] = Field(default_factory=list)
+    context_window: int | None = None
+    input_cost_per_million: float | None = None
+    output_cost_per_million: float | None = None
+    default_for_conversation: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class StudioProviderListResponse(BaseModel):
+    """Provider settings response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    providers: list[StudioProviderConfig]
+    default_provider_id: str
+    local_mode: StudioProviderConfig
+    storage_note: str
+
+
+class StudioProviderUpsertRequest(BaseModel):
+    """Create or update a local provider configuration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider_type: str = "openai-compatible"
+    name: str = Field(min_length=1, max_length=80)
+    model: str = ""
+    base_url: str = ""
+    api_key: str | None = Field(default=None, max_length=4096)
+    context_window: int | None = Field(default=None, ge=1)
+    input_cost_per_million: float | None = Field(default=None, ge=0)
+    output_cost_per_million: float | None = Field(default=None, ge=0)
+    intended_roles: list[str] = Field(default_factory=lambda: ["conversation"])
+    default_for_conversation: bool = False
+
+
+class StudioProviderTestResponse(BaseModel):
+    """Result of a provider connectivity test."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    status: StudioProviderStatus
+    message: str
+
+
+class StudioSettings(BaseModel):
+    """Studio settings excluding secrets."""
+
+    model_config = ConfigDict(frozen=True)
+
+    startup_route: str = "/"
+    recent_repo_behavior: str = "remember"
+    browser_auto_open: bool = True
+    appearance: str = "system"
+    reduced_motion: bool = False
+    density: str = "comfortable"
+    active_policy_profile: str = "balanced"
+    debug_logging: bool = False
+    developer_details: bool = False
+    deterministic_mode: bool = False
+
+
+class StudioSettingsResponse(BaseModel):
+    """Settings plus local API/database context."""
+
+    model_config = ConfigDict(frozen=True)
+
+    settings: StudioSettings
+    database_path: str
+    schema_version: int
+    local_api_url: str
+    static_assets_available: bool
+
+
+class StudioSettingsPatchRequest(BaseModel):
+    """Patch persisted Studio settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    startup_route: str | None = None
+    recent_repo_behavior: str | None = None
+    browser_auto_open: bool | None = None
+    appearance: str | None = None
+    reduced_motion: bool | None = None
+    density: str | None = None
+    active_policy_profile: str | None = None
+    debug_logging: bool | None = None
+    developer_details: bool | None = None
+    deterministic_mode: bool | None = None
+
+
+class StudioUsageEvent(BaseModel):
+    """One user-facing model economy event."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    task_type: str
+    provider: str
+    model: str
+    provider_model: str
+    message: str
+    estimated_input_tokens: int = Field(ge=0)
+    estimated_output_tokens: int = Field(ge=0)
+    estimated_cost: float = Field(ge=0)
+    deterministic: bool
+    context_trimmed: bool
+    success: bool
+    linked_conversation: StudioLink | None = None
+    created_at: datetime
+
+
+class StudioUsageAggregate(BaseModel):
+    """Simple usage totals without vanity analytics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    estimated_model_calls_this_week: int = Field(ge=0)
+    deterministic_operations: int = Field(ge=0)
+    estimated_cost: float = Field(ge=0)
+    cost_per_validated_successful_coding_task: float | None = None
+    provider_usage: dict[str, int] = Field(default_factory=dict)
+
+
+class StudioUsageResponse(BaseModel):
+    """Model usage and economy response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    aggregate: StudioUsageAggregate
+    events: list[StudioUsageEvent]
+    estimate_note: str = "Token and cost values are estimates unless the provider returned usage."
+
+
+class AdvancedArtifactSummary(BaseModel):
+    """Common summary for secondary advanced artifacts."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    title: str
+    kind: str
+    created_at: datetime
+    linked_work: list[StudioLink] = Field(default_factory=list)
+
+
+class AdvancedDecisionSummary(BaseModel):
+    """Decision trace list item."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    decision_type: str
+    decision: str
+    selected_option: str
+    confidence: float = Field(ge=0, le=1)
+    outcome: str | None = None
+    repo: str | None = None
+    occurred_at: datetime
+    href: str
+
+
+class AdvancedDecisionListResponse(BaseModel):
+    """Filtered decision trace list."""
+
+    model_config = ConfigDict(frozen=True)
+
+    decisions: list[AdvancedDecisionSummary]
+    total: int
+    pareto_frontiers: list[AdvancedArtifactSummary] = Field(default_factory=list)
+    qubo_problems: list[AdvancedArtifactSummary] = Field(default_factory=list)
+
+
+class AdvancedDecisionDetail(AdvancedDecisionSummary):
+    """Safe structured decision artifact without private chain-of-thought."""
+
+    alternatives: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    linked_work: list[StudioLink] = Field(default_factory=list)
+    later_evidence_supported: str = "unknown"
+    developer_payload: dict[str, Any] | None = None
+
+
+class AdvancedParetoCandidate(BaseModel):
+    """Candidate point for the Pareto viewer."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    label: str
+    x: float
+    y: float
+    is_frontier: bool
+    selected: bool
+    rationale: str = ""
+    objectives: dict[str, float] = Field(default_factory=dict)
+
+
+class AdvancedParetoDetail(BaseModel):
+    """Readable Pareto frontier detail."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    title: str
+    objective_x: str
+    objective_y: str
+    selected_candidate_id: str | None
+    preference_profile: str
+    explanation: str
+    tradeoffs: list[str] = Field(default_factory=list)
+    candidates: list[AdvancedParetoCandidate] = Field(default_factory=list)
+    created_at: datetime
+
+
+class AdvancedQuboVariable(BaseModel):
+    """Human-readable QUBO variable."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    label: str
+    selected: bool
+
+
+class AdvancedQuboDetail(BaseModel):
+    """Readable QUBO problem and local solver result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    purpose: str
+    problem_type: str
+    solver_used: str
+    selected_solution: str
+    objective_value: float | None = None
+    feasible: bool | None = None
+    variables: list[AdvancedQuboVariable] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    comparison_with_heuristic: str | None = None
+    explanation: str
+    mathematical_details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class ConversationExportRequest(BaseModel):
+    """Conversation export format request."""
+
+    model_config = ConfigDict(frozen=True)
+
+    format: str = "markdown"
+
+
+class ExportResponse(BaseModel):
+    """Inline export response safe to save from the UI."""
+
+    model_config = ConfigDict(frozen=True)
+
+    filename: str
+    format: str
+    content: str
+    includes_secrets: bool = False
+
+
+class BackupResponse(BaseModel):
+    """Database backup response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    schema_version: int
+    created_at: datetime
+    size_bytes: int
+
+
+class RestoreBackupRequest(BaseModel):
+    """Restore a compatible local backup."""
+
+    model_config = ConfigDict(frozen=True)
+
+    backup_path: str
+    confirm: bool = False
+
+
+class RestoreBackupResponse(BaseModel):
+    """Restore result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    restored: bool
+    message: str
+    schema_version: int

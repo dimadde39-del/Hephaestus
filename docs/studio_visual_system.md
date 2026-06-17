@@ -91,3 +91,40 @@ visual language.
 Workbench is allowed to be denser than Chat, but it should still read as a calm
 local agent workspace: neutral surfaces, readable typography, restrained
 borders, and monospace only for code, commands, paths, and technical IDs.
+
+## Phase 5.5C Extension
+
+Memory, Settings, and Advanced reuse the same tokens, spacing, heading scale,
+button styles, status language, and empty/degraded states.
+
+- Primary navigation remains visually quiet: Chat, Workbench, Memory, Settings.
+- Advanced is secondary access and never appears as the product center.
+- Memory forms use normal labels and controls; they do not expose embeddings or
+  raw database payloads.
+- Provider keys use password fields, are never displayed after save, and should
+  not appear in screenshots.
+- Usage/economy uses small aggregates and plain text such as "Solved without a
+  model call" and "Estimated cost"; it avoids vanity charts.
+- Pareto and QUBO views may be denser, but they inherit the neutral system and
+  provide table/plain-language fallbacks.
+- Empty states explain what happened, whether data is safe, and the next
+  action.
+
+## Accessibility Notes
+
+Focused Phase 5.5C checks cover:
+
+- keyboard navigation through primary navigation, filters, dialogs, and forms;
+- semantic headings for Chat, Workbench, Memory, Settings, and Advanced;
+- labelled controls for memory filters, provider setup, export, backup, and
+  restore;
+- non-color status labels such as Configured, Local mode, Archived, Dominated,
+  and Non-dominated;
+- visible focus rings from `--color-focus-ring`;
+- reduced-motion preference stored in Settings;
+- chart/table alternatives for Pareto and QUBO;
+- responsive layouts for narrow screens.
+
+Known limitations: automated axe-style coverage is not yet wired into CI, and
+the browser-served app still relies on normal browser focus behavior rather
+than custom focus traps for every confirmation surface.

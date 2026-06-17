@@ -94,3 +94,17 @@ PATCH /api/trust
 
 The backend maps settings to currently supported runtime actions and the active
 policy profile. It never lets trust settings bypass destructive blocks.
+
+## Settings Integration
+
+Phase 5.5C surfaces these controls under Settings -> Policy and Trust as well
+as the Workbench trust view. The Settings page shows:
+
+- active policy profile;
+- current autonomy mode;
+- effective permissions;
+- hard-blocked actions such as dependency installation, Git push, deployment,
+  and external messaging.
+
+Changing trust settings remains local. It does not enable daemon behavior,
+unrestricted terminal access, or autonomous coding loops.

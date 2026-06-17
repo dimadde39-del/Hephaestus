@@ -7,11 +7,18 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException, Query, Request, status
 
 from hephaestus.studio.schemas import (
+    AdvancedDecisionDetail,
+    AdvancedDecisionListResponse,
+    AdvancedParetoDetail,
+    AdvancedQuboDetail,
     ArchiveConversationRequest,
+    BackupResponse,
     ConversationDetail,
+    ConversationExportRequest,
     ConversationListResponse,
     ConversationSummary,
     CreateConversationRequest,
+    ExportResponse,
     ModeOption,
     PinConversationRequest,
     PolicyProfileResponse,
@@ -19,11 +26,29 @@ from hephaestus.studio.schemas import (
     PostMessageResponse,
     ProviderStatusResponse,
     RecentRepo,
+    RestoreBackupRequest,
+    RestoreBackupResponse,
     SearchResponse,
     StudioConfigResponse,
     StudioError,
     StudioHealthResponse,
+    StudioMemoryCreateRequest,
+    StudioMemoryDeleteRequest,
+    StudioMemoryDetail,
+    StudioMemoryListResponse,
+    StudioMemoryPatchRequest,
+    StudioMemoryScope,
+    StudioMemoryState,
+    StudioMemorySuggestionListResponse,
+    StudioMemorySuggestionSaveRequest,
     StudioMessage,
+    StudioProviderConfig,
+    StudioProviderListResponse,
+    StudioProviderTestResponse,
+    StudioProviderUpsertRequest,
+    StudioSettingsPatchRequest,
+    StudioSettingsResponse,
+    StudioUsageResponse,
     UpdateConversationRequest,
 )
 from hephaestus.studio.services import StudioService
@@ -265,6 +290,305 @@ def recent_repos(
     """Return recent repo profiles for optional conversation context."""
 
     return get_studio_service(request).recent_repos(limit=limit)
+
+
+@router.get("/memories", response_model=StudioMemoryListResponse)
+def list_memories(
+    request: Request,
+    q: Annotated[str, Query()] = "",
+    type_filter: Annotated[str | None, Query(alias="type")] = None,
+    scope: Annotated[StudioMemoryScope | None, Query()] = None,
+    project: Annotated[str | None, Query()] = None,
+    repo_profile_id: Annotated[str | None, Query()] = None,
+    source: Annotated[str | None, Query()] = None,
+    stability: Annotated[str | None, Query()] = None,
+    state: Annotated[StudioMemoryState, Query()] = StudioMemoryState.ACTIVE,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+) -> StudioMemoryListResponse:
+    """List user-editable memories without embeddings or raw payloads."""
+
+    return get_studio_service(request).list_memories(
+        query=q,
+        type_filter=type_filter,
+        scope=scope,
+        project=project,
+        repo_profile_id=repo_profile_id,
+        source=source,
+        stability=stability,
+        state=state,
+        limit=limit,
+    )
+
+
+@router.post("/memories", response_model=StudioMemoryDetail, status_code=status.HTTP_201_CREATED)
+def create_memory(
+    request: Request,
+    payload: StudioMemoryCreateRequest,
+) -> StudioMemoryDetail:
+    """Create a memory after an explicit user action."""
+
+    return get_studio_service(request).create_memory(payload)
+
+
+@router.get("/memories/{memory_id}", response_model=StudioMemoryDetail)
+def get_memory(request: Request, memory_id: str) -> StudioMemoryDetail:
+    """Return one memory detail."""
+
+    detail = get_studio_service(request).get_memory(memory_id)
+    if detail is None:
+        raise _studio_not_found("MEMORY_NOT_FOUND", memory_id)
+    return detail
+
+
+@router.patch("/memories/{memory_id}", response_model=StudioMemoryDetail)
+def patch_memory(
+    request: Request,
+    memory_id: str,
+    payload: StudioMemoryPatchRequest,
+) -> StudioMemoryDetail:
+    """Patch a memory and optionally resolve simple conflicts."""
+
+    detail = get_studio_service(request).patch_memory(memory_id, payload)
+    if detail is None:
+        raise _studio_not_found("MEMORY_NOT_FOUND", memory_id)
+    return detail
+
+
+@router.post("/memories/{memory_id}/archive", response_model=StudioMemoryDetail)
+def archive_memory(request: Request, memory_id: str) -> StudioMemoryDetail:
+    """Archive a memory without deleting data."""
+
+    detail = get_studio_service(request).archive_memory(memory_id)
+    if detail is None:
+        raise _studio_not_found("MEMORY_NOT_FOUND", memory_id)
+    return detail
+
+
+@router.post("/memories/{memory_id}/restore", response_model=StudioMemoryDetail)
+def restore_memory(request: Request, memory_id: str) -> StudioMemoryDetail:
+    """Restore an archived memory."""
+
+    detail = get_studio_service(request).restore_memory(memory_id)
+    if detail is None:
+        raise _studio_not_found("MEMORY_NOT_FOUND", memory_id)
+    return detail
+
+
+@router.delete("/memories/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_memory(
+    request: Request,
+    memory_id: str,
+    payload: Annotated[StudioMemoryDeleteRequest | None, Body()] = None,
+) -> None:
+    """Permanently delete a memory after meaningful confirmation."""
+
+    try:
+        deleted = get_studio_service(request).delete_memory(
+            memory_id,
+            payload or StudioMemoryDeleteRequest(),
+        )
+    except ValueError as error:
+        raise _bad_workbench_request("MEMORY_DELETE_REQUIRES_CONFIRMATION", str(error)) from error
+    if not deleted:
+        raise _studio_not_found("MEMORY_NOT_FOUND", memory_id)
+
+
+@router.get("/memory-suggestions", response_model=StudioMemorySuggestionListResponse)
+def list_memory_suggestions(request: Request) -> StudioMemorySuggestionListResponse:
+    """List memory suggestions awaiting explicit save or ignore."""
+
+    return get_studio_service(request).list_memory_suggestions()
+
+
+@router.post("/memory-suggestions/{suggestion_id}/save", response_model=StudioMemoryDetail)
+def save_memory_suggestion(
+    request: Request,
+    suggestion_id: str,
+    payload: Annotated[StudioMemorySuggestionSaveRequest | None, Body()] = None,
+) -> StudioMemoryDetail:
+    """Save a reviewed memory suggestion."""
+
+    detail = get_studio_service(request).save_memory_suggestion(
+        suggestion_id,
+        payload or StudioMemorySuggestionSaveRequest(),
+    )
+    if detail is None:
+        raise _studio_not_found("MEMORY_SUGGESTION_NOT_FOUND", suggestion_id)
+    return detail
+
+
+@router.post("/memory-suggestions/{suggestion_id}/ignore", status_code=status.HTTP_204_NO_CONTENT)
+def ignore_memory_suggestion(request: Request, suggestion_id: str) -> None:
+    """Ignore a memory suggestion."""
+
+    ignored = get_studio_service(request).ignore_memory_suggestion(suggestion_id)
+    if not ignored:
+        raise _studio_not_found("MEMORY_SUGGESTION_NOT_FOUND", suggestion_id)
+
+
+@router.get("/settings", response_model=StudioSettingsResponse)
+def settings(request: Request) -> StudioSettingsResponse:
+    """Return Studio settings and local data context."""
+
+    return get_studio_service(request).settings()
+
+
+@router.patch("/settings", response_model=StudioSettingsResponse)
+def patch_settings(
+    request: Request,
+    payload: StudioSettingsPatchRequest,
+) -> StudioSettingsResponse:
+    """Patch Studio settings."""
+
+    return get_studio_service(request).patch_settings(payload)
+
+
+@router.get("/providers", response_model=StudioProviderListResponse)
+def list_providers(request: Request) -> StudioProviderListResponse:
+    """Return redacted provider/model configuration."""
+
+    return get_studio_service(request).providers()
+
+
+@router.post("/providers", response_model=StudioProviderConfig, status_code=status.HTTP_201_CREATED)
+def create_provider(
+    request: Request,
+    payload: StudioProviderUpsertRequest,
+) -> StudioProviderConfig:
+    """Create a provider/model configuration without echoing secrets."""
+
+    return get_studio_service(request).create_provider(payload)
+
+
+@router.patch("/providers/{provider_id}", response_model=StudioProviderConfig)
+def patch_provider(
+    request: Request,
+    provider_id: str,
+    payload: StudioProviderUpsertRequest,
+) -> StudioProviderConfig:
+    """Update a provider/model configuration without echoing secrets."""
+
+    provider = get_studio_service(request).update_provider(provider_id, payload)
+    if provider is None:
+        raise _studio_not_found("PROVIDER_NOT_FOUND", provider_id)
+    return provider
+
+
+@router.delete("/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_provider(request: Request, provider_id: str) -> None:
+    """Remove a local provider/model configuration."""
+
+    deleted = get_studio_service(request).delete_provider(provider_id)
+    if not deleted:
+        raise _studio_not_found("PROVIDER_NOT_FOUND", provider_id)
+
+
+@router.post("/providers/{provider_id}/test", response_model=StudioProviderTestResponse)
+def test_provider(request: Request, provider_id: str) -> StudioProviderTestResponse:
+    """Test a provider connection without exposing its key."""
+
+    result = get_studio_service(request).test_provider(provider_id)
+    if result is None:
+        raise _studio_not_found("PROVIDER_NOT_FOUND", provider_id)
+    return result
+
+
+@router.get("/usage", response_model=StudioUsageResponse)
+def usage(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> StudioUsageResponse:
+    """Return restrained model usage and economy visibility."""
+
+    return get_studio_service(request).usage(limit=limit)
+
+
+@router.get("/advanced/decisions", response_model=AdvancedDecisionListResponse)
+def list_decisions(
+    request: Request,
+    category: Annotated[str | None, Query()] = None,
+    repo: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> AdvancedDecisionListResponse:
+    """List secondary structured decision artifacts."""
+
+    return get_studio_service(request).decisions(category=category, repo=repo, limit=limit)
+
+
+@router.get("/advanced/decisions/{trace_id}", response_model=AdvancedDecisionDetail)
+def get_decision(request: Request, trace_id: str) -> AdvancedDecisionDetail:
+    """Return a safe decision trace detail without private chain-of-thought."""
+
+    detail = get_studio_service(request).decision_detail(trace_id)
+    if detail is None:
+        raise _studio_not_found("DECISION_TRACE_NOT_FOUND", trace_id)
+    return detail
+
+
+@router.get("/advanced/pareto/{frontier_id}", response_model=AdvancedParetoDetail)
+def get_pareto(request: Request, frontier_id: str) -> AdvancedParetoDetail:
+    """Return a readable Pareto frontier visualization payload."""
+
+    detail = get_studio_service(request).pareto_detail(frontier_id)
+    if detail is None:
+        raise _studio_not_found("PARETO_FRONTIER_NOT_FOUND", frontier_id)
+    return detail
+
+
+@router.get("/advanced/qubo/{problem_id}", response_model=AdvancedQuboDetail)
+def get_qubo(request: Request, problem_id: str) -> AdvancedQuboDetail:
+    """Return a readable QUBO problem view."""
+
+    detail = get_studio_service(request).qubo_detail(problem_id)
+    if detail is None:
+        raise _studio_not_found("QUBO_PROBLEM_NOT_FOUND", problem_id)
+    return detail
+
+
+@router.post("/export/conversation/{session_id}", response_model=ExportResponse)
+def export_conversation(
+    request: Request,
+    session_id: str,
+    payload: Annotated[ConversationExportRequest | None, Body()] = None,
+) -> ExportResponse:
+    """Export exact conversation messages as Markdown or JSON."""
+
+    exported = get_studio_service(request).export_conversation(
+        session_id,
+        payload or ConversationExportRequest(),
+    )
+    if exported is None:
+        raise _not_found(session_id)
+    return exported
+
+
+@router.post("/export/memories", response_model=ExportResponse)
+def export_memories(request: Request) -> ExportResponse:
+    """Export memory data as JSON without secrets."""
+
+    return get_studio_service(request).export_memories()
+
+
+@router.post("/backup", response_model=BackupResponse)
+def backup(request: Request) -> BackupResponse:
+    """Create a full local SQLite backup."""
+
+    return get_studio_service(request).backup()
+
+
+@router.post("/restore", response_model=RestoreBackupResponse)
+def restore(request: Request, payload: RestoreBackupRequest) -> RestoreBackupResponse:
+    """Restore a compatible local SQLite backup after confirmation."""
+
+    try:
+        return get_studio_service(request).restore(
+            backup_path=payload.backup_path,
+            confirm=payload.confirm,
+        )
+    except FileNotFoundError as error:
+        raise _bad_workbench_request("BACKUP_NOT_FOUND", str(error)) from error
+    except ValueError as error:
+        raise _bad_workbench_request("BACKUP_RESTORE_REFUSED", str(error)) from error
 
 
 @router.get("/workbench/overview", response_model=WorkbenchOverviewResponse)
@@ -520,6 +844,16 @@ def _workbench_not_found(code: str, identifier: str) -> HTTPException:
         detail=StudioError(
             code=code,
             message=f"Workbench record not found: {identifier}",
+        ).model_dump(),
+    )
+
+
+def _studio_not_found(code: str, identifier: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=StudioError(
+            code=code,
+            message=f"Studio record not found: {identifier}",
         ).model_dump(),
     )
 

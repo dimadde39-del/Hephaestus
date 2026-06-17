@@ -161,6 +161,316 @@ export interface RecentRepo {
   inspected_at: string;
 }
 
+export interface StudioLink {
+  label: string;
+  href: string;
+}
+
+export type StudioMemoryKind = "regular" | "strategic";
+export type StudioMemoryScope = "global" | "project" | "repo" | "conversation";
+export type StudioMemoryState = "active" | "archived" | "all";
+
+export interface StudioMemoryEvidence {
+  source: string;
+  content: string;
+  kind: string;
+  source_id: string | null;
+  confidence: number;
+}
+
+export interface StudioMemoryHistoryItem {
+  at: string;
+  event: string;
+  detail: string;
+}
+
+export interface StudioMemorySummary {
+  id: string;
+  kind: StudioMemoryKind;
+  type: string;
+  type_label: string;
+  summary: string;
+  scope: StudioMemoryScope;
+  project: string | null;
+  repo_profile_id: string | null;
+  repo_name: string | null;
+  source: string;
+  confidence: number;
+  importance: number;
+  stability: string;
+  created_at: string;
+  updated_at: string;
+  archived: boolean;
+  linked_conversation_id: string | null;
+  conflict_count: number;
+}
+
+export interface StudioMemoryDetail extends StudioMemorySummary {
+  content: string;
+  evidence: StudioMemoryEvidence[];
+  linked_conversation: StudioLink | null;
+  linked_work: StudioLink[];
+  conflict_warnings: string[];
+  history: StudioMemoryHistoryItem[];
+}
+
+export interface StudioMemoryListResponse {
+  memories: StudioMemorySummary[];
+  total: number;
+  filters: Record<string, string | null>;
+  suggestions_pending: number;
+}
+
+export interface StudioMemoryCreateRequest {
+  kind?: StudioMemoryKind;
+  type?: string;
+  content: string;
+  summary?: string;
+  scope?: StudioMemoryScope;
+  project?: string | null;
+  repo_profile_id?: string | null;
+  conversation_id?: string | null;
+  confidence?: number;
+  importance?: number;
+  stability?: string;
+  source?: string;
+  evidence?: StudioMemoryEvidence[];
+  tags?: string[];
+}
+
+export type StudioMemoryPatchRequest = Partial<StudioMemoryCreateRequest> & {
+  resolve_conflicts?: boolean;
+};
+
+export interface StudioMemorySuggestion {
+  id: string;
+  proposed_memory: string;
+  why_it_may_matter: string;
+  proposed_type: string;
+  proposed_type_label: string;
+  proposed_scope: StudioMemoryScope;
+  proposed_stability: string;
+  source: string;
+  source_link: StudioLink | null;
+  confidence: number;
+  importance: number;
+  status: string;
+  created_at: string;
+}
+
+export interface StudioMemorySuggestionListResponse {
+  suggestions: StudioMemorySuggestion[];
+  total: number;
+}
+
+export type StudioProviderStatus =
+  | "configured"
+  | "not_configured"
+  | "connection_failed"
+  | "local_mode";
+
+export interface StudioProviderConfig {
+  id: string;
+  provider_type: string;
+  name: string;
+  model: string;
+  base_url: string;
+  configured: boolean;
+  status: StudioProviderStatus;
+  status_label: string;
+  status_detail: string;
+  intended_roles: string[];
+  context_window: number | null;
+  input_cost_per_million: number | null;
+  output_cost_per_million: number | null;
+  default_for_conversation: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudioProviderListResponse {
+  providers: StudioProviderConfig[];
+  default_provider_id: string;
+  local_mode: StudioProviderConfig;
+  storage_note: string;
+}
+
+export interface StudioProviderUpsertRequest {
+  provider_type?: string;
+  name: string;
+  model?: string;
+  base_url?: string;
+  api_key?: string | null;
+  context_window?: number | null;
+  input_cost_per_million?: number | null;
+  output_cost_per_million?: number | null;
+  intended_roles?: string[];
+  default_for_conversation?: boolean;
+}
+
+export interface StudioProviderTestResponse {
+  id: string;
+  status: StudioProviderStatus;
+  message: string;
+}
+
+export interface StudioSettings {
+  startup_route: string;
+  recent_repo_behavior: string;
+  browser_auto_open: boolean;
+  appearance: string;
+  reduced_motion: boolean;
+  density: string;
+  active_policy_profile: string;
+  debug_logging: boolean;
+  developer_details: boolean;
+  deterministic_mode: boolean;
+}
+
+export interface StudioSettingsResponse {
+  settings: StudioSettings;
+  database_path: string;
+  schema_version: number;
+  local_api_url: string;
+  static_assets_available: boolean;
+}
+
+export type StudioSettingsPatchRequest = Partial<StudioSettings>;
+
+export interface StudioUsageEvent {
+  id: string;
+  task_type: string;
+  provider: string;
+  model: string;
+  provider_model: string;
+  message: string;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  estimated_cost: number;
+  deterministic: boolean;
+  context_trimmed: boolean;
+  success: boolean;
+  linked_conversation: StudioLink | null;
+  created_at: string;
+}
+
+export interface StudioUsageAggregate {
+  estimated_model_calls_this_week: number;
+  deterministic_operations: number;
+  estimated_cost: number;
+  cost_per_validated_successful_coding_task: number | null;
+  provider_usage: Record<string, number>;
+}
+
+export interface StudioUsageResponse {
+  aggregate: StudioUsageAggregate;
+  events: StudioUsageEvent[];
+  estimate_note: string;
+}
+
+export interface AdvancedArtifactSummary {
+  id: string;
+  title: string;
+  kind: string;
+  created_at: string;
+  linked_work: StudioLink[];
+}
+
+export interface AdvancedDecisionSummary {
+  id: string;
+  decision_type: string;
+  decision: string;
+  selected_option: string;
+  confidence: number;
+  outcome: string | null;
+  repo: string | null;
+  occurred_at: string;
+  href: string;
+}
+
+export interface AdvancedDecisionListResponse {
+  decisions: AdvancedDecisionSummary[];
+  total: number;
+  pareto_frontiers: AdvancedArtifactSummary[];
+  qubo_problems: AdvancedArtifactSummary[];
+}
+
+export interface AdvancedDecisionDetail extends AdvancedDecisionSummary {
+  alternatives: string[];
+  reasons: string[];
+  assumptions: string[];
+  evidence: string[];
+  linked_work: StudioLink[];
+  later_evidence_supported: string;
+  developer_payload: Record<string, unknown> | null;
+}
+
+export interface AdvancedParetoCandidate {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  is_frontier: boolean;
+  selected: boolean;
+  rationale: string;
+  objectives: Record<string, number>;
+}
+
+export interface AdvancedParetoDetail {
+  id: string;
+  title: string;
+  objective_x: string;
+  objective_y: string;
+  selected_candidate_id: string | null;
+  preference_profile: string;
+  explanation: string;
+  tradeoffs: string[];
+  candidates: AdvancedParetoCandidate[];
+  created_at: string;
+}
+
+export interface AdvancedQuboVariable {
+  id: string;
+  label: string;
+  selected: boolean;
+}
+
+export interface AdvancedQuboDetail {
+  id: string;
+  purpose: string;
+  problem_type: string;
+  solver_used: string;
+  selected_solution: string;
+  objective_value: number | null;
+  feasible: boolean | null;
+  variables: AdvancedQuboVariable[];
+  constraints: string[];
+  comparison_with_heuristic: string | null;
+  explanation: string;
+  mathematical_details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ExportResponse {
+  filename: string;
+  format: string;
+  content: string;
+  includes_secrets: boolean;
+}
+
+export interface BackupResponse {
+  path: string;
+  schema_version: number;
+  created_at: string;
+  size_bytes: number;
+}
+
+export interface RestoreBackupResponse {
+  restored: boolean;
+  message: string;
+  schema_version: number;
+}
+
 export type WorkbenchTone = "neutral" | "accent" | "success" | "warning" | "error";
 
 export interface WorkbenchStatus {

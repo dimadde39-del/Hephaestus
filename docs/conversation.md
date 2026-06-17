@@ -11,7 +11,9 @@ validation. Phase 5G adds coding-plan proposals without allowing chat to edit
 files automatically. Phase 5.5A adds Studio, a local web interface for reading
 and continuing the exact same persisted conversations. Phase 5.5B adds
 Workbench links from chat to the real coding, validation, checkpoint, release,
-and outcome artifacts created by the runtime.
+and outcome artifacts created by the runtime. Phase 5.5C adds Memory,
+Settings, onboarding, export/backup, model usage visibility, and secondary
+Advanced views without changing the Chat-first hierarchy.
 
 ```bash
 uv run heph studio
@@ -104,6 +106,19 @@ original message text.
 Workbench detail pages link back to the original conversation when an artifact
 has a conversation id. This makes it possible to move between "what we talked
 about" and "what Hephaestus actually did" without relying on generated recaps.
+
+## Chat, Memory, And Settings
+
+Memory suggestions from conversations appear in the Memory area and can be
+saved, edited, or ignored without interrupting chat. Studio does not silently
+save sensitive personal details.
+
+Conversation exports are available from Settings -> Data as exact Markdown or
+JSON. Export does not generate a model summary; it preserves message order,
+roles, timestamps, and content.
+
+Model usage from submitted conversation turns appears in Settings -> Models.
+Opening, searching, or exporting history stays local and does not call a model.
 
 ## Pipeline
 

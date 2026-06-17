@@ -1,10 +1,19 @@
+import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from hephaestus.cli.main import app
-from hephaestus.conversation import ConversationRequest, ConversationService, DeliberationMode
+from hephaestus.conversation import (
+    ConversationMemoryCandidate,
+    ConversationMemoryUpdate,
+    ConversationRepository,
+    ConversationRequest,
+    ConversationService,
+    DeliberationMode,
+)
+from hephaestus.memory import MemoryType
 from hephaestus.release import ReleasePlanningOrchestrator, ReleasePlanningRequest
 from hephaestus.repo.repository import RepoProfileRepository
 from hephaestus.repo.schemas import RepoProfile
@@ -15,6 +24,7 @@ from hephaestus.studio.security import (
     DEFAULT_STUDIO_HOST,
     DEFAULT_STUDIO_PORT,
     is_loopback_host,
+    resolve_static_dir,
     studio_url,
 )
 from hephaestus.studio.services import StudioService
@@ -372,6 +382,234 @@ def test_workbench_release_outcome_and_trust_persistence(tmp_path) -> None:
     assert outcomes.status_code == 200
     assert outcome_detail.status_code == 200
     assert "LearningSignal" not in outcome_detail.text
+
+
+def test_memory_crud_conflicts_and_suggestion_review(tmp_path) -> None:
+    database_path = tmp_path / "hephaestus.db"
+    client = _client(database_path)
+    session_id = client.post("/api/conversations", json={"title": "Memory review"}).json()["id"]
+
+    first = client.post(
+        "/api/memories",
+        json={
+            "kind": "strategic",
+            "type": "strategic_decision",
+            "content": "We should launch public alpha only after validation evidence is complete.",
+            "summary": "Launch alpha after validation evidence",
+            "scope": "project",
+            "confidence": 0.82,
+            "importance": 0.78,
+            "stability": "long_term",
+            "conversation_id": session_id,
+            "evidence": [
+                {
+                    "content": "User explicitly asked for public-alpha readiness.",
+                    "kind": "conversation",
+                    "source_id": session_id,
+                    "confidence": 0.9,
+                }
+            ],
+        },
+    )
+    second = client.post(
+        "/api/memories",
+        json={
+            "kind": "strategic",
+            "type": "strategic_decision",
+            "content": "Do not launch public alpha after validation evidence is complete.",
+            "summary": "Do not launch alpha after validation evidence",
+            "scope": "project",
+        },
+    )
+    regular = client.post(
+        "/api/memories",
+        json={
+            "kind": "regular",
+            "type": "working_style",
+            "content": "Prefer exact conversation exports over generated summaries.",
+            "summary": "Export exact messages",
+            "scope": "global",
+            "source": "manual",
+        },
+    )
+    listed = client.get("/api/memories?query=validation&type=strategic_decision&scope=project")
+    conflict_detail = client.get(f"/api/memories/{first.json()['id']}")
+    patched = client.patch(
+        f"/api/memories/{first.json()['id']}",
+        json={"summary": "Validate before alpha", "resolve_conflicts": True},
+    )
+    archived = client.post(f"/api/memories/{first.json()['id']}/archive")
+    restored = client.post(f"/api/memories/{first.json()['id']}/restore")
+    delete_without_confirm = client.request(
+        "DELETE", f"/api/memories/{regular.json()['id']}", json={}
+    )
+    deleted = client.request(
+        "DELETE", f"/api/memories/{regular.json()['id']}", json={"confirm": True}
+    )
+
+    ConversationRepository(database_path).save_memory_update(
+        ConversationMemoryUpdate(
+            session_id=session_id,
+            candidate=ConversationMemoryCandidate(
+                memory_type=MemoryType.PROJECT,
+                content="Validation evidence should stay visible before releases.",
+                summary="Keep release evidence visible",
+                rationale="It changes release readiness decisions.",
+                confidence=0.8,
+                importance=0.7,
+                stability="long_term",
+            ),
+        )
+    )
+    suggestions = client.get("/api/memory-suggestions")
+    suggestion_id = suggestions.json()["suggestions"][0]["id"]
+    saved_suggestion = client.post(f"/api/memory-suggestions/{suggestion_id}/save")
+    ignored = client.post(f"/api/memory-suggestions/{suggestion_id}/ignore")
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert "Potential conflict" in conflict_detail.json()["conflict_warnings"][0]
+    assert listed.status_code == 200
+    assert listed.json()["memories"]
+    assert patched.json()["summary"] == "Validate before alpha"
+    assert archived.json()["archived"] is True
+    assert restored.json()["archived"] is False
+    assert delete_without_confirm.status_code == 400
+    assert deleted.status_code == 204
+    assert suggestions.json()["total"] == 1
+    assert saved_suggestion.status_code == 200
+    assert saved_suggestion.json()["summary"] == "Keep release evidence visible"
+    assert ignored.status_code == 204
+
+
+def test_provider_settings_usage_export_and_backup_redaction(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    database_path = tmp_path / "hephaestus.db"
+    client = _client(database_path)
+    session_id = client.post("/api/conversations", json={"title": "Exact export"}).json()["id"]
+    client.post(
+        f"/api/conversations/{session_id}/messages",
+        json={"content": "Please preserve exact chat history.", "provider": "local"},
+    )
+
+    provider = client.post(
+        "/api/providers",
+        json={
+            "provider_type": "openai-compatible",
+            "name": "Fake OpenAI Compatible",
+            "model": "fake-chat",
+            "base_url": "fake://openai-compatible",
+            "api_key": "secret-token-123",
+            "context_window": 32768,
+            "input_cost_per_million": 0.1,
+            "output_cost_per_million": 0.2,
+            "default_for_conversation": True,
+            "intended_roles": ["conversation", "coding"],
+        },
+    )
+    provider_id = provider.json()["id"]
+    tested = client.post(f"/api/providers/{provider_id}/test")
+    updated = client.patch(
+        f"/api/providers/{provider_id}",
+        json={
+            "provider_type": "openai-compatible",
+            "name": "Fake OpenAI Compatible",
+            "model": "fake-chat-v2",
+            "base_url": "fake://openai-compatible",
+            "api_key": None,
+            "default_for_conversation": True,
+        },
+    )
+    settings = client.patch(
+        "/api/settings",
+        json={"startup_route": "/memory", "appearance": "dark", "developer_details": True},
+    )
+    usage = client.get("/api/usage")
+    markdown = client.post(f"/api/export/conversation/{session_id}", json={"format": "markdown"})
+    exported_json = client.post(f"/api/export/conversation/{session_id}", json={"format": "json"})
+    memory = client.post(
+        "/api/memories",
+        json={"kind": "strategic", "type": "preference", "content": "Never export API keys."},
+    )
+    memories_export = client.post("/api/export/memories")
+    backup = client.post("/api/backup")
+    restore = client.post(
+        "/api/restore",
+        json={"backup_path": backup.json()["path"], "confirm": True},
+    )
+    incompatible = tmp_path / "old-backup.db"
+    with sqlite3.connect(incompatible) as connection:
+        connection.execute(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (999, 'now')"
+        )
+    incompatible_restore = client.post(
+        "/api/restore",
+        json={"backup_path": str(incompatible), "confirm": True},
+    )
+    removed = client.delete(f"/api/providers/{provider_id}")
+
+    assert provider.status_code == 201
+    assert "secret-token-123" not in provider.text
+    assert tested.json()["status"] == "configured"
+    assert "secret-token-123" not in tested.text
+    assert updated.json()["model"] == "fake-chat-v2"
+    assert "secret-token-123" not in client.get("/api/providers").text
+    assert settings.json()["settings"]["startup_route"] == "/memory"
+    assert usage.json()["aggregate"]["deterministic_operations"] >= 1
+    assert usage.json()["events"][0]["message"].startswith("Solved without a model call")
+    assert markdown.json()["format"] == "markdown"
+    assert "Please preserve exact chat history." in markdown.json()["content"]
+    assert "summary" not in markdown.json()["content"].lower()
+    assert exported_json.json()["format"] == "json"
+    assert "secret-token-123" not in memories_export.text
+    assert memory.status_code == 201
+    assert backup.json()["schema_version"] == 18
+    assert Path(backup.json()["path"]).exists()
+    assert restore.json()["restored"] is True
+    assert incompatible_restore.status_code == 400
+    assert removed.status_code == 204
+
+
+def test_advanced_decision_pareto_qubo_endpoints(tmp_path) -> None:
+    database_path = tmp_path / "hephaestus.db"
+    repo = _workbench_repo(tmp_path)
+    client = _client(database_path)
+    demo = ReleasePlanningOrchestrator(database_path).plan(
+        ReleasePlanningRequest(path=str(repo), pareto=True, qubo=True, evaluate=True)
+    )
+
+    decisions = client.get("/api/advanced/decisions")
+    trace_id = decisions.json()["decisions"][0]["id"]
+    decision_detail = client.get(f"/api/advanced/decisions/{trace_id}")
+    pareto_id = demo.result.pareto_frontier_ids[0]
+    qubo_id = demo.result.qubo_problem_ids[0]
+    pareto = client.get(f"/api/advanced/pareto/{pareto_id}")
+    qubo = client.get(f"/api/advanced/qubo/{qubo_id}")
+
+    assert decisions.status_code == 200
+    assert decisions.json()["pareto_frontiers"]
+    assert decisions.json()["qubo_problems"]
+    assert decision_detail.status_code == 200
+    assert "developer_payload" in decision_detail.json()
+    assert pareto.status_code == 200
+    assert "non-dominated" in pareto.json()["explanation"]
+    assert pareto.json()["candidates"]
+    assert qubo.status_code == 200
+    assert "classical/local" in qubo.json()["explanation"]
+    assert qubo.json()["variables"]
+
+
+def test_packaged_static_asset_discovery(tmp_path) -> None:
+    module_file = tmp_path / "site-packages" / "hephaestus" / "studio" / "security.py"
+    static_dir = module_file.parent / "static"
+    static_dir.mkdir(parents=True)
+    module_file.write_text("# fixture\n", encoding="utf-8")
+    (static_dir / "index.html").write_text("<main>Packaged Studio</main>", encoding="utf-8")
+
+    assert resolve_static_dir(str(module_file)) == static_dir
 
 
 def _workbench_repo(tmp_path: Path) -> Path:

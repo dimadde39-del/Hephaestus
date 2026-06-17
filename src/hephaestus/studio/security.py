@@ -51,5 +51,8 @@ def resolve_static_dir(module_file: str, static_dir: Path | str | None = None) -
     if static_dir is not None:
         path = Path(static_dir)
         return path if (path / "index.html").exists() else None
+    packaged = Path(module_file).resolve().parent / "static"
+    if (packaged / "index.html").exists():
+        return packaged
     candidate = repository_root_from_module(module_file) / "apps" / "studio" / "out"
     return candidate if (candidate / "index.html").exists() else None
