@@ -5,11 +5,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StudioApp } from "@/features/studio/studio-app";
 import type {
+  CheckpointDetailResponse,
+  CheckpointSummary,
   ConversationSummary,
+  CodingDetailResponse,
+  CodingRequestSummary,
   DeliberationMode,
+  OutcomeDetailResponse,
+  OutcomeSummary,
   RecentRepo,
+  ReleaseDetailResponse,
+  ReleaseSummary,
   SearchResult,
   StudioMessage,
+  ToolActionDetailResponse,
+  ToolActionSummary,
+  TrustSettingsResponse,
+  ValidationDetailResponse,
+  ValidationSummary,
+  WorkbenchArtifactSummary,
+  WorkbenchOverview,
+  WorkbenchStatus,
 } from "@/lib/types";
 
 const now = "2026-06-16T10:00:00.000Z";
@@ -284,6 +300,121 @@ describe("StudioApp", () => {
 
     expect(screen.getByLabelText("Conversations")).toHaveClass("is-open");
   });
+
+  it("keeps Chat as the default route and opens the Workbench overview from primary navigation", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    expect(await screen.findByRole("heading", { name: "Validation-backed coding loop" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Workbench" }));
+
+    expect((await screen.findAllByRole("heading", { name: "Agent Workbench" })).length).toBeGreaterThan(0);
+    expect(screen.getByText("README positioning update")).toBeInTheDocument();
+    expect(screen.getByText("Fix provider fallback")).toBeInTheDocument();
+    expect(screen.getByText("Approve patch batch")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Message Hephaestus")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/workbench");
+  });
+
+  it("renders coding detail with a readable diff and linked conversation", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/workbench/coding/coding_1");
+    renderStudio();
+
+    expect(await screen.findByRole("heading", { name: "README positioning update" })).toBeInTheDocument();
+    expect(screen.getAllByText("README.md").length).toBeGreaterThan(0);
+    expect(screen.getByText("+Talk in Chat.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /copy patch/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /open linked conversation/i }));
+    expect(await screen.findByText("Please preserve exact chat history.")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/conversations/conv_1");
+  });
+
+  it("filters coding requests locally through typed API parameters", async () => {
+    const { fetchSpy } = installFetchMock();
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/workbench/coding");
+    renderStudio();
+
+    expect(await screen.findByLabelText("Search coding requests")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Status"), "completed");
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("status=completed"),
+        expect.objectContaining({
+          headers: expect.any(Object),
+        }),
+      ),
+    );
+  });
+
+  it("renders validation detail with collapsed command output", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/workbench/validation/validation_1");
+    renderStudio();
+
+    expect(await screen.findByRole("heading", { name: "Hephaestus" })).toBeInTheDocument();
+    expect(screen.getByText("uv run pytest")).toBeInTheDocument();
+    expect(screen.queryByText("162 passed")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /uv run pytest/i }));
+    expect(screen.getByText("162 passed")).toBeInTheDocument();
+    expect(screen.getByText("Output was truncated.")).toBeInTheDocument();
+  });
+
+  it("confirms checkpoint restore as one batch", async () => {
+    const { fetchSpy } = installFetchMock();
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/workbench/checkpoints/checkpoint_1");
+    renderStudio();
+
+    expect(await screen.findByRole("heading", { name: "checkpoint_1" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Restore checkpoint" }));
+    expect(screen.getByRole("dialog", { name: "Restore checkpoint?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/api/checkpoints/checkpoint_1/restore"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("updates trust settings and shows effective behavior", async () => {
+    const { fetchSpy } = installFetchMock();
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/workbench/trust");
+    renderStudio();
+
+    expect(await screen.findByRole("heading", { name: "Autonomy and approvals" })).toBeInTheDocument();
+    expect(screen.getByText("Safe analysis runs without approval spam.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Local Power User" }));
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/api/trust"),
+        expect.objectContaining({ method: "PATCH" }),
+      ),
+    );
+  });
+
+  it("shows Workbench artifact cards inside chat without changing message text", async () => {
+    installFetchMock();
+    const user = userEvent.setup();
+    renderStudio();
+
+    expect(await screen.findByText("Persistent chat keeps original messages.")).toBeInTheDocument();
+    expect(screen.getAllByText("Coding request completed").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /Coding request completed/i }));
+
+    expect(await screen.findByRole("heading", { name: "README positioning update" })).toBeInTheDocument();
+  });
 });
 
 interface FetchMockOptions {
@@ -417,6 +548,10 @@ function installFetchMock(options: FetchMockOptions = {}) {
         ),
       });
     }
+    const workbenchResponse = handleWorkbenchRequest(path, method, init);
+    if (workbenchResponse) {
+      return workbenchResponse;
+    }
     return jsonResponse({ detail: { code: "NOT_FOUND", message: path } }, 404);
   });
   vi.stubGlobal("fetch", fetchSpy);
@@ -448,6 +583,19 @@ function createState() {
         "conv_1",
         "assistant",
         "Persistent chat keeps original messages.\n\n```bash\nuv run heph studio doctor\n```",
+        {
+          workbench_artifacts: [
+            {
+              kind: "coding_request",
+              id: "coding_1",
+              title: "Coding request completed",
+              status: "completed",
+              files_changed: 2,
+              validation: "3/3 passed",
+              href: "/workbench/coding/coding_1",
+            },
+          ],
+        },
       ),
     ],
     conv_2: [
@@ -514,6 +662,7 @@ function message(
   sessionId: string,
   role: "user" | "assistant",
   content: string,
+  metadata: Record<string, unknown> = {},
 ): StudioMessage {
   return {
     id,
@@ -524,7 +673,7 @@ function message(
     intent: null,
     mode: "balanced",
     provider_model: role === "assistant" ? "local/fake-balanced" : null,
-    metadata: {},
+    metadata,
   };
 }
 
@@ -541,6 +690,456 @@ function searchResults(): SearchResult[] {
       is_archived: false,
     },
   ];
+}
+
+function handleWorkbenchRequest(path: string, method: string, init?: RequestInit) {
+  if (path === "/workbench/overview" && method === "GET") {
+    return jsonResponse(workbenchOverview());
+  }
+  if (path === "/coding" && method === "GET") {
+    return jsonResponse({ items: [codingSummary()], total: 1, filters: {} });
+  }
+  if ((path === "/coding/plan" || path === "/coding/propose") && method === "POST") {
+    return jsonResponse(codingDetail());
+  }
+  const applyMatch = /^\/coding\/([^/]+)\/apply$/.exec(path);
+  if (applyMatch && method === "POST") {
+    return jsonResponse(codingDetail({ applied: true }));
+  }
+  const codingMatch = /^\/coding\/([^/]+)$/.exec(path);
+  if (codingMatch && method === "GET") {
+    return jsonResponse(codingDetail());
+  }
+  if (path === "/validation" && method === "GET") {
+    return jsonResponse({ items: [validationSummary()], total: 1 });
+  }
+  if (path === "/validation/run" && method === "POST") {
+    return jsonResponse(validationDetail());
+  }
+  const validationMatch = /^\/validation\/([^/]+)$/.exec(path);
+  if (validationMatch && method === "GET") {
+    return jsonResponse(validationDetail());
+  }
+  if (path === "/checkpoints" && method === "GET") {
+    return jsonResponse([checkpointSummary()]);
+  }
+  const checkpointRestoreMatch = /^\/checkpoints\/([^/]+)\/restore$/.exec(path);
+  if (checkpointRestoreMatch && method === "POST") {
+    return jsonResponse(checkpointDetail({ restored: true }));
+  }
+  const checkpointMatch = /^\/checkpoints\/([^/]+)$/.exec(path);
+  if (checkpointMatch && method === "GET") {
+    return jsonResponse(checkpointDetail());
+  }
+  if (path === "/tools/actions" && method === "GET") {
+    return jsonResponse([toolSummary()]);
+  }
+  const toolMatch = /^\/tools\/actions\/([^/]+)$/.exec(path);
+  if (toolMatch && method === "GET") {
+    return jsonResponse(toolDetail());
+  }
+  if (path === "/releases" && method === "GET") {
+    return jsonResponse({ items: [releaseSummary()], total: 1 });
+  }
+  const releaseMatch = /^\/releases\/([^/]+)$/.exec(path);
+  if (releaseMatch && method === "GET") {
+    return jsonResponse(releaseDetail());
+  }
+  if (path === "/outcomes" && method === "GET") {
+    return jsonResponse({ items: [outcomeSummary()], total: 1 });
+  }
+  const outcomeMatch = /^\/outcomes\/([^/]+)$/.exec(path);
+  if (outcomeMatch && method === "GET") {
+    return jsonResponse(outcomeDetail());
+  }
+  if (path === "/trust" && method === "GET") {
+    return jsonResponse(trustSettings());
+  }
+  if (path === "/trust" && method === "PATCH") {
+    const body = parseBody(init);
+    return jsonResponse(trustSettings(typeof body.mode === "string" ? body.mode : "local_power_user"));
+  }
+  return null;
+}
+
+function status(value: string, label: string, tone: WorkbenchStatus["tone"]): WorkbenchStatus {
+  return { value, label, tone };
+}
+
+function artifactSummary(
+  overrides: Partial<WorkbenchArtifactSummary> & Pick<WorkbenchArtifactSummary, "id" | "kind" | "title" | "href">,
+): WorkbenchArtifactSummary {
+  return {
+    id: overrides.id,
+    kind: overrides.kind,
+    title: overrides.title,
+    status: overrides.status ?? status("completed", "Completed", "success"),
+    repo: overrides.repo ?? "Hephaestus",
+    repo_path: overrides.repo_path ?? repos[0].path,
+    summary: overrides.summary ?? "2 files changed",
+    files_changed: overrides.files_changed ?? 2,
+    validation: overrides.validation ?? "3/3 passed",
+    checkpoint: overrides.checkpoint ?? "available",
+    conversation_id: overrides.conversation_id ?? "conv_1",
+    created_at: overrides.created_at ?? now,
+    updated_at: overrides.updated_at ?? now,
+    href: overrides.href,
+  };
+}
+
+function workbenchOverview(): WorkbenchOverview {
+  return {
+    active_coding_work: [
+      artifactSummary({
+        id: "coding_2",
+        kind: "coding_request",
+        title: "Fix provider fallback",
+        status: status("validating", "Validation failed", "error"),
+        validation: "2 tests failed",
+        href: "/workbench/coding/coding_2",
+      }),
+    ],
+    recent_completed_coding_work: [
+      artifactSummary({
+        id: "coding_1",
+        kind: "coding_request",
+        title: "README positioning update",
+        href: "/workbench/coding/coding_1",
+      }),
+    ],
+    recent_validation_runs: [
+      artifactSummary({
+        id: "validation_1",
+        kind: "validation_result",
+        title: "uv run pytest",
+        href: "/workbench/validation/validation_1",
+      }),
+    ],
+    failed_validation_requiring_attention: [
+      artifactSummary({
+        id: "validation_2",
+        kind: "validation_result",
+        title: "Provider fallback tests",
+        status: status("failed", "Failed", "error"),
+        validation: "1/3 passed",
+        href: "/workbench/validation/validation_2",
+      }),
+    ],
+    pending_decisions: [
+      {
+        id: "decision_1",
+        kind: "patch",
+        title: "Approve patch batch",
+        description: "Apply the low-risk README patch and run validation.",
+        repo: "Hephaestus",
+        files: ["README.md"],
+        risk: "low",
+        rollback_available: true,
+        external_side_effects: false,
+        primary_label: "Apply patch",
+        primary_endpoint: "/api/coding/change_1/apply",
+        reject_label: "Cancel",
+      },
+    ],
+    recent_checkpoints: [
+      artifactSummary({
+        id: "checkpoint_1",
+        kind: "checkpoint",
+        title: "Checkpoint checkpoint_1",
+        href: "/workbench/checkpoints/checkpoint_1",
+      }),
+    ],
+    latest_release_evidence: [
+      artifactSummary({
+        id: "release_1",
+        kind: "release_plan",
+        title: "Release readiness",
+        href: "/workbench/releases/release_1",
+      }),
+    ],
+  };
+}
+
+function codingSummary(overrides: Partial<CodingRequestSummary> = {}): CodingRequestSummary {
+  return {
+    id: overrides.id ?? "coding_1",
+    title: overrides.title ?? "README positioning update",
+    repo: overrides.repo ?? "Hephaestus",
+    repo_path: overrides.repo_path ?? repos[0].path,
+    scope: overrides.scope ?? "docs",
+    risk: overrides.risk ?? "low",
+    status: overrides.status ?? status("completed", "Completed", "success"),
+    files_touched: overrides.files_touched ?? ["README.md", "docs/studio.md"],
+    validation_result: overrides.validation_result ?? "3/3 passed",
+    checkpoint_state: overrides.checkpoint_state ?? "available",
+    conversation_id: overrides.conversation_id ?? "conv_1",
+    conversation_title: overrides.conversation_title ?? "Validation-backed coding loop",
+    created_at: overrides.created_at ?? now,
+    updated_at: overrides.updated_at ?? now,
+    href: overrides.href ?? "/workbench/coding/coding_1",
+  };
+}
+
+function codingDetail({ applied = false }: { applied?: boolean } = {}): CodingDetailResponse {
+  return {
+    summary: codingSummary(),
+    original_user_request: "Add the Workbench README positioning line.",
+    linked_conversation: { label: "Validation-backed coding loop", href: "/conversations/conv_1" },
+    policy_trust_profile: "Developer",
+    plan: {
+      summary: "Update product wording and validate docs.",
+      steps: ["Edit README", "Update Studio docs", "Run validation"],
+      expected_files: ["README.md", "docs/studio.md"],
+      validation_strategy: ["uv run pytest", "pnpm test"],
+      rollback_behavior: "Checkpoint restore is available before applying.",
+      current_state: status("completed", "Completed", "success"),
+    },
+    changes: [
+      {
+        id: "change_1",
+        status: status(applied ? "applied" : "proposed", applied ? "Applied" : "Proposed", applied ? "success" : "accent"),
+        summary: "Talk in Chat. Inspect real work in Workbench.",
+        files: ["README.md"],
+        proposed: true,
+        applied,
+        diff: [
+          "diff --git a/README.md b/README.md",
+          "--- a/README.md",
+          "+++ b/README.md",
+          "@@ -1,2 +1,3 @@",
+          " # Hephaestus",
+          "+Talk in Chat.",
+          "+Inspect real work in Workbench.",
+        ].join("\n"),
+        diff_stats: { additions: 2, deletions: 0, line_count: 7, large: false },
+        review_result: "Low-risk documentation patch.",
+        protected_files: [],
+      },
+    ],
+    validation: [validationDetail()],
+    result: "Patch applied successfully.",
+    practical_next_step: "Review the linked validation evidence.",
+    checkpoint_available: true,
+    rollback_available: true,
+    advanced_details: {
+      decision_traces: ["trace_1"],
+      tool_actions: ["tool_1"],
+      outcomes: ["outcome_1"],
+      learning_signals: ["signal_1"],
+    },
+  };
+}
+
+function validationSummary(overrides: Partial<ValidationSummary> = {}): ValidationSummary {
+  return {
+    id: overrides.id ?? "validation_1",
+    repo: overrides.repo ?? "Hephaestus",
+    repo_path: overrides.repo_path ?? repos[0].path,
+    related_coding_request_id: overrides.related_coding_request_id ?? "coding_1",
+    release_plan_id: overrides.release_plan_id ?? null,
+    evidence_mode: overrides.evidence_mode ?? "real",
+    total_commands: overrides.total_commands ?? 3,
+    passed: overrides.passed ?? 3,
+    failed: overrides.failed ?? 0,
+    skipped: overrides.skipped ?? 0,
+    duration_seconds: overrides.duration_seconds ?? 8.4,
+    status: overrides.status ?? status("passed", "Passed", "success"),
+    created_at: overrides.created_at ?? now,
+    href: overrides.href ?? "/workbench/validation/validation_1",
+  };
+}
+
+function validationDetail(): ValidationDetailResponse {
+  return {
+    summary: validationSummary(),
+    commands: [
+      {
+        id: "command_1",
+        command_type: "test",
+        command: "uv run pytest",
+        risk: "safe",
+        status: status("passed", "Passed", "success"),
+        exit_code: 0,
+        duration_seconds: 8.4,
+        output_summary: "All Python tests passed.",
+        stdout: "162 passed",
+        stderr: "",
+        output_truncated: true,
+        tool_action_id: "tool_1",
+        outcome_id: "outcome_1",
+        readiness_effect: 0.4,
+      },
+    ],
+    linked_tool_actions: [{ label: "Ran uv run pytest", href: "/workbench/tools/tool_1" }],
+    linked_outcomes: [{ label: "Validation passed", href: "/workbench/outcomes/outcome_1" }],
+  };
+}
+
+function checkpointSummary(overrides: Partial<CheckpointSummary> = {}): CheckpointSummary {
+  return {
+    id: overrides.id ?? "checkpoint_1",
+    created_at: overrides.created_at ?? now,
+    associated_coding_request_id: overrides.associated_coding_request_id ?? "coding_1",
+    files_covered: overrides.files_covered ?? ["README.md", "docs/studio.md"],
+    availability: overrides.availability ?? "available",
+    restored_at: overrides.restored_at ?? null,
+    href: overrides.href ?? "/workbench/checkpoints/checkpoint_1",
+  };
+}
+
+function checkpointDetail({ restored = false }: { restored?: boolean } = {}): CheckpointDetailResponse {
+  return {
+    summary: checkpointSummary({
+      availability: restored ? "restored" : "available",
+      restored_at: restored ? now : null,
+    }),
+    workspace_path: repos[0].path,
+    files: [
+      {
+        path: "README.md",
+        existed: true,
+        original_hash: "abc123",
+        protected: false,
+        modified_at: now,
+      },
+      {
+        path: "docs/studio.md",
+        existed: true,
+        original_hash: "def456",
+        protected: false,
+        modified_at: now,
+      },
+    ],
+    related_patch_id: "change_1",
+    validation_result: "3/3 passed",
+    restore_warnings: [],
+    restore_history: restored ? [{ label: "Restored checkpoint", href: "/workbench/tools/tool_2" }] : [],
+  };
+}
+
+function toolSummary(overrides: Partial<ToolActionSummary> = {}): ToolActionSummary {
+  return {
+    id: overrides.id ?? "tool_1",
+    action: overrides.action ?? "Ran uv run pytest",
+    status: overrides.status ?? status("passed", "Passed", "success"),
+    risk: overrides.risk ?? "safe",
+    policy_decision: overrides.policy_decision ?? "allowed",
+    result: overrides.result ?? "162 passed",
+    related_coding_request_id: overrides.related_coding_request_id ?? "coding_1",
+    related_validation_id: overrides.related_validation_id ?? "validation_1",
+    created_at: overrides.created_at ?? now,
+    href: overrides.href ?? "/workbench/tools/tool_1",
+  };
+}
+
+function toolDetail(): ToolActionDetailResponse {
+  return {
+    summary: toolSummary(),
+    workspace_path: repos[0].path,
+    command: "uv run pytest",
+    target_path: "",
+    files_touched: [],
+    stdout: "162 passed",
+    stderr: "",
+    exit_code: 0,
+    checkpoint_id: "checkpoint_1",
+    outcome_id: "outcome_1",
+    observations: [],
+  };
+}
+
+function releaseSummary(overrides: Partial<ReleaseSummary> = {}): ReleaseSummary {
+  return {
+    id: overrides.id ?? "release_1",
+    repo: overrides.repo ?? "Hephaestus",
+    repo_path: overrides.repo_path ?? repos[0].path,
+    readiness: overrides.readiness ?? 0.92,
+    evidence_mode: overrides.evidence_mode ?? "real",
+    validation_status: overrides.validation_status ?? "passed",
+    blockers: overrides.blockers ?? [],
+    recommendation: overrides.recommendation ?? "Ready after review.",
+    created_at: overrides.created_at ?? now,
+    linked_work: overrides.linked_work ?? [{ label: "README positioning update", href: "/workbench/coding/coding_1" }],
+    href: overrides.href ?? "/workbench/releases/release_1",
+  };
+}
+
+function releaseDetail(): ReleaseDetailResponse {
+  return {
+    summary: releaseSummary(),
+    practical_summary: "Release evidence is ready with real validation attached.",
+    real_validation_evidence: [validationSummary()],
+    blockers: [],
+    next_actions: ["Review screenshots", "Cut release notes"],
+    related_coding_requests: [codingSummary()],
+    advanced_optimization_details: {
+      pareto_frontier_ids: ["pareto_1"],
+      qubo_problem_ids: ["qubo_1"],
+    },
+  };
+}
+
+function outcomeSummary(overrides: Partial<OutcomeSummary> = {}): OutcomeSummary {
+  return {
+    id: overrides.id ?? "outcome_1",
+    what_happened: overrides.what_happened ?? "Patch applied successfully.",
+    evidence: overrides.evidence ?? "All validation commands passed.",
+    status: overrides.status ?? status("success", "Success", "success"),
+    rollback: overrides.rollback ?? "Checkpoint available.",
+    practical_lesson: overrides.practical_lesson ?? "Reuse this validation order for similar docs work.",
+    related_task: overrides.related_task ?? "coding_1",
+    observed_at: overrides.observed_at ?? now,
+    href: overrides.href ?? "/workbench/outcomes/outcome_1",
+  };
+}
+
+function outcomeDetail(): OutcomeDetailResponse {
+  return {
+    summary: outcomeSummary(),
+    evidence_items: ["All validation commands passed."],
+    reflections: ["Validation order was efficient."],
+    what_hephaestus_learned: ["Reuse this validation order for similar docs work."],
+    related_links: [{ label: "Coding request", href: "/workbench/coding/coding_1" }],
+  };
+}
+
+function trustSettings(mode = "developer"): TrustSettingsResponse {
+  return {
+    mode: mode === "local_power_user" ? "local_power_user" : "developer",
+    effective_policy_profile: mode === "local_power_user" ? "Local Power User" : "Developer",
+    rules: [
+      {
+        key: "read_repo_files",
+        label: "Read normal repo files",
+        allowed: true,
+        implemented: true,
+        risk: "safe",
+        hard_blocked: false,
+      },
+      {
+        key: "apply_low_risk_documentation_patches",
+        label: "Apply low-risk documentation patches",
+        allowed: mode === "local_power_user",
+        implemented: true,
+        risk: "low",
+        hard_blocked: false,
+      },
+      {
+        key: "push_git_changes",
+        label: "Push Git changes",
+        allowed: false,
+        implemented: false,
+        risk: "external",
+        hard_blocked: true,
+      },
+    ],
+    effective_behavior: [
+      "Safe analysis runs without approval spam.",
+      "Medium-risk actions require meaningful confirmation.",
+    ],
+    hard_blocks: ["Destructive system-level actions remain blocked."],
+    updated_at: now,
+  };
 }
 
 function updateConversation(

@@ -9,7 +9,9 @@ conversation turns propose safe tool actions for the user to run manually.
 Phase 5F adds validation-specific proposals without allowing chat to auto-run
 validation. Phase 5G adds coding-plan proposals without allowing chat to edit
 files automatically. Phase 5.5A adds Studio, a local web interface for reading
-and continuing the exact same persisted conversations.
+and continuing the exact same persisted conversations. Phase 5.5B adds
+Workbench links from chat to the real coding, validation, checkpoint, release,
+and outcome artifacts created by the runtime.
 
 ```bash
 uv run heph studio
@@ -90,6 +92,18 @@ Phase 5.5A and does not consume model tokens.
 Conversation titles are deterministic when the first user message is sent:
 Studio derives a concise title from that message without a model call. Manual
 renames are preserved.
+
+## Chat And Workbench
+
+Chat remains the primary surface. Workbench is available from the main
+navigation and from compact artifact cards inside the conversation timeline.
+Supported cards include coding requests, patch proposals, validation results,
+checkpoints, and release plans. Cards link to Workbench without changing the
+original message text.
+
+Workbench detail pages link back to the original conversation when an artifact
+has a conversation id. This makes it possible to move between "what we talked
+about" and "what Hephaestus actually did" without relying on generated recaps.
 
 ## Pipeline
 

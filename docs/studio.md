@@ -1,15 +1,17 @@
 # Hephaestus Studio
 
-Studio is the local web interface for persistent Hephaestus chat.
+Studio is the local web interface for persistent Hephaestus chat and readable
+agent work inspection.
 
 ```text
-Open yesterday's conversation.
-Read the original messages.
-Continue where you stopped.
+Talk in Chat.
+Inspect real work in Workbench.
 ```
 
-Phase 5.5A is chat first. It does not include the full agent workbench,
-validation dashboard, coding-loop diff viewer, or advanced Pareto/QUBO screens.
+Chat remains the default startup route and the primary product surface.
+Workbench is a second route family for understanding what the agent did, what
+changed, whether validation passed, whether rollback exists, and whether
+Hephaestus needs a meaningful decision from the user.
 
 ## Install And Run
 
@@ -50,6 +52,43 @@ passed.
 - Select a deliberation mode.
 - Attach optional repo context from recent repo profiles.
 - Show active policy profile and provider state.
+- Inspect coding requests, plans, patch proposals, file diffs, validation runs,
+  checkpoints, tool actions, release evidence, outcomes, and trust settings.
+- Restore available checkpoints through the Python runtime after one batch
+  confirmation.
+- Open linked Workbench artifacts from compact chat cards without changing the
+  original messages.
+
+## Workbench
+
+Workbench routes are deep-linkable:
+
+```text
+/workbench
+/workbench/coding
+/workbench/coding/{request_id}
+/workbench/validation
+/workbench/checkpoints
+/workbench/tools
+/workbench/releases
+/workbench/outcomes
+/workbench/trust
+```
+
+The overview shows active coding work, recent completed work, validation that
+needs attention, pending decisions, checkpoints, and latest release evidence.
+It deliberately avoids vanity metrics and raw database objects.
+
+Coding detail pages show the original request, linked conversation, plan,
+expected files, validation strategy, patch status, a readable unified diff,
+validation evidence, result, rollback state, and collapsed advanced details.
+
+Validation detail pages show exact commands, status, exit code, duration,
+concise output summaries, and collapsed stdout/stderr. Large output is
+truncated by the backend and marked in the UI.
+
+See [Studio Workbench](studio_workbench.md) for the full user-facing shape and
+[Studio trust and approvals](studio_trust_and_approvals.md) for autonomy modes.
 
 ## Persistent History
 
@@ -106,7 +145,9 @@ submits a message. Reopening a conversation is local database reading.
 - CORS origins are exact local origins, not wildcard.
 - Frontend code calls the local Python API; it does not read SQLite directly.
 - Protected file contents are not exposed.
-- There is no account system or cloud authentication in Phase 5.5A.
+- Workbench does not expose arbitrary shell input.
+- Destructive/system-level actions remain blocked by runtime policy.
+- There is no account system or cloud authentication.
 
 ## Development
 
@@ -139,10 +180,7 @@ committed.
 
 - No streaming stop/cancel button yet.
 - No Electron or Tauri packaging.
-- No coding-loop workbench, validation evidence view, approval view, or
-  checkpoint browser yet.
-- No advanced Pareto/QUBO/decision-trace UI yet.
+- Workbench actions are synchronous with clear loading states rather than fake
+  streaming.
+- Advanced Pareto/QUBO/decision-trace UI remains deferred to Phase 5.5C.
 - Search is simple SQL rather than FTS.
-
-Phase 5.5B should add the Agent Workbench while keeping persistent chat as the
-main product experience.

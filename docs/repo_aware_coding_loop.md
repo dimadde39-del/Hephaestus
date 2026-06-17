@@ -114,3 +114,26 @@ Phase 5G adds SQLite records for:
 
 Use `heph code show <coding_request_id>` to inspect the request, plan, patch,
 review summary, validation, outcomes, traces, and checkpoint links.
+
+## Studio Workbench
+
+Studio Workbench exposes the same coding-loop records through typed backend
+endpoints instead of querying SQLite from the frontend.
+
+Use `/workbench/coding` to search and filter coding requests by status, repo,
+and linked conversation. The detail view shows:
+
+- original user request and linked conversation;
+- repo, scope, risk, and trust profile;
+- plan, expected files, validation strategy, and rollback behavior;
+- proposed and applied patch files;
+- readable unified diffs with file collapse, line numbers, copy patch, large
+  diff indicators, and protected-file warnings;
+- validation evidence and practical next step;
+- checkpoint and rollback availability;
+- advanced decision/tool/outcome identifiers collapsed by default.
+
+Workbench can create a plan, propose a scoped change, apply an existing patch
+proposal as one approved batch, and then show the resulting CLI-visible
+records. It does not implement arbitrary shell input, dependency installation,
+Git push, deploy, or external messaging.

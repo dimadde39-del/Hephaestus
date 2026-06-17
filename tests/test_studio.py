@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from hephaestus.cli.main import app
 from hephaestus.conversation import ConversationRequest, ConversationService, DeliberationMode
+from hephaestus.release import ReleasePlanningOrchestrator, ReleasePlanningRequest
 from hephaestus.repo.repository import RepoProfileRepository
 from hephaestus.repo.schemas import RepoProfile
 from hephaestus.studio.app import create_studio_app
@@ -17,6 +18,7 @@ from hephaestus.studio.security import (
     studio_url,
 )
 from hephaestus.studio.services import StudioService
+from hephaestus.tool_runtime import ShellCommandRequest, ToolRuntime
 
 runner = CliRunner()
 
@@ -226,3 +228,177 @@ def test_studio_cli_doctor_and_localhost_defaults(tmp_path, monkeypatch) -> None
     assert "Hephaestus Studio Doctor" in result.output
     assert studio_url(DEFAULT_STUDIO_HOST, DEFAULT_STUDIO_PORT) == "http://127.0.0.1:8741"
     assert is_loopback_host(DEFAULT_STUDIO_HOST)
+
+
+def test_workbench_coding_diff_checkpoint_restore_and_linked_conversation(tmp_path) -> None:
+    database_path = tmp_path / "hephaestus.db"
+    repo = _workbench_repo(tmp_path)
+    client = _client(database_path)
+    session_id = client.post(
+        "/api/conversations",
+        json={"title": "Workbench linked chat", "workspace_path": str(repo)},
+    ).json()["id"]
+
+    trust = client.patch(
+        "/api/trust",
+        json={"mode": "manual", "rules": {"apply_low_risk_documentation_patches": False}},
+    )
+    proposed = client.post(
+        "/api/coding/propose",
+        json={
+            "user_request": "Update README intro to mention validation-backed release evidence.",
+            "repo_path": str(repo),
+            "conversation_id": session_id,
+        },
+    )
+    coding_id = proposed.json()["summary"]["id"]
+    change_id = proposed.json()["changes"][0]["id"]
+    unapproved = client.post(f"/api/coding/{change_id}/apply", json={"approved": False})
+    approved = client.post(
+        f"/api/coding/{change_id}/apply",
+        json={"approved": True, "no_validate": True},
+    )
+    checkpoint_id = approved.json()["summary"]["checkpoint_state"]
+    detail = client.get(f"/api/coding/{coding_id}")
+    coding_list = client.get(f"/api/coding?conversation={session_id}")
+    overview = client.get("/api/workbench/overview")
+
+    assert trust.status_code == 200
+    assert proposed.status_code == 200
+    assert "validation-backed release evidence" in proposed.json()["changes"][0]["diff"].lower()
+    assert unapproved.status_code == 200
+    assert unapproved.json()["summary"]["status"]["value"] == "requires_approval"
+    assert approved.status_code == 200
+    assert approved.json()["summary"]["status"]["value"] == "completed"
+    assert checkpoint_id == "available"
+    assert detail.json()["linked_conversation"]["href"] == f"/conversations/{session_id}"
+    assert coding_list.json()["items"][0]["conversation_id"] == session_id
+    assert overview.json()["recent_checkpoints"]
+
+    checkpoint_summary = overview.json()["recent_checkpoints"][0]
+    checkpoint_detail = client.get(checkpoint_summary["href"].replace("/workbench", "/api"))
+    (repo / "README.md").write_text("manual later edit\n", encoding="utf-8")
+    restore_pending = client.post(
+        f"/api/checkpoints/{checkpoint_summary['id']}/restore",
+        json={"approved": False},
+    )
+    assert (repo / "README.md").read_text(encoding="utf-8") == "manual later edit\n"
+    restored = client.post(
+        f"/api/checkpoints/{checkpoint_summary['id']}/restore",
+        json={"approved": True},
+    )
+
+    assert checkpoint_detail.status_code == 200
+    assert checkpoint_detail.json()["summary"]["files_covered"] == ["README.md"]
+    assert restore_pending.status_code == 200
+    assert restored.status_code == 200
+    assert (repo / "README.md").read_text(encoding="utf-8").startswith(
+        "Hephaestus is a self-improving AI agent."
+    )
+
+
+def test_workbench_validation_tools_redaction_and_destructive_blocking(tmp_path) -> None:
+    database_path = tmp_path / "hephaestus.db"
+    repo = _workbench_repo(tmp_path)
+    client = _client(database_path)
+
+    plan = client.post("/api/validation/plan", json={"repo_path": str(repo)})
+    run = client.post(
+        "/api/validation/run",
+        json={"repo_path": str(repo), "approved": True},
+    )
+    runtime = ToolRuntime(database_path, workspace_path=repo)
+    _secret_plan, secret_action, _secret_result = runtime.run_command(
+        ShellCommandRequest(
+            command='python -c "print(\'SECRET_TOKEN=supersecret123\')"',
+            yes=True,
+        )
+    )
+    _blocked_plan, blocked_action, blocked_result = runtime.run_command(
+        ShellCommandRequest(command="rm -rf dist", yes=True)
+    )
+    actions = client.get("/api/tools/actions")
+    secret_detail = client.get(f"/api/tools/actions/{secret_action.id}")
+    blocked_detail = client.get(f"/api/tools/actions/{blocked_action.id}")
+
+    assert plan.status_code == 200
+    assert plan.json()["commands"]
+    assert run.status_code == 200
+    assert run.json()["summary"]["status"]["value"] == "passed"
+    assert run.json()["commands"][0]["tool_action_id"] is not None
+    assert actions.status_code == 200
+    assert "supersecret123" not in secret_detail.text
+    assert "[redacted]" in secret_detail.text
+    assert blocked_result.status.value == "blocked"
+    assert blocked_detail.json()["summary"]["status"]["value"] == "blocked"
+
+
+def test_workbench_release_outcome_and_trust_persistence(tmp_path) -> None:
+    database_path = tmp_path / "hephaestus.db"
+    repo = _workbench_repo(tmp_path)
+    client = _client(database_path)
+    demo = ReleasePlanningOrchestrator(database_path).plan(
+        ReleasePlanningRequest(path=str(repo), pareto=True, qubo=True, evaluate=True)
+    )
+
+    updated_trust = client.patch(
+        "/api/trust",
+        json={
+            "mode": "local_power_user",
+            "rules": {
+                "apply_low_risk_code_patches_with_validation": True,
+                "push_git_changes": True,
+            },
+        },
+    )
+    reopened = _client(database_path)
+    trust = reopened.get("/api/trust")
+    releases = reopened.get("/api/releases")
+    release_detail = reopened.get(f"/api/releases/{demo.result.id}")
+    outcomes = reopened.get("/api/outcomes")
+    outcome_id = outcomes.json()["items"][0]["id"]
+    outcome_detail = reopened.get(f"/api/outcomes/{outcome_id}")
+
+    assert updated_trust.status_code == 200
+    assert trust.json()["mode"] == "local_power_user"
+    push_rule = next(rule for rule in trust.json()["rules"] if rule["key"] == "push_git_changes")
+    assert push_rule["allowed"] is False
+    assert push_rule["hard_blocked"] is True
+    assert trust.json()["effective_policy_profile"] == "local_power_user"
+    assert releases.status_code == 200
+    assert releases.json()["items"][0]["id"] == demo.result.id
+    assert release_detail.json()["advanced_optimization_details"]["pareto_frontier_ids"]
+    assert release_detail.json()["advanced_optimization_details"]["qubo_problem_ids"]
+    assert outcomes.status_code == 200
+    assert outcome_detail.status_code == 200
+    assert "LearningSignal" not in outcome_detail.text
+
+
+def _workbench_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "workbench_repo"
+    repo.mkdir(exist_ok=True)
+    (repo / "README.md").write_text(
+        "Hephaestus is a self-improving AI agent.\n",
+        encoding="utf-8",
+    )
+    (repo / "pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                "name = 'workbench-fixture'",
+                "version = '0.1.0'",
+                "dependencies = ['pytest>=8.2']",
+                "",
+                "[tool.pytest.ini_options]",
+                "testpaths = ['tests']",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    tests_dir = repo / "tests"
+    tests_dir.mkdir(exist_ok=True)
+    (tests_dir / "test_sample.py").write_text(
+        "def test_sample() -> None:\n    assert True\n",
+        encoding="utf-8",
+    )
+    return repo

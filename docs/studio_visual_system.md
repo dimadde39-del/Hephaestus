@@ -71,13 +71,23 @@ The empty state uses a small Talos mark and concise starter prompts:
 - Linear issue-tracker density or enterprise dashboard organization.
 - Raycast launcher-first layout, red identity system, or keycap-heavy visuals.
 
-## Future Workbench Extension
+## Workbench Extension
 
-Phase 5.5B Workbench screens should extend this system rather than introducing a new visual language.
+Phase 5.5B Workbench screens extend this system rather than introducing a new
+visual language.
 
 - Keep chat readable and central when conversation is present.
-- Put traces, plans, artifacts, and agent internals in contextual drawers or dedicated Workbench panels.
+- Put plans, diffs, validation evidence, checkpoints, tool actions, outcomes,
+  and release evidence in dedicated Workbench panels.
 - Use the existing theme tokens for all new surfaces.
 - Use semantic color only for real status: green for success, red for errors or blocked actions, warning for caution.
 - Keep artifact presentation compact until a user opens a deeper view.
 - Avoid bronze/orange fields, glowing cards, terminal labels, and permanent three-column density.
+- Keep advanced decision traces, Pareto, QUBO, outcome IDs, and raw technical
+  metadata collapsed by default.
+- Chat artifact cards stay compact and secondary to the original conversation
+  text.
+
+Workbench is allowed to be denser than Chat, but it should still read as a calm
+local agent workspace: neutral surfaces, readable typography, restrained
+borders, and monospace only for code, commands, paths, and technical IDs.

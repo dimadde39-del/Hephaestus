@@ -1,6 +1,8 @@
 # Studio Architecture
 
-Phase 5.5A adds a local web app without creating a second conversation system.
+Phase 5.5A added a local chat app without creating a second conversation
+system. Phase 5.5B adds Workbench projections over the existing runtime records
+without creating a second agent runtime.
 
 ```text
 apps/studio Next.js static export
@@ -29,6 +31,8 @@ The app shell is organized around:
 - collapsible context drawer;
 - search panel;
 - typed API client.
+- Workbench feature folders for coding, diffs, validation, checkpoints, tool
+  actions, release evidence, outcomes, and trust settings.
 
 The visual direction follows the Hephaestus brand: charcoal and iron surfaces,
 bronze and forge gold accents, ember warmth, restrained cyan, and small Talos
@@ -43,18 +47,22 @@ The backend lives in `src/hephaestus/studio/`:
 - `api.py`: typed API routes.
 - `schemas.py`: request and response schemas.
 - `services.py`: Studio orchestration and provider/policy/repo exposure.
+- `workbench.py`: typed Workbench projections over coding-loop, validation,
+  tool-runtime, checkpoint, release, outcome, and policy records.
 - `repository.py`: conversation metadata, message reads, search, memory counts,
   and artifact counts over SQLite.
 - `launcher.py`: `heph studio` runtime and `heph studio doctor`.
 - `security.py`: loopback defaults, precise CORS origins, static asset path
   resolution.
 
-The backend calls `ConversationService` to continue chats. It does not duplicate
-message storage and the frontend never queries SQLite directly.
+The backend calls `ConversationService` to continue chats and existing Python
+orchestrators to plan/propose/apply coding work, run validation, and restore
+checkpoints. It does not duplicate message storage or runtime logic, and the
+frontend never queries SQLite directly.
 
 ## API Surface
 
-Phase 5.5A exposes:
+Studio exposes the chat API plus Workbench API:
 
 ```text
 GET  /api/health
@@ -72,6 +80,27 @@ GET  /api/modes
 GET  /api/policy/active
 GET  /api/providers/status
 GET  /api/repos/recent
+GET  /api/workbench/overview
+GET  /api/coding
+GET  /api/coding/{request_id}
+POST /api/coding/plan
+POST /api/coding/propose
+POST /api/coding/{change_id}/apply
+GET  /api/validation
+GET  /api/validation/{result_id}
+POST /api/validation/plan
+POST /api/validation/run
+GET  /api/checkpoints
+GET  /api/checkpoints/{checkpoint_id}
+POST /api/checkpoints/{checkpoint_id}/restore
+GET  /api/tools/actions
+GET  /api/tools/actions/{action_id}
+GET  /api/releases
+GET  /api/releases/{release_plan_id}
+GET  /api/outcomes
+GET  /api/outcomes/{outcome_id}
+GET  /api/trust
+PATCH /api/trust
 ```
 
 Posting a message:
@@ -85,6 +114,11 @@ Posting a message:
 
 Opening a conversation only reads stored session and message data.
 
+Workbench reads typed projections from existing repositories. It translates
+runtime artifacts into user-readable records such as "Applied patch to 2 files"
+instead of exposing raw SQLite rows or internal JSON. Advanced details are
+available, but collapsed by default.
+
 ## Database
 
 Studio reuses:
@@ -96,6 +130,11 @@ Studio reuses:
 - strategic memory tables;
 - repo profile tables;
 - policy tables.
+- coding-loop tables.
+- validation tables.
+- tool-runtime action/checkpoint tables.
+- release planning tables.
+- outcome and learning tables.
 
 SQLite migration 16 adds missing Studio metadata columns to
 `conversation_sessions`:
@@ -109,6 +148,10 @@ Studio reuses existing `archived` and `repo_profile_id` columns for archive and
 repo-context behavior instead of adding duplicate fields.
 
 Messages are not copied into a Studio-only table.
+
+SQLite migration 17 adds `studio_trust_settings` for local Workbench autonomy
+preferences. These preferences map to existing policy profiles and implemented
+runtime actions; they cannot override hard destructive blocks.
 
 ## Static Frontend Serving
 
@@ -141,7 +184,9 @@ Security boundaries:
 
 ## Phase Boundary
 
-Phase 5.5A intentionally stops at persistent chat. Phase 5.5B should add
-workbench views for coding requests, patch diffs, validation runs, approvals,
-checkpoints, rollback, outcomes, tool actions, and release plans. Phase 5.5C
-can add advanced decision trace, Pareto, QUBO, learning, and packaging polish.
+Phase 5.5B intentionally stops at practical Workbench visibility and selected
+safe actions. It does not add deploy, dependency installation, Git push,
+external messaging, arbitrary shell input, or fake streaming cancellation.
+Phase 5.5C can add advanced decision trace, Pareto, QUBO, memory management,
+provider/model settings, model economy visibility, onboarding, and packaging
+polish.

@@ -2,18 +2,41 @@ import type {
   ConversationDetail,
   ConversationListResponse,
   ConversationSummary,
+  CheckpointDetailResponse,
+  CheckpointRestoreRequest,
+  CheckpointSummary,
+  CodingApplyRequest,
+  CodingDetailResponse,
+  CodingListResponse,
+  CodingPlanRequest,
+  CodingProposeRequest,
   CreateConversationRequest,
   ModeOption,
+  OutcomeDetailResponse,
+  OutcomeListResponse,
   PolicyProfile,
   PostMessageRequest,
   PostMessageResponse,
   ProviderStatusResponse,
   RecentRepo,
+  ReleaseDetailResponse,
+  ReleaseListResponse,
   SearchResponse,
   StudioConfig,
   StudioHealth,
   StudioMessage,
+  ToolActionDetailResponse,
+  ToolActionSummary,
+  TrustMode,
+  TrustRuleKey,
+  TrustSettingsResponse,
   UpdateConversationRequest,
+  ValidationDetailResponse,
+  ValidationListResponse,
+  ValidationPlanRequest,
+  ValidationPlanResponse,
+  ValidationRunRequest,
+  WorkbenchOverview,
 } from "@/lib/types";
 
 export class StudioApiError extends Error {
@@ -141,6 +164,145 @@ export class StudioApiClient {
 
   recentRepos() {
     return this.request<RecentRepo[]>("/repos/recent");
+  }
+
+  workbenchOverview() {
+    return this.request<WorkbenchOverview>("/workbench/overview");
+  }
+
+  coding(params: {
+    status?: string;
+    repo?: string;
+    conversation?: string;
+    q?: string;
+    limit?: number;
+  } = {}) {
+    const search = new URLSearchParams();
+    if (params.status) {
+      search.set("status", params.status);
+    }
+    if (params.repo) {
+      search.set("repo", params.repo);
+    }
+    if (params.conversation) {
+      search.set("conversation", params.conversation);
+    }
+    if (params.q) {
+      search.set("q", params.q);
+    }
+    if (params.limit) {
+      search.set("limit", String(params.limit));
+    }
+    return this.request<CodingListResponse>(`/coding?${search.toString()}`);
+  }
+
+  codingDetail(requestId: string) {
+    return this.request<CodingDetailResponse>(`/coding/${encodeURIComponent(requestId)}`);
+  }
+
+  createCodingPlan(payload: CodingPlanRequest) {
+    return this.request<CodingDetailResponse>("/coding/plan", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  proposeCodingChange(payload: CodingProposeRequest) {
+    return this.request<CodingDetailResponse>("/coding/propose", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  applyCodingChange(changeId: string, payload: CodingApplyRequest = {}) {
+    return this.request<CodingDetailResponse>(`/coding/${encodeURIComponent(changeId)}/apply`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  validation(limit = 100) {
+    const search = new URLSearchParams({ limit: String(limit) });
+    return this.request<ValidationListResponse>(`/validation?${search.toString()}`);
+  }
+
+  validationDetail(resultId: string) {
+    return this.request<ValidationDetailResponse>(`/validation/${encodeURIComponent(resultId)}`);
+  }
+
+  planValidation(payload: ValidationPlanRequest) {
+    return this.request<ValidationPlanResponse>("/validation/plan", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  runValidation(payload: ValidationRunRequest) {
+    return this.request<ValidationDetailResponse>("/validation/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  toolActions(limit = 100) {
+    const search = new URLSearchParams({ limit: String(limit) });
+    return this.request<ToolActionSummary[]>(`/tools/actions?${search.toString()}`);
+  }
+
+  toolAction(actionId: string) {
+    return this.request<ToolActionDetailResponse>(
+      `/tools/actions/${encodeURIComponent(actionId)}`,
+    );
+  }
+
+  checkpoints(limit = 100) {
+    const search = new URLSearchParams({ limit: String(limit) });
+    return this.request<CheckpointSummary[]>(`/checkpoints?${search.toString()}`);
+  }
+
+  checkpoint(checkpointId: string) {
+    return this.request<CheckpointDetailResponse>(
+      `/checkpoints/${encodeURIComponent(checkpointId)}`,
+    );
+  }
+
+  restoreCheckpoint(checkpointId: string, payload: CheckpointRestoreRequest = {}) {
+    return this.request<CheckpointDetailResponse>(
+      `/checkpoints/${encodeURIComponent(checkpointId)}/restore`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  releases(limit = 100) {
+    const search = new URLSearchParams({ limit: String(limit) });
+    return this.request<ReleaseListResponse>(`/releases?${search.toString()}`);
+  }
+
+  release(releasePlanId: string) {
+    return this.request<ReleaseDetailResponse>(`/releases/${encodeURIComponent(releasePlanId)}`);
+  }
+
+  outcomes(limit = 100) {
+    const search = new URLSearchParams({ limit: String(limit) });
+    return this.request<OutcomeListResponse>(`/outcomes?${search.toString()}`);
+  }
+
+  outcome(outcomeId: string) {
+    return this.request<OutcomeDetailResponse>(`/outcomes/${encodeURIComponent(outcomeId)}`);
+  }
+
+  trust() {
+    return this.request<TrustSettingsResponse>("/trust");
+  }
+
+  updateTrust(payload: { mode?: TrustMode; rules?: Partial<Record<TrustRuleKey, boolean>> }) {
+    return this.request<TrustSettingsResponse>("/trust", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

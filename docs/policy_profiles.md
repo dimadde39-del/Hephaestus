@@ -64,3 +64,28 @@ approval, and whether external or destructive actions are blocked.
 
 The default remains practical: normal local development can move, while
 file-changing, external, and destructive actions stay explicit.
+
+## Studio Trust Settings
+
+Studio Workbench adds local trust settings at `/workbench/trust`.
+
+Modes:
+
+- `Manual`
+- `Developer`
+- `Local Power User`
+- `Strict`
+
+These modes map to existing policy profiles and implemented runtime behavior.
+They can automatically allow safe analysis such as repo reads, search, repo
+metadata inspection, coding plans, patch proposals, checkpoints, and safe
+validation. Low-risk documentation or code patch application can be enabled
+only when the corresponding rule is implemented and allowed.
+
+Medium-risk work still requires meaningful confirmation. External side effects
+such as dependency installation, Git push, deploy, publish, or external messages
+remain explicit or blocked. Trust settings cannot override hard destructive
+blocks.
+
+Preferences are stored locally in `studio_trust_settings` and displayed with
+their effective behavior so the UI is not decorative.

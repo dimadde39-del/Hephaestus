@@ -124,3 +124,21 @@ checkpoint, decision trace, outcome, conversation, run, and repo profile links.
 Phase 5E is a runtime foundation. Phase 5F uses it for approved validation.
 Phase 5G uses it for small scoped coding loops. It still does not browse,
 deploy, publish, push, run as a daemon, or turn chat into an execution loop.
+
+## Studio Workbench
+
+Studio Workbench translates tool runtime records into a user-readable timeline
+at `/workbench/tools`.
+
+Examples:
+
+- `Read README.md`
+- `Searched 14 files`
+- `Created checkpoint`
+- `Applied patch to 2 files`
+- `Ran uv run pytest`
+- `Restored checkpoint`
+
+Exact paths, commands, stdout, stderr, action ids, and outcome ids are available
+in detail views but do not dominate the timeline. Protected-file contents and
+secrets are redacted before they reach the UI.

@@ -3,8 +3,10 @@
 import {
   Archive,
   Edit3,
+  Hammer,
   Monitor,
   Moon,
+  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
@@ -31,8 +33,11 @@ interface ConversationSidebarProps {
   collapsed: boolean;
   appearance: AppearancePreference;
   providerLabel: string;
+  activeSection: "chat" | "workbench";
   onQueryChange: (value: string) => void;
   onNewConversation: () => void;
+  onOpenChat: () => void;
+  onOpenWorkbench: () => void;
   onOpenConversation: (conversationId: string) => void;
   onPinConversation: (conversation: ConversationSummary) => void;
   onArchiveConversation: (conversation: ConversationSummary) => void;
@@ -54,8 +59,11 @@ export function ConversationSidebar({
   collapsed,
   appearance,
   providerLabel,
+  activeSection,
   onQueryChange,
   onNewConversation,
+  onOpenChat,
+  onOpenWorkbench,
   onOpenConversation,
   onPinConversation,
   onArchiveConversation,
@@ -98,6 +106,18 @@ export function ConversationSidebar({
           />
         </div>
         <nav className="sidebar-rail-actions" aria-label="Primary">
+          <IconButton
+            active={activeSection === "chat"}
+            icon={MessageSquare}
+            label="Chat"
+            onClick={onOpenChat}
+          />
+          <IconButton
+            active={activeSection === "workbench"}
+            icon={Hammer}
+            label="Workbench"
+            onClick={onOpenWorkbench}
+          />
           <IconButton icon={Plus} label="New chat" onClick={onNewConversation} />
           <IconButton icon={Search} label="Search" onClick={onOpenSearch} />
         </nav>
@@ -127,6 +147,26 @@ export function ConversationSidebar({
       </div>
 
       <div className="sidebar-actions">
+        <nav className="primary-nav" aria-label="Primary navigation">
+          <button
+            aria-current={activeSection === "chat" ? "page" : undefined}
+            className={activeSection === "chat" ? "is-active" : ""}
+            onClick={onOpenChat}
+            type="button"
+          >
+            <MessageSquare aria-hidden="true" size={16} />
+            Chat
+          </button>
+          <button
+            aria-current={activeSection === "workbench" ? "page" : undefined}
+            className={activeSection === "workbench" ? "is-active" : ""}
+            onClick={onOpenWorkbench}
+            type="button"
+          >
+            <Hammer aria-hidden="true" size={16} />
+            Workbench
+          </button>
+        </nav>
         <button className="new-chat-button" onClick={onNewConversation} type="button">
           <Plus aria-hidden="true" size={17} />
           New chat

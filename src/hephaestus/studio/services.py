@@ -36,6 +36,7 @@ from hephaestus.studio.schemas import (
     StudioMessage,
     UpdateConversationRequest,
 )
+from hephaestus.studio.workbench import WorkbenchService
 
 
 class StudioService:
@@ -55,6 +56,7 @@ class StudioService:
         self.conversation_service = ConversationService(self.database_path, provider=provider)
         self.policy_repository = PolicyRepository(self.database_path)
         self.repo_repository = RepoProfileRepository(self.database_path)
+        self.workbench = WorkbenchService(self.database_path)
         self.static_assets_available = static_assets_available
 
     def health(self) -> StudioHealthResponse:

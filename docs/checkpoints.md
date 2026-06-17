@@ -45,3 +45,18 @@ recorded and the user decides the next step.
 
 Rollback is intentionally narrow. It restores the files Hephaestus touched; it
 does not hide unrelated user edits or rewrite git history.
+
+## Studio Workbench
+
+Studio Workbench shows checkpoints at `/workbench/checkpoints` and detail pages
+at `/workbench/checkpoints/{checkpoint_id}`.
+
+The list shows creation time, associated coding request, files covered,
+availability, and restored state. The detail view shows covered files, original
+hashes, related patch, validation result, restore history, and whether protected
+paths are involved.
+
+Restore from Studio uses the same Python runtime as the CLI. It asks for one
+confirmation for the whole checkpoint, summarizes affected files, notes whether
+later changes may be overwritten, and never restores outside the checkpoint's
+captured file scope.

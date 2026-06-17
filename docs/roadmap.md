@@ -314,16 +314,34 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 - Screenshots and Studio documentation added under `docs/assets/studio/` and
   `docs/studio*.md`.
 
-## Upcoming
-
 ### Phase 5.5B: Hephaestus Agent Workbench
 
-- Beautiful, useful views for coding requests, patch diffs, validation runs,
-  approvals, checkpoints, rollback options, outcomes, tool actions, and release
-  plans.
-- Keep the persistent conversation as the main product surface; workbench views
-  should be linked context, not a replacement for chat.
-- Keep advanced QUBO/Pareto/decision internals secondary.
+- Studio main navigation now has Chat and Workbench, with Chat still the
+  default startup route.
+- Workbench overview shows active coding work, recent completed work, recent
+  validation, failed validation requiring attention, meaningful pending
+  decisions, recent checkpoints, and latest release evidence.
+- Coding request list/detail views expose request context, repo, scope, risk,
+  status, files touched, validation result, checkpoint state, linked
+  conversation, plans, patches, and result.
+- Diff viewer supports changed file lists, unified diff rendering, additions
+  and deletions, line numbers, file collapse, copy patch, large-diff indicators,
+  proposed/applied state, and protected-file warnings.
+- Validation list/detail views show real commands, statuses, exit codes,
+  durations, evidence, output summaries, and collapsed stdout/stderr.
+- Checkpoint list/detail views show covered files, hashes, validation links,
+  restore history, and one-confirmation restore through the Python runtime.
+- Tool action timeline translates internal actions into user-readable events.
+- Local trust settings persist Studio autonomy mode and map to existing policy
+  profiles and implemented runtime behavior.
+- Pending decisions are limited to meaningful approvals such as patch apply,
+  validation retry, and checkpoint restore.
+- Release evidence and outcomes are shown in practical language, with advanced
+  optimization details collapsed by default.
+- Compact chat artifact cards link conversations to Workbench without replacing
+  exact message history.
+
+## Upcoming
 
 ### Phase 5.5C: Advanced Views + Packaging + Polish
 

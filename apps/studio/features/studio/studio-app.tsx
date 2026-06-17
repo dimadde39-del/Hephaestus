@@ -10,6 +10,7 @@ import { Composer } from "@/features/messages/composer";
 import { MessageTimeline } from "@/features/messages/message-timeline";
 import { SearchPanel } from "@/features/search/search-panel";
 import { AppShell } from "@/features/studio/app-shell";
+import { WorkbenchApp, type WorkbenchRoute } from "@/features/workbench/workbench-app";
 import { StudioApiClient, StudioApiError } from "@/lib/api/client";
 import { useKeyboardShortcuts } from "@/lib/shortcuts/use-keyboard-shortcuts";
 import type {
@@ -30,6 +31,10 @@ const SCROLL_PREFIX = "heph:studio:scroll:";
 const APPEARANCE_KEY = "heph:studio:appearance";
 
 export type AppearancePreference = "system" | "light" | "dark";
+
+type StudioRoute =
+  | { section: "chat"; conversationId: string | null; messageId: string | null }
+  | WorkbenchRoute;
 
 export function StudioApp() {
   const api = useMemo(() => new StudioApiClient(), []);
@@ -62,6 +67,11 @@ export function StudioApp() {
   const [mobileContextOpen, setMobileContextOpen] = useState(false);
   const [contextCollapsed, setContextCollapsed] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [route, setRoute] = useState<StudioRoute>({
+    section: "chat",
+    conversationId: null,
+    messageId: null,
+  });
   const [appearance, setAppearance] = useState<AppearancePreference>(() =>
     readAppearancePreference(),
   );
@@ -85,6 +95,7 @@ export function StudioApp() {
       setActiveConversationId(conversationId);
       setActiveMessageId(options.messageId ?? null);
       setRestoreScrollPosition(readScrollPosition(conversationId));
+      setRoute({ section: "chat", conversationId, messageId: options.messageId ?? null });
       localStorage.setItem(LAST_CONVERSATION_KEY, conversationId);
       if (options.push !== false) {
         const suffix = options.messageId ? `?message=${encodeURIComponent(options.messageId)}` : "";
@@ -129,16 +140,23 @@ export function StudioApp() {
         setModes(nextModes);
         setRepos(nextRepos);
         setConversations(list.conversations);
-        const initialId =
-          readConversationIdFromLocation() ??
-          localStorage.getItem(LAST_CONVERSATION_KEY) ??
-          list.conversations[0]?.id ??
-          null;
-        if (initialId) {
-          await openConversation(initialId, {
-            push: false,
-            messageId: readMessageIdFromLocation(),
-          });
+        const initialRoute = readStudioRouteFromLocation();
+        setRoute(initialRoute);
+        if (initialRoute.section === "chat") {
+          const initialId =
+            initialRoute.conversationId ??
+            localStorage.getItem(LAST_CONVERSATION_KEY) ??
+            list.conversations[0]?.id ??
+            null;
+          if (initialId) {
+            await openConversation(initialId, {
+              push: false,
+              messageId: initialRoute.messageId,
+            });
+          }
+        }
+        if (initialRoute.section === "workbench") {
+          setContextCollapsed(true);
         }
       } finally {
         if (!cancelled) {
@@ -155,17 +173,61 @@ export function StudioApp() {
 
   useEffect(() => {
     function handlePopState() {
-      const conversationId = readConversationIdFromLocation();
-      if (conversationId) {
-        void openConversation(conversationId, {
+      const nextRoute = readStudioRouteFromLocation();
+      if (nextRoute.section === "chat" && nextRoute.conversationId) {
+        void openConversation(nextRoute.conversationId, {
           push: false,
-          messageId: readMessageIdFromLocation(),
+          messageId: nextRoute.messageId,
         });
+        return;
+      }
+      setRoute(nextRoute);
+      if (nextRoute.section === "workbench") {
+        setContextCollapsed(true);
       }
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [openConversation]);
+
+  function navigateToHref(href: string) {
+    if (href.startsWith("/conversations/")) {
+      const url = new URL(href, window.location.origin);
+      const id = decodeURIComponent(url.pathname.split("/")[2] ?? "");
+      if (id) {
+        void openConversation(id, {
+          messageId: url.searchParams.get("message"),
+        });
+        setContextCollapsed(false);
+      }
+      return;
+    }
+    if (href.startsWith("/workbench")) {
+      window.history.pushState(null, "", href);
+      setRoute(parseWorkbenchRoute(href));
+      setContextCollapsed(true);
+      setMobileSidebarOpen(false);
+      return;
+    }
+    window.history.pushState(null, "", href);
+  }
+
+  function openChatHome() {
+    const target = activeConversationId ?? conversations[0]?.id ?? null;
+    if (target) {
+      void openConversation(target);
+      setContextCollapsed(false);
+    } else {
+      window.history.pushState(null, "", "/");
+      setRoute({ section: "chat", conversationId: null, messageId: null });
+      setContextCollapsed(false);
+    }
+    setMobileSidebarOpen(false);
+  }
+
+  function openWorkbenchHome() {
+    navigateToHref("/workbench");
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -334,6 +396,7 @@ export function StudioApp() {
     });
   }
 
+  const isWorkbench = route.section === "workbench";
   const headerTitle = conversationDetail?.conversation.title ?? "Hephaestus Studio";
   const providerLabel = provider?.active_label ?? config?.provider_label ?? "Local deterministic mode";
   const activeRepoName =
@@ -344,17 +407,19 @@ export function StudioApp() {
   return (
     <AppShell
       composer={
-        <Composer
-          disabled={pending || bootLoading}
-          mode={mode}
-          modes={modes}
-          onModeChange={(nextMode) => void updateMode(nextMode)}
-          onRepoChange={(nextRepoId) => void updateRepo(nextRepoId)}
-          onSendMessage={(message) => void sendMessage(message)}
-          providerLabel={providerLabel}
-          repoProfileId={repoProfileId}
-          repos={repos}
-        />
+        isWorkbench ? null : (
+          <Composer
+            disabled={pending || bootLoading}
+            mode={mode}
+            modes={modes}
+            onModeChange={(nextMode) => void updateMode(nextMode)}
+            onRepoChange={(nextRepoId) => void updateRepo(nextRepoId)}
+            onSendMessage={(message) => void sendMessage(message)}
+            providerLabel={providerLabel}
+            repoProfileId={repoProfileId}
+            repos={repos}
+          />
+        )
       }
       context={
         <ContextDrawer
@@ -369,43 +434,62 @@ export function StudioApp() {
           repos={repos}
         />
       }
-      contextCollapsed={contextCollapsed}
+      contextCollapsed={isWorkbench ? true : contextCollapsed}
       sidebarCollapsed={sidebarCollapsed}
       header={
-        <header className="chat-header">
-          <IconButton
-            className="mobile-only"
-            icon={Menu}
-            label="Open conversations"
-            onClick={() => {
-              setSidebarCollapsed(false);
-              setMobileSidebarOpen(true);
-            }}
-          />
-          <div className="chat-title">
-            <p>Conversation</p>
-            <h1>{headerTitle}</h1>
-            {activeRepoName ? <span>{activeRepoName}</span> : null}
-          </div>
-          <div className="chat-header-actions">
-            <IconButton icon={Search} label="Search" onClick={() => setSearchOpen(true)} />
-            <IconButton
-              className="desktop-only"
-              icon={PanelRight}
-              label={contextCollapsed ? "Open context" : "Collapse context"}
-              onClick={() => setContextCollapsed((value) => !value)}
-            />
+        isWorkbench ? (
+          <header className="chat-header">
             <IconButton
               className="mobile-only"
-              icon={PanelRight}
-              label="Open context"
+              icon={Menu}
+              label="Open navigation"
               onClick={() => {
-                setContextCollapsed(false);
-                setMobileContextOpen(true);
+                setSidebarCollapsed(false);
+                setMobileSidebarOpen(true);
               }}
             />
-          </div>
-        </header>
+            <div className="chat-title">
+              <p>Workbench</p>
+              <h1>Agent Workbench</h1>
+              <span>Real work, validation, checkpoints, and approvals</span>
+            </div>
+          </header>
+        ) : (
+          <header className="chat-header">
+            <IconButton
+              className="mobile-only"
+              icon={Menu}
+              label="Open conversations"
+              onClick={() => {
+                setSidebarCollapsed(false);
+                setMobileSidebarOpen(true);
+              }}
+            />
+            <div className="chat-title">
+              <p>Conversation</p>
+              <h1>{headerTitle}</h1>
+              {activeRepoName ? <span>{activeRepoName}</span> : null}
+            </div>
+            <div className="chat-header-actions">
+              <IconButton icon={Search} label="Search" onClick={() => setSearchOpen(true)} />
+              <IconButton
+                className="desktop-only"
+                icon={PanelRight}
+                label={contextCollapsed ? "Open context" : "Collapse context"}
+                onClick={() => setContextCollapsed((value) => !value)}
+              />
+              <IconButton
+                className="mobile-only"
+                icon={PanelRight}
+                label="Open context"
+                onClick={() => {
+                  setContextCollapsed(false);
+                  setMobileContextOpen(true);
+                }}
+              />
+            </div>
+          </header>
+        )
       }
       search={
         <SearchPanel
@@ -423,6 +507,7 @@ export function StudioApp() {
       sidebar={
         <ConversationSidebar
           activeConversationId={activeConversationId}
+          activeSection={isWorkbench ? "workbench" : "chat"}
           activeRepoName={activeRepoName}
           appearance={appearance}
           collapsed={sidebarCollapsed}
@@ -432,11 +517,13 @@ export function StudioApp() {
           onArchiveConversation={(conversation) => void archiveConversation(conversation)}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           onNewConversation={() => void createConversation()}
+          onOpenChat={openChatHome}
           onOpenConversation={(conversationId) => {
             void openConversation(conversationId);
             setMobileSidebarOpen(false);
           }}
           onOpenSearch={() => setSearchOpen(true)}
+          onOpenWorkbench={openWorkbenchHome}
           onPinConversation={(conversation) => void pinConversation(conversation)}
           onQueryChange={setSidebarQuery}
           onRenameConversation={(conversationId, title) =>
@@ -450,20 +537,31 @@ export function StudioApp() {
         />
       }
       timeline={
-        <MessageTimeline
-          activeMessageId={activeMessageId}
-          error={sendError}
-          loading={bootLoading || messagesLoading}
-          messages={messages}
-          onRetry={() => void retryLastMessage()}
-          onScrollPositionChange={(position) => {
-            if (activeConversationId) {
-              localStorage.setItem(`${SCROLL_PREFIX}${activeConversationId}`, String(position));
-            }
-          }}
-          pending={pending}
-          restoreScrollPosition={restoreScrollPosition}
-        />
+        isWorkbench ? (
+          <WorkbenchApp
+            api={api}
+            conversations={conversations}
+            onNavigate={navigateToHref}
+            repos={repos}
+            route={route.section === "workbench" ? route : { section: "workbench", area: "overview", id: null }}
+          />
+        ) : (
+          <MessageTimeline
+            activeMessageId={activeMessageId}
+            error={sendError}
+            loading={bootLoading || messagesLoading}
+            messages={messages}
+            onOpenArtifact={navigateToHref}
+            onRetry={() => void retryLastMessage()}
+            onScrollPositionChange={(position) => {
+              if (activeConversationId) {
+                localStorage.setItem(`${SCROLL_PREFIX}${activeConversationId}`, String(position));
+              }
+            }}
+            pending={pending}
+            restoreScrollPosition={restoreScrollPosition}
+          />
+        )
       }
     />
   );
@@ -502,6 +600,50 @@ function readMessageIdFromLocation() {
     return null;
   }
   return new URLSearchParams(window.location.search).get("message");
+}
+
+function readStudioRouteFromLocation(): StudioRoute {
+  if (typeof window === "undefined") {
+    return { section: "chat", conversationId: null, messageId: null };
+  }
+  if (window.location.pathname.startsWith("/workbench")) {
+    return parseWorkbenchRoute(window.location.href);
+  }
+  return {
+    section: "chat",
+    conversationId: readConversationIdFromLocation(),
+    messageId: readMessageIdFromLocation(),
+  };
+}
+
+const workbenchAreas = new Set<WorkbenchRoute["area"]>([
+  "overview",
+  "coding",
+  "validation",
+  "checkpoints",
+  "tools",
+  "releases",
+  "outcomes",
+  "trust",
+]);
+
+function parseWorkbenchRoute(href: string): WorkbenchRoute {
+  const url =
+    typeof window === "undefined"
+      ? new URL(href, "http://localhost")
+      : new URL(href, window.location.origin);
+  const [, root, rawArea, rawId] = url.pathname.split("/");
+  if (root !== "workbench") {
+    return { section: "workbench", area: "overview", id: null };
+  }
+  const area = rawArea && workbenchAreas.has(rawArea as WorkbenchRoute["area"])
+    ? (rawArea as WorkbenchRoute["area"])
+    : "overview";
+  return {
+    section: "workbench",
+    area,
+    id: rawId ? decodeURIComponent(rawId) : null,
+  };
 }
 
 function readScrollPosition(conversationId: string) {

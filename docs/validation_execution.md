@@ -117,3 +117,17 @@ the repo; the default maximum iteration count is one.
   validation commands.
 - Command detection is manifest/config based and may miss project-specific docs.
 - Passing local validation does not prove external release safety.
+
+## Studio Workbench
+
+Studio Workbench lists validation runs at `/workbench/validation` and shows
+detail pages at `/workbench/validation/{result_id}`.
+
+The list shows repo, related coding request or release plan, evidence mode,
+command counts, pass/fail/skipped counts, duration, and date. Detail pages show
+each exact command, risk, status, exit code, duration, concise output summary,
+linked tool action, linked outcome, and readiness effect.
+
+Stdout and stderr are collapsed by default. Large output is truncated by the
+backend and clearly marked so Studio does not render thousands of lines on page
+load.

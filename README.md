@@ -47,15 +47,19 @@ uv run heph validate run . --yes
 
 ## Hephaestus Studio
 
-Open yesterday's conversation.
-Read the original messages.
-Continue where you stopped.
+Talk in Chat.
+Inspect real work in Workbench.
 
 Studio is the local web interface for persistent Hephaestus conversations. It
 shows the exact saved user and agent messages, lets you create, reopen, search,
 pin, rename, and archive chats, and continues through the same conversation
 system used by the CLI. It does not spend model tokens on an automatic recap
 when a chat opens.
+
+Workbench is the second Studio surface. It shows coding requests, plans, patch
+diffs, validation evidence, checkpoints, rollback, tool actions, release
+evidence, outcomes, and meaningful approvals without making the chat timeline a
+dashboard.
 
 ```bash
 uv sync --extra studio
@@ -68,9 +72,7 @@ By default Studio binds to `http://127.0.0.1:8741`, uses the local SQLite
 database at `.hephaestus/hephaestus.db`, and falls back to deterministic local
 mode when no provider key is configured.
 
-![Hephaestus Studio persistent chat](docs/assets/studio/studio-chat.png)
-
-![Hephaestus README hero showing Talos forging an explainable decision graph](docs/assets/brand/hephaestus-readme-hero.png)
+![Hephaestus Studio Workbench](docs/assets/studio/studio-workbench.png)
 
 ## What Works Today
 
@@ -83,9 +85,9 @@ mode when no provider key is configured.
 | Real validation execution | Works |
 | Repo-aware coding loop | Works for small scoped changes |
 | Studio persistent chat | Works |
+| Studio agent workbench views | Works |
 | Full autonomous coding | Not yet |
 | Daemon / 24-7 runtime | Not yet |
-| Studio agent workbench views | Next |
 | Voice | Later |
 
 ## Try The Current Loop
@@ -289,7 +291,7 @@ The current architecture is local-first and approval-gated:
 
 ```text
 CLI
- |-- Studio: local web UI for exact persistent chat history and search
+ |-- Studio: local web UI for exact persistent chat and Workbench inspection
  |-- Conversation: ask/discuss/chat over memory, repo context, and deliberation
  |-- Strategic memory: goals, principles, assumptions, decisions, and lessons
  |-- Repo intelligence: read-only local inspection and command risk classification
@@ -324,8 +326,11 @@ Built:
 - Repo-aware coding loop for small scoped changes: plan, propose, review, apply
   with `--yes`, checkpoint, validate, optionally rollback, and record outcomes.
 - Local Studio persistent chat UI with searchable exact-message history,
-  conversation metadata, mode/repo selectors, provider status, and policy
-  context.
+  conversation metadata, mode/repo selectors, provider status, policy context,
+  and a Workbench for inspecting real agent work.
+- Studio Workbench views for coding requests, diffs, validation runs,
+  checkpoints, tool actions, release evidence, outcomes, trust settings, and
+  meaningful pending approvals.
 - Release planning with optional validation evidence.
 - Advanced decision machinery: traces, outcomes, learning signals, Pareto
   frontiers, QUBO formulations, local solvers, model routing, and context
@@ -337,8 +342,6 @@ Not built yet:
 - Large architecture rewrites or unbounded multi-file self-editing.
 - Deploy, publish, push, or destructive command execution.
 - A long-running daemon or cloud worker.
-- Studio workbench screens for coding-loop diffs, validation evidence,
-  approvals, checkpoints, outcomes, and tool actions.
 - Browser, desktop, Telegram, or voice automation.
 - Production sandbox execution.
 - Quantum hardware integration.
@@ -358,6 +361,8 @@ validation evidence instead of simulated evidence.
 - [Studio](docs/studio.md)
 - [Studio architecture](docs/studio_architecture.md)
 - [Studio chat history](docs/studio_chat_history.md)
+- [Studio Workbench](docs/studio_workbench.md)
+- [Studio trust and approvals](docs/studio_trust_and_approvals.md)
 - [Public launch notes](docs/public_launch_notes.md)
 - [Reveal strategy](docs/reveal_strategy.md)
 - [Demo script](docs/demo_script.md)
