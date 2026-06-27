@@ -37,6 +37,20 @@ heph discuss "Stress-test this roadmap." --mode strategic
 heph validate run . --yes
 ```
 
+DeepSeek V4 Flash has an opt-in, budgeted smoke path. These commands are
+network-free until `--live` is added:
+
+```bash
+uv run heph models test deepseek
+uv run heph models smoke deepseek --case conversation
+uv run heph models smoke deepseek --case repo-read --repo .
+uv run heph models smoke deepseek --case coding
+```
+
+See [DeepSeek V4 Flash](docs/deepseek_v4_flash.md) and
+[live provider smoke](docs/live_provider_smoke.md). This smoke is deliberately
+narrow and is not a Claude Code parity claim.
+
 In a source checkout, those same commands are:
 
 ```bash
@@ -384,6 +398,8 @@ validation evidence instead of simulated evidence.
 - [Studio chat history](docs/studio_chat_history.md)
 - [Studio Workbench](docs/studio_workbench.md)
 - [Studio trust and approvals](docs/studio_trust_and_approvals.md)
+- [DeepSeek V4 Flash](docs/deepseek_v4_flash.md)
+- [Live provider smoke](docs/live_provider_smoke.md)
 - [Public launch notes](docs/public_launch_notes.md)
 - [Reveal strategy](docs/reveal_strategy.md)
 - [Demo script](docs/demo_script.md)

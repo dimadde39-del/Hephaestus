@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Annotated, Protocol
+from typing import Annotated, Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,6 +71,9 @@ class ModelRequest(BaseModel):
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_output_tokens: int = Field(default=1_000, gt=0)
     require_json: bool = False
+    thinking_enabled: bool | None = None
+    reasoning_effort: str | None = None
+    messages: list[dict[str, Any]] | None = None
 
 
 class ModelResponse(BaseModel):
@@ -81,6 +84,11 @@ class ModelResponse(BaseModel):
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
     estimated_cost: float = Field(ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    thinking_enabled: bool = False
+    reasoning_effort: str | None = None
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    reasoning_content: str | None = Field(default=None, exclude=True, repr=False)
 
 
 class ModelProvider(Protocol):

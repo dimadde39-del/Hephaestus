@@ -252,6 +252,17 @@ def _provider_detail(provider: ModelProvider) -> str:
     if _is_local_provider(provider):
         return "deterministic local fallback; no API key required"
     if provider.name == "deepseek":
+        if isinstance(provider, DeepSeekProvider):
+            key = "DEEPSEEK_API_KEY" if provider.is_available else "no API key"
+            thinking = (
+                f"thinking={provider.reasoning_effort}"
+                if provider.thinking_enabled
+                else "thinking=disabled"
+            )
+            return (
+                f"{key}; model={provider.model}; base_url={provider.base_url}; {thinking}; "
+                f"max_output_tokens={provider.max_output_tokens}"
+            )
         return "DEEPSEEK_API_KEY is set" if provider.is_available else "set DEEPSEEK_API_KEY"
     if provider.name == "openai-compatible":
         return (

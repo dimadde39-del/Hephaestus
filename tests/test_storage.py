@@ -82,7 +82,7 @@ def test_db_initialization_is_idempotent(tmp_path) -> None:
         }
         memory_columns = {row[1] for row in connection.execute("PRAGMA table_info(memories)")}
 
-    assert migration_count[0] == 18
+    assert migration_count[0] == 19
     assert memory_table[0] == "memories"
     assert trace_table[0] == "decision_traces"
     assert pareto_table[0] == "pareto_frontiers"

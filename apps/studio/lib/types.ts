@@ -265,8 +265,11 @@ export interface StudioMemorySuggestionListResponse {
 
 export type StudioProviderStatus =
   | "configured"
+  | "testing"
+  | "connected"
   | "not_configured"
   | "connection_failed"
+  | "insufficient_balance"
   | "local_mode";
 
 export interface StudioProviderConfig {
@@ -283,6 +286,11 @@ export interface StudioProviderConfig {
   context_window: number | null;
   input_cost_per_million: number | null;
   output_cost_per_million: number | null;
+  thinking_enabled: boolean;
+  reasoning_effort: "high" | "max";
+  max_output_tokens: number | null;
+  effective_source: string;
+  api_key_source: string;
   default_for_conversation: boolean;
   created_at: string;
   updated_at: string;
@@ -304,6 +312,9 @@ export interface StudioProviderUpsertRequest {
   context_window?: number | null;
   input_cost_per_million?: number | null;
   output_cost_per_million?: number | null;
+  thinking_enabled?: boolean;
+  reasoning_effort?: "high" | "max";
+  max_output_tokens?: number | null;
   intended_roles?: string[];
   default_for_conversation?: boolean;
 }
@@ -312,6 +323,9 @@ export interface StudioProviderTestResponse {
   id: string;
   status: StudioProviderStatus;
   message: string;
+  provider: string;
+  model: string;
+  latency_ms: number;
 }
 
 export interface StudioSettings {
@@ -346,7 +360,13 @@ export interface StudioUsageEvent {
   message: string;
   estimated_input_tokens: number;
   estimated_output_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  cached_input_tokens: number;
   estimated_cost: number;
+  thinking_enabled: boolean;
+  reasoning_effort: string | null;
+  usage_source: string;
   deterministic: boolean;
   context_trimmed: boolean;
   success: boolean;

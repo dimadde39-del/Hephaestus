@@ -79,6 +79,7 @@ class StudioService:
             Path(database_path) if database_path is not None else get_default_database_path()
         )
         self.repository = StudioRepository(self.database_path)
+        self.provider_override = provider
         self.conversation_service = ConversationService(self.database_path, provider=provider)
         self.policy_repository = PolicyRepository(self.database_path)
         self.repo_repository = RepoProfileRepository(self.database_path)
@@ -201,7 +202,18 @@ class StudioService:
             workspace_path_provided="workspace_path" in request.model_fields_set,
         )
         self._maybe_set_initial_title(session_id, request.content)
-        response = self.conversation_service.respond(
+        provider_override = (
+            self.provider_override
+            if self.provider_override is not None
+            else self.experience.default_provider()
+            if request.provider == "auto"
+            else None
+        )
+        conversation_service = ConversationService(
+            self.database_path,
+            provider=provider_override,
+        )
+        response = conversation_service.respond(
             ConversationRequest(
                 prompt=request.content,
                 mode=mode,
@@ -222,6 +234,12 @@ class StudioService:
             estimated_output_tokens=response.output_tokens,
             estimated_cost=response.estimated_cost,
             context_trimmed=response.budget.context_trimmed,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cached_input_tokens=response.cached_input_tokens,
+            thinking_enabled=response.thinking_enabled,
+            reasoning_effort=response.reasoning_effort,
+            success=response.provider_success,
         )
         return PostMessageResponse(
             conversation=summary,

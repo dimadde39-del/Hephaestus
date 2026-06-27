@@ -3,7 +3,10 @@
 from hephaestus.models.base import ModelProfile, ModelProvider, ModelRequest, ModelResponse
 from hephaestus.models.deepseek import DeepSeekProvider
 from hephaestus.models.fake import FakeModelProvider, fake_model_profiles
-from hephaestus.models.openai_compatible import OpenAICompatibleProvider
+from hephaestus.models.openai_compatible import (
+    OpenAICompatibleProvider,
+    ProviderRequestError,
+)
 
 __all__ = [
     "DeepSeekProvider",
@@ -13,5 +16,6 @@ __all__ = [
     "ModelRequest",
     "ModelResponse",
     "OpenAICompatibleProvider",
+    "ProviderRequestError",
     "fake_model_profiles",
 ]

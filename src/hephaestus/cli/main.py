@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import platform
 import sys
 from datetime import datetime
@@ -78,6 +79,12 @@ from hephaestus.decision import (
 )
 from hephaestus.memory import MemoryItem, MemoryType
 from hephaestus.models import DeepSeekProvider, ModelProfile, fake_model_profiles
+from hephaestus.models.live_smoke import (
+    LiveSmokeConfig,
+    LiveSmokeResult,
+    SmokeCase,
+    run_live_smoke,
+)
 from hephaestus.optimize.context_packer import ContextCandidate, pack_context
 from hephaestus.optimize.model_router import ModelRouteRequest, ModelRoutingError, route_model
 from hephaestus.optimize.task_scheduler import compare_schedulers
@@ -286,6 +293,10 @@ studio_app = typer.Typer(
     help="Local Hephaestus Studio web interface.",
     invoke_without_command=True,
 )
+models_app = typer.Typer(
+    help="Model profiles, connectivity checks, and budgeted live smoke commands.",
+    invoke_without_command=True,
+)
 tool_patch_app = typer.Typer(help="Patch proposal and apply commands.", no_args_is_help=True)
 tool_checkpoint_app = typer.Typer(help="Checkpoint and rollback commands.", no_args_is_help=True)
 tool_action_app = typer.Typer(help="Tool action inspection commands.", no_args_is_help=True)
@@ -314,6 +325,7 @@ app.add_typer(policy_app, name="policy")
 app.add_typer(strategy_app, name="strategy")
 app.add_typer(tools_app, name="tools")
 app.add_typer(studio_app, name="studio")
+app.add_typer(models_app, name="models")
 
 
 class DemoScenario(BaseModel):
@@ -1885,10 +1897,12 @@ def optimize(
     console.print(f"Explain with: heph explain {run.id}")
 
 
-@app.command("models")
-def list_models() -> None:
+@models_app.callback(invoke_without_command=True)
+def list_models(context: typer.Context) -> None:
     """Show model profiles and conversation provider configuration."""
 
+    if context.invoked_subcommand is not None:
+        return
     statuses = {status.provider: status for status in conversation_provider_statuses()}
     profiles = conversation_model_profiles(include_unavailable=True)
     table = Table(title="Model Profiles")
@@ -1918,6 +1932,136 @@ def list_models() -> None:
             "yes" if profile.supports_streaming else "no",
             ", ".join(sorted(profile.intended_roles)) or "-",
         )
+    console.print(table)
+
+
+@models_app.command("test")
+def models_test(
+    provider: Annotated[str, typer.Argument(help="Provider name; currently deepseek.")],
+    live: Annotated[bool, typer.Option("--live", help="Allow exactly one real request.")] = False,
+    max_output_tokens: Annotated[
+        int,
+        typer.Option("--max-output-tokens", min=1, help="Hard response token limit."),
+    ] = 8,
+    estimated_cost_cap: Annotated[
+        float,
+        typer.Option("--estimated-cost-cap", min=0.000001, help="Estimated run cap in USD."),
+    ] = 0.05,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print machine-readable redacted output."),
+    ] = False,
+) -> None:
+    """Run a one-request connectivity smoke; defaults to a network-free dry-run."""
+
+    _require_deepseek(provider)
+    result = run_live_smoke(
+        LiveSmokeConfig(
+            case=SmokeCase.CONNECTION,
+            live=live,
+            max_calls=1,
+            max_output_tokens=max_output_tokens,
+            estimated_cost_cap=estimated_cost_cap,
+        )
+    )
+    _print_live_smoke(result, json_output=json_output)
+
+
+@models_app.command("smoke")
+def models_smoke(
+    provider: Annotated[str, typer.Argument(help="Provider name; currently deepseek.")],
+    case: Annotated[
+        SmokeCase,
+        typer.Option("--case", help="connection, conversation, repo-read, or coding."),
+    ] = SmokeCase.CONVERSATION,
+    repo: Annotated[
+        Path,
+        typer.Option("--repo", help="Repository used only by repo-read smoke."),
+    ] = Path("."),
+    live: Annotated[bool, typer.Option("--live", help="Allow real provider requests.")] = False,
+    max_calls: Annotated[
+        int,
+        typer.Option("--max-calls", min=1, help="Maximum provider requests."),
+    ] = 3,
+    max_output_tokens: Annotated[
+        int,
+        typer.Option("--max-output-tokens", min=1, help="Maximum tokens per response."),
+    ] = 4096,
+    estimated_cost_cap: Annotated[
+        float,
+        typer.Option("--estimated-cost-cap", min=0.000001, help="Estimated run cap in USD."),
+    ] = 0.05,
+    keep_workspace: Annotated[
+        bool,
+        typer.Option("--keep-workspace", help="Keep the temporary smoke workspace."),
+    ] = False,
+    apply_patch: Annotated[
+        bool,
+        typer.Option(
+            "--apply",
+            help="Apply a coding proposal only inside the disposable fixture and validate it.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print machine-readable redacted output."),
+    ] = False,
+) -> None:
+    """Run an isolated smoke case; without --live this is preflight only."""
+
+    _require_deepseek(provider)
+    result = run_live_smoke(
+        LiveSmokeConfig(
+            case=case,
+            live=live,
+            repo_path=repo,
+            max_calls=max_calls,
+            max_output_tokens=max_output_tokens,
+            estimated_cost_cap=estimated_cost_cap,
+            keep_workspace=keep_workspace,
+            apply_coding_patch=apply_patch,
+        )
+    )
+    _print_live_smoke(result, json_output=json_output)
+
+
+def _require_deepseek(provider: str) -> None:
+    if provider.strip().lower() != "deepseek":
+        console.print("[red]Only the deepseek live smoke is supported in Phase 5.6A.0.[/red]")
+        raise typer.Exit(2)
+
+
+def _print_live_smoke(result: LiveSmokeResult, *, json_output: bool) -> None:
+    if json_output:
+        console.print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+        return
+    table = Table(title="DeepSeek Live Smoke" if result.live else "DeepSeek Smoke Dry Run")
+    table.add_column("Field")
+    table.add_column("Value", overflow="fold")
+    rows = [
+        ("Provider", result.provider),
+        ("Model", result.model),
+        ("Base URL", result.base_url),
+        ("API key source", result.api_key_source),
+        ("Calls", str(result.calls)),
+        ("Maximum calls", str(result.details.get("maximum_provider_requests", result.calls))),
+        (
+            "Maximum output tokens",
+            str(result.details.get("maximum_output_tokens", "-")),
+        ),
+        ("Input tokens", str(result.input_tokens)),
+        ("Output tokens", str(result.output_tokens)),
+        ("Cached input tokens", str(result.cached_input_tokens)),
+        ("Estimated cost", f"${result.estimated_cost:.6f}"),
+        ("Conservative preflight", f"${result.conservative_preflight_estimate:.6f}"),
+        ("Elapsed", f"{result.elapsed_seconds:.3f}s"),
+        ("Result", result.result),
+        ("Workspace", result.workspace_status),
+    ]
+    if result.artifact_path:
+        rows.append(("Artifact", result.artifact_path))
+    for label, value in rows:
+        table.add_row(label, value)
     console.print(table)
 
 
@@ -3340,7 +3484,14 @@ def budget_demo() -> None:
             profiles=list(profiles),
         )
     )
-    baseline = next(profile for profile in profiles if profile.model == "deepseek-v4-pro")
+    baseline = route.profile.model_copy(
+        update={
+            "provider": "comparison",
+            "model": "higher-cost-baseline",
+            "input_cost_per_million": route.profile.input_cost_per_million * 3,
+            "output_cost_per_million": route.profile.output_cost_per_million * 3,
+        }
+    )
     decision = evaluate_budget(
         input_tokens=8_000,
         output_tokens=1_500,

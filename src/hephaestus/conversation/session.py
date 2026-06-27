@@ -209,6 +209,10 @@ class ConversationService:
             provider_model=deliberation.provider_model,
             input_tokens=deliberation.input_tokens,
             output_tokens=deliberation.output_tokens,
+            cached_input_tokens=deliberation.cached_input_tokens,
+            thinking_enabled=deliberation.thinking_enabled,
+            reasoning_effort=deliberation.reasoning_effort,
+            provider_success=deliberation.provider_success,
             estimated_cost=deliberation.estimated_cost,
             budget=deliberation.budget,
         )

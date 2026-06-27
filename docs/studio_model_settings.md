@@ -16,22 +16,34 @@ Supported paths:
 - OpenRouter through OpenAI-compatible base URL/model settings
 
 Provider rows show name, model, base URL, configured state, connectivity state,
-intended roles, optional context window, optional cost metadata, and default
-conversation provider.
+thinking and reasoning effort, maximum output tokens, intended roles, context
+window, cost metadata, key source (never the key), and default conversation
+provider.
 
 Status language:
 
 ```text
 Configured
+Testing
+Connected
 Not configured
 Connection failed
+Insufficient balance
 Local mode
 ```
+
+For DeepSeek, choose `DeepSeek` to prefill `https://api.deepseek.com`,
+`deepseek-v4-flash`, thinking enabled, and `high` effort. `Test connection`
+makes one tiny request with no tools, repository context, conversation, or
+memory. It reports provider/model/status/latency and maps authentication,
+balance, rate-limit, timeout, and invalid-model failures to safe messages. It
+never starts a coding smoke.
 
 ## Secret Handling
 
 Stored API keys are never returned by normal API responses. Secret inputs are
 write-only after save. Exports exclude provider secrets.
+Remove the provider configuration to delete its saved key.
 
 Current storage approach: provider secrets are stored in the local Studio
 SQLite database and protected by OS file permissions. OS keychain integration is
@@ -46,6 +58,8 @@ The usage view shows:
 - estimated model calls this week;
 - deterministic operations;
 - estimated input and output tokens;
+- provider-reported input/output and cached input tokens when available;
+- thinking state and reasoning effort;
 - estimated cost when metadata exists;
 - context trimming;
 - provider/model used;

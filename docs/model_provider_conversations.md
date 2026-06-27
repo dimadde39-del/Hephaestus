@@ -62,10 +62,27 @@ Set:
 
 ```bash
 DEEPSEEK_API_KEY=...
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
+HEPH_DEEPSEEK_THINKING=enabled
+HEPH_DEEPSEEK_REASONING_EFFORT=high
+HEPH_DEEPSEEK_MAX_OUTPUT_TOKENS=4096
 ```
 
 Then `heph ask` and `heph discuss` in `auto` mode can route to DeepSeek.
 `heph doctor` and `heph models` show whether DeepSeek is configured.
+Custom model IDs remain supported. DeepSeek uses the same OpenAI-compatible
+transport as the generic provider path.
+
+Thinking omits sampling parameters and parses `reasoning_content` only into a
+transient, serialization-excluded field. Raw reasoning is not shown, persisted,
+exported, added to memory, or logged. It is carried only through an immediate
+tool-call continuation when one exists. The current repo/coding path remains
+orchestration-prepared; it is not a native autonomous tool-call loop.
+
+Use `heph models test deepseek` or `heph models smoke deepseek ...` for a
+network-free preflight. A real request always requires `--live`; see
+[Live provider smoke](live_provider_smoke.md).
 
 ## OpenAI-Compatible / OpenRouter
 
@@ -140,6 +157,8 @@ Settings -> Models includes a restrained usage view:
 - model calls this week;
 - deterministic operations;
 - estimated input/output tokens;
+- provider-reported input/output and cached input tokens when available;
+- thinking enabled/disabled and reasoning effort;
 - estimated cost when metadata is configured;
 - provider/model used;
 - task type and success/failure where linked.
@@ -153,6 +172,10 @@ One model call used
 Context trimmed to fit budget
 Estimated cost: ...
 ```
+
+When DeepSeek reports completion tokens that combine visible completion and
+reasoning work, Hephaestus stores that provider-reported value as-is. It does
+not count the `reasoning_content` text as separately visible output.
 
 Adaptive multi-model routing is not implemented yet; the data model prepares
 for a later Adaptive Work Router / Model Economy phase.

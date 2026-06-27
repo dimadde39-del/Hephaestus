@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 from collections.abc import Sequence
-from typing import Any
+from contextlib import suppress
+from typing import Any, Protocol, cast
 
 from hephaestus.core.config import PrivacyLevel
 from hephaestus.models.base import ModelProfile, ModelRequest, ModelResponse
@@ -17,6 +19,15 @@ OPENAI_COMPAT_MODEL_ENV = "HEPH_OPENAI_COMPAT_MODEL"
 OPENAI_COMPAT_CONTEXT_WINDOW_ENV = "HEPH_OPENAI_COMPAT_CONTEXT_WINDOW"
 OPENAI_COMPAT_INPUT_COST_ENV = "HEPH_OPENAI_COMPAT_INPUT_COST_PER_MILLION"
 OPENAI_COMPAT_OUTPUT_COST_ENV = "HEPH_OPENAI_COMPAT_OUTPUT_COST_PER_MILLION"
+
+
+class ProviderRequestError(RuntimeError):
+    """Sanitized provider transport error safe for CLI and Studio display."""
+
+    def __init__(self, code: str, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status_code = status_code
 
 
 class OpenAICompatibleProvider:
@@ -33,8 +44,13 @@ class OpenAICompatibleProvider:
         context_window: int | None = None,
         input_cost_per_million: float | None = None,
         output_cost_per_million: float | None = None,
+        timeout: float = 60,
+        urlopen: UrlOpen | None = None,
     ) -> None:
-        self.base_url = base_url if base_url is not None else os.getenv(OPENAI_COMPAT_BASE_URL_ENV)
+        raw_base_url = (
+            base_url if base_url is not None else os.getenv(OPENAI_COMPAT_BASE_URL_ENV)
+        )
+        self.base_url = raw_base_url.rstrip("/") if raw_base_url else raw_base_url
         self.api_key = api_key if api_key is not None else os.getenv(OPENAI_COMPAT_API_KEY_ENV)
         self.model = model if model is not None else os.getenv(OPENAI_COMPAT_MODEL_ENV)
         self.context_window: int = context_window or _int_env(
@@ -51,6 +67,8 @@ class OpenAICompatibleProvider:
             if output_cost_per_million is not None
             else _float_env(OPENAI_COMPAT_OUTPUT_COST_ENV, default=0.0)
         )
+        self.timeout = timeout
+        self._urlopen = urlopen or urllib.request.urlopen
 
     @property
     def is_available(self) -> bool:
@@ -112,15 +130,7 @@ class OpenAICompatibleProvider:
         model = request.model or self.model
         if model is None:
             raise RuntimeError(f"{OPENAI_COMPAT_MODEL_ENV} is required.")
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": [{"role": "user", "content": request.prompt}],
-            "temperature": request.temperature,
-            "max_tokens": request.max_output_tokens,
-            "stream": False,
-        }
-        if request.require_json:
-            payload["response_format"] = {"type": "json_object"}
+        payload = self._build_payload(request, model)
 
         http_request = urllib.request.Request(
             _chat_completions_url(self.base_url or ""),
@@ -131,13 +141,57 @@ class OpenAICompatibleProvider:
             },
             method="POST",
         )
-        with urllib.request.urlopen(http_request, timeout=60) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        try:
+            with self._urlopen(http_request, timeout=self.timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            raise _provider_http_error(error) from None
+        except TimeoutError as error:
+            raise ProviderRequestError("timeout", "Provider request timed out.") from error
+        except urllib.error.URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise ProviderRequestError("timeout", "Provider request timed out.") from error
+            raise ProviderRequestError(
+                "connection_failed",
+                "Could not connect to the provider endpoint.",
+            ) from error
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+            raise ProviderRequestError(
+                "invalid_response",
+                "Provider returned an invalid chat-completions response.",
+            ) from error
 
-        text = data["choices"][0]["message"]["content"]
+        return self._parse_response(data, model=model, request=request)
+
+    def _build_payload(self, request: ModelRequest, model: str) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": request.messages or [{"role": "user", "content": request.prompt}],
+            "temperature": request.temperature,
+            "max_tokens": request.max_output_tokens,
+            "stream": False,
+        }
+        if request.require_json:
+            payload["response_format"] = {"type": "json_object"}
+
+        return payload
+
+    def _parse_response(
+        self,
+        data: dict[str, Any],
+        *,
+        model: str,
+        request: ModelRequest,
+    ) -> ModelResponse:
+        message = cast(dict[str, Any], data["choices"][0]["message"])
+        text = str(message.get("content") or "")
         usage = data.get("usage", {})
         input_tokens = int(usage.get("prompt_tokens", 0))
         output_tokens = int(usage.get("completion_tokens", 0))
+        prompt_details = usage.get("prompt_tokens_details") or {}
+        cached_input_tokens = int(
+            usage.get("prompt_cache_hit_tokens", prompt_details.get("cached_tokens", 0))
+        )
         profile = self.profiles()[0]
         return ModelResponse(
             text=text,
@@ -145,6 +199,19 @@ class OpenAICompatibleProvider:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             estimated_cost=profile.estimated_cost(input_tokens, output_tokens),
+            cached_input_tokens=cached_input_tokens,
+            thinking_enabled=bool(request.thinking_enabled),
+            reasoning_effort=request.reasoning_effort,
+            tool_calls=[
+                cast(dict[str, Any], item)
+                for item in message.get("tool_calls", [])
+                if isinstance(item, dict)
+            ],
+            reasoning_content=(
+                str(message["reasoning_content"])
+                if message.get("reasoning_content") is not None
+                else None
+            ),
         )
 
 
@@ -175,3 +242,60 @@ def _float_env(name: str, *, default: float) -> float:
         return float(raw)
     except ValueError:
         return default
+
+
+class UrlResponse(Protocol):
+    status: int
+
+    def __enter__(self) -> UrlResponse: ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+    def read(self) -> bytes: ...
+
+
+class UrlOpen(Protocol):
+    def __call__(
+        self,
+        request: urllib.request.Request,
+        *,
+        timeout: float,
+    ) -> UrlResponse: ...
+
+
+def _provider_http_error(error: urllib.error.HTTPError) -> ProviderRequestError:
+    status = error.code
+    body = ""
+    with suppress(OSError):
+        body = error.read().decode("utf-8", errors="replace").lower()
+    if status == 401:
+        return ProviderRequestError(
+            "unauthorized",
+            "Authentication failed (401). Check the provider API key.",
+            status_code=status,
+        )
+    if status == 402 or "insufficient balance" in body or "insufficient_balance" in body:
+        return ProviderRequestError(
+            "insufficient_balance",
+            "Provider balance is insufficient (402).",
+            status_code=status,
+        )
+    if status == 429:
+        return ProviderRequestError(
+            "rate_limited",
+            "Provider rate limit reached (429). Try again later.",
+            status_code=status,
+        )
+    if status == 400 and any(
+        marker in body for marker in ("model", "invalid_model", "model_not_found")
+    ):
+        return ProviderRequestError(
+            "invalid_model",
+            "The configured model ID is invalid or unavailable.",
+            status_code=status,
+        )
+    return ProviderRequestError(
+        "http_error",
+        f"Provider request failed with HTTP {status}.",
+        status_code=status,
+    )

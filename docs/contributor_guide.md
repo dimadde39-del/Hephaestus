@@ -42,6 +42,9 @@ That means the core system should be able to answer:
   packaging, and public-alpha validation.
 - Prepare Phase 5.6 coding-quality benchmarks before making Claude Code parity
   claims.
+- Keep all provider tests offline. Live smoke commands must require `--live`,
+  use isolated databases/workspaces, redact secrets and raw reasoning, and
+  enforce call/output/estimated-cost limits.
 
 ## Deferred Work
 
@@ -67,6 +70,8 @@ uv run pytest
 uv run mypy
 uv run heph doctor
 uv run heph studio doctor
+uv run heph models test deepseek
+uv run heph models smoke deepseek --case coding
 uv run heph validate run . --dry-run
 uv run heph code run "Update README wording to mention validation-backed release evidence." --repo . --dry-run
 uv run heph release plan . --pareto --qubo --with-validation --yes
@@ -82,6 +87,11 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+Do not put provider keys in committed `.env` files, fixtures, test snapshots,
+logs, or issue reports. Fake HTTP responses must cover provider success and
+failure paths. A live smoke result is evidence for connectivity and the bounded
+tested flow only; it is not coding parity evidence.
 
 ## Design Expectations
 

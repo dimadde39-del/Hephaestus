@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -1138,6 +1138,35 @@ CREATE INDEX IF NOT EXISTS idx_studio_usage_events_provider
 ON studio_usage_events(provider, model, created_at DESC);
 """
 
+MIGRATION_19 = """
+ALTER TABLE studio_provider_configs
+ADD COLUMN thinking_enabled INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE studio_provider_configs
+ADD COLUMN reasoning_effort TEXT NOT NULL DEFAULT 'high';
+
+ALTER TABLE studio_provider_configs
+ADD COLUMN max_output_tokens INTEGER;
+
+ALTER TABLE studio_usage_events
+ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE studio_usage_events
+ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE studio_usage_events
+ADD COLUMN cached_input_tokens INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE studio_usage_events
+ADD COLUMN thinking_enabled INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE studio_usage_events
+ADD COLUMN reasoning_effort TEXT;
+
+ALTER TABLE studio_usage_events
+ADD COLUMN usage_source TEXT NOT NULL DEFAULT 'estimated';
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -1276,6 +1305,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (18, datetime.now(UTC).isoformat()),
+        )
+    if 19 not in applied_versions:
+        connection.executescript(MIGRATION_19)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (19, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

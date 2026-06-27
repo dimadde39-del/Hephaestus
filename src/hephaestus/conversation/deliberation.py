@@ -166,6 +166,10 @@ class ConversationDeliberator:
         input_tokens = assembly.input_tokens
         output_tokens = estimate_tokens(deterministic)
         estimated_cost = 0.0
+        cached_input_tokens = 0
+        thinking_enabled = False
+        reasoning_effort: str | None = None
+        provider_success = True
         policy_quality_annotated = False
 
         if provider.name == "fake" or not provider.is_available:
@@ -177,6 +181,9 @@ class ConversationDeliberator:
                 )
             )
             provider_model = model_response.model
+            cached_input_tokens = model_response.cached_input_tokens
+            thinking_enabled = model_response.thinking_enabled
+            reasoning_effort = model_response.reasoning_effort
             input_tokens = assembly.input_tokens
             output_tokens = max(output_tokens, model_response.output_tokens)
             if policy_evaluation is not None:
@@ -196,6 +203,9 @@ class ConversationDeliberator:
                     )
                 )
                 model_text = model_response.text.strip()
+                cached_input_tokens = model_response.cached_input_tokens
+                thinking_enabled = model_response.thinking_enabled
+                reasoning_effort = model_response.reasoning_effort
                 if (
                     policy_evaluation is not None
                     and model_text
@@ -224,6 +234,8 @@ class ConversationDeliberator:
                     output_tokens = model_response.output_tokens or estimate_tokens(deterministic)
                     estimated_cost = model_response.estimated_cost
             except Exception as error:
+                provider_success = False
+                provider_model = f"{provider_model}+local-error-fallback"
                 deterministic = "\n\n".join(
                     [
                         deterministic,
@@ -247,6 +259,10 @@ class ConversationDeliberator:
             context_window=context_window,
             prompt_token_budget=prompt_token_budget,
             estimated_cost=estimated_cost,
+            cached_input_tokens=cached_input_tokens,
+            thinking_enabled=thinking_enabled,
+            reasoning_effort=reasoning_effort,
+            provider_success=provider_success,
             context_trimmed=assembly.context_trimmed,
             trimming_notes=assembly.trimming_notes,
             selected_context_count=len(assembly.selected_context),

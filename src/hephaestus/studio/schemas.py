@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hephaestus.conversation.schemas import (
     ConversationIntent,
@@ -458,8 +458,11 @@ class StudioProviderStatus(StrEnum):
     """Provider configuration status shown in Studio."""
 
     CONFIGURED = "configured"
+    TESTING = "testing"
+    CONNECTED = "connected"
     NOT_CONFIGURED = "not_configured"
     CONNECTION_FAILED = "connection_failed"
+    INSUFFICIENT_BALANCE = "insufficient_balance"
     LOCAL_MODE = "local_mode"
 
 
@@ -481,6 +484,11 @@ class StudioProviderConfig(BaseModel):
     context_window: int | None = None
     input_cost_per_million: float | None = None
     output_cost_per_million: float | None = None
+    thinking_enabled: bool = False
+    reasoning_effort: str = "high"
+    max_output_tokens: int | None = None
+    effective_source: str = "studio"
+    api_key_source: str = "not configured"
     default_for_conversation: bool = False
     created_at: datetime
     updated_at: datetime
@@ -510,8 +518,28 @@ class StudioProviderUpsertRequest(BaseModel):
     context_window: int | None = Field(default=None, ge=1)
     input_cost_per_million: float | None = Field(default=None, ge=0)
     output_cost_per_million: float | None = Field(default=None, ge=0)
+    thinking_enabled: bool = False
+    reasoning_effort: str = Field(default="high", pattern="^(high|max)$")
+    max_output_tokens: int | None = Field(default=None, ge=1)
     intended_roles: list[str] = Field(default_factory=lambda: ["conversation"])
     default_for_conversation: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_deepseek_defaults(cls, value: Any) -> Any:
+        """Apply provider-specific defaults without overriding explicit choices."""
+
+        if not isinstance(value, dict) or value.get("provider_type") != "deepseek":
+            return value
+        configured = dict(value)
+        configured["model"] = configured.get("model") or "deepseek-v4-flash"
+        configured["base_url"] = configured.get("base_url") or "https://api.deepseek.com"
+        configured.setdefault("thinking_enabled", True)
+        if configured.get("max_output_tokens") is None:
+            configured["max_output_tokens"] = 4096
+        if configured.get("context_window") is None:
+            configured["context_window"] = 1_000_000
+        return configured
 
 
 class StudioProviderTestResponse(BaseModel):
@@ -522,6 +550,9 @@ class StudioProviderTestResponse(BaseModel):
     id: str
     status: StudioProviderStatus
     message: str
+    provider: str
+    model: str
+    latency_ms: int = Field(ge=0)
 
 
 class StudioSettings(BaseModel):
@@ -583,7 +614,13 @@ class StudioUsageEvent(BaseModel):
     message: str
     estimated_input_tokens: int = Field(ge=0)
     estimated_output_tokens: int = Field(ge=0)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
     estimated_cost: float = Field(ge=0)
+    thinking_enabled: bool = False
+    reasoning_effort: str | None = None
+    usage_source: str = "estimated"
     deterministic: bool
     context_trimmed: bool
     success: bool

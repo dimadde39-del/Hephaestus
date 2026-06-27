@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
-import urllib.error
-import urllib.request
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 from typing import Any, cast
 from uuid import uuid4
 
@@ -18,6 +17,14 @@ from hephaestus.conversation.schemas import ConversationMemoryUpdate
 from hephaestus.decision.repository import DecisionTraceRepository
 from hephaestus.decision.schemas import DecisionAlternative, DecisionMetric, DecisionTraceVariant
 from hephaestus.memory.schemas import MemoryType
+from hephaestus.models import (
+    DeepSeekProvider,
+    FakeModelProvider,
+    ModelProvider,
+    ModelRequest,
+    OpenAICompatibleProvider,
+    ProviderRequestError,
+)
 from hephaestus.pareto.repository import ParetoRepository
 from hephaestus.pareto.schemas import DecisionCandidate, ObjectiveDimension, ParetoFrontier
 from hephaestus.qubo.repository import QuboRepository
@@ -520,6 +527,9 @@ class StudioExperienceRepository:
                 id="local",
                 status=StudioProviderStatus.LOCAL_MODE,
                 message="Local deterministic mode is available and does not need a network key.",
+                provider="local",
+                model="deterministic",
+                latency_ms=0,
             )
         row = self._provider_secret_row(provider_id)
         if row is None:
@@ -534,14 +544,20 @@ class StudioExperienceRepository:
                 id=provider_id,
                 status=StudioProviderStatus.NOT_CONFIGURED,
                 message=f"{name} needs an API key before it can be used.",
+                provider=provider_type,
+                model=model,
+                latency_ms=0,
             )
             self._update_provider_status(provider_id, response.status, response.message)
             return response
-        if provider_type == "openai-compatible" and (not base_url or not model):
+        if provider_type in {"openai-compatible", "deepseek"} and (not base_url or not model):
             response = StudioProviderTestResponse(
                 id=provider_id,
                 status=StudioProviderStatus.NOT_CONFIGURED,
-                message="OpenAI-compatible providers need a base URL and model.",
+                message="Provider configuration needs a base URL and model.",
+                provider=provider_type,
+                model=model,
+                latency_ms=0,
             )
             self._update_provider_status(provider_id, response.status, response.message)
             return response
@@ -550,30 +566,54 @@ class StudioExperienceRepository:
                 id=provider_id,
                 status=StudioProviderStatus.CONFIGURED,
                 message="Fake provider endpoint accepted for local validation.",
+                provider=provider_type,
+                model=model,
+                latency_ms=0,
             )
             self._update_provider_status(provider_id, response.status, response.message)
             return response
-        if provider_type == "deepseek":
+        provider = self._provider_from_secret_row(row)
+        started = perf_counter()
+        try:
+            provider.complete(
+                ModelRequest(
+                    prompt="Reply OK.",
+                    model=model,
+                    max_output_tokens=4,
+                    thinking_enabled=False,
+                )
+            )
+        except ProviderRequestError as error:
+            status = (
+                StudioProviderStatus.INSUFFICIENT_BALANCE
+                if error.code == "insufficient_balance"
+                else StudioProviderStatus.CONNECTION_FAILED
+            )
             response = StudioProviderTestResponse(
                 id=provider_id,
-                status=StudioProviderStatus.CONFIGURED,
-                message="DeepSeek configuration has a local API key and known endpoint.",
+                status=status,
+                message=str(error),
+                provider=provider_type,
+                model=model,
+                latency_ms=max(0, round((perf_counter() - started) * 1000)),
             )
-            self._update_provider_status(provider_id, response.status, response.message)
-            return response
-        try:
-            self._probe_openai_compatible(base_url, api_key or "", model)
-        except (OSError, urllib.error.URLError, TimeoutError, ValueError) as error:
+        except (OSError, TimeoutError, ValueError) as error:
             response = StudioProviderTestResponse(
                 id=provider_id,
                 status=StudioProviderStatus.CONNECTION_FAILED,
                 message=f"Connection failed: {_safe_error(error)}",
+                provider=provider_type,
+                model=model,
+                latency_ms=max(0, round((perf_counter() - started) * 1000)),
             )
         else:
             response = StudioProviderTestResponse(
                 id=provider_id,
-                status=StudioProviderStatus.CONFIGURED,
+                status=StudioProviderStatus.CONNECTED,
                 message="Provider responded to a minimal chat-completions probe.",
+                provider=provider_type,
+                model=model,
+                latency_ms=max(0, round((perf_counter() - started) * 1000)),
             )
         self._update_provider_status(provider_id, response.status, response.message)
         return response
@@ -618,19 +658,28 @@ class StudioExperienceRepository:
     def record_conversation_usage(
         self,
         *,
-        conversation_id: str,
-        message_id: str,
+        conversation_id: str | None,
+        message_id: str | None,
         provider_model: str,
         estimated_input_tokens: int,
         estimated_output_tokens: int,
         estimated_cost: float,
         context_trimmed: bool,
         success: bool = True,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cached_input_tokens: int = 0,
+        thinking_enabled: bool = False,
+        reasoning_effort: str | None = None,
+        usage_source: str = "provider",
+        task_type: str = "conversation",
     ) -> None:
         """Record one user-facing usage event."""
 
         provider, model = _split_provider_model(provider_model)
         deterministic = provider in {"local", "fake"} or "local/" in provider_model
+        if deterministic:
+            usage_source = "estimated"
         summary = (
             "Solved without a model call"
             if deterministic
@@ -643,13 +692,23 @@ class StudioExperienceRepository:
             "conversation_id": conversation_id,
             "message_id": message_id,
             "run_id": None,
-            "task_type": "conversation",
+            "task_type": task_type,
             "provider": provider,
             "model": model,
             "provider_model": provider_model,
             "estimated_input_tokens": estimated_input_tokens,
             "estimated_output_tokens": estimated_output_tokens,
             "estimated_cost": estimated_cost,
+            "input_tokens": (
+                input_tokens if input_tokens is not None else estimated_input_tokens
+            ),
+            "output_tokens": (
+                output_tokens if output_tokens is not None else estimated_output_tokens
+            ),
+            "cached_input_tokens": cached_input_tokens,
+            "thinking_enabled": thinking_enabled,
+            "reasoning_effort": reasoning_effort,
+            "usage_source": usage_source,
             "deterministic": deterministic,
             "context_trimmed": context_trimmed,
             "success": success,
@@ -663,16 +722,17 @@ class StudioExperienceRepository:
                     id, conversation_id, message_id, run_id, task_type, provider, model,
                     provider_model, estimated_input_tokens, estimated_output_tokens,
                     estimated_cost, deterministic, context_trimmed, success, summary,
-                    created_at, raw_json
+                    created_at, raw_json, input_tokens, output_tokens, cached_input_tokens,
+                    thinking_enabled, reasoning_effort, usage_source
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event["id"],
                     conversation_id,
                     message_id,
                     None,
-                    "conversation",
+                    task_type,
                     provider,
                     model,
                     provider_model,
@@ -685,6 +745,12 @@ class StudioExperienceRepository:
                     summary,
                     _datetime_to_text(cast(datetime, event["created_at"])),
                     _json_dumps(_json_ready(event)),
+                    event["input_tokens"],
+                    event["output_tokens"],
+                    cached_input_tokens,
+                    int(thinking_enabled),
+                    reasoning_effort,
+                    usage_source,
                 ),
             )
 
@@ -1212,6 +1278,11 @@ class StudioExperienceRepository:
             context_window=6000,
             input_cost_per_million=0.0,
             output_cost_per_million=0.0,
+            thinking_enabled=False,
+            reasoning_effort="high",
+            max_output_tokens=4000,
+            effective_source="local",
+            api_key_source="not required",
             default_for_conversation=settings.deterministic_mode
             or not any(provider.default_for_conversation for provider in self._stored_provider_configs()),
             created_at=now,
@@ -1236,7 +1307,7 @@ class StudioExperienceRepository:
             name=_row_str(row, "name"),
             model=_row_str(row, "model"),
             base_url=_row_str(row, "base_url"),
-            configured=_row_optional_str(row, "api_key_secret") is not None
+            configured=bool(_row_optional_str(row, "api_key_secret"))
             or _row_str(row, "provider_type") == "local",
             status=status,
             status_label=_provider_status_label(status),
@@ -1245,6 +1316,11 @@ class StudioExperienceRepository:
             context_window=_row_optional_int(row, "context_window"),
             input_cost_per_million=_row_optional_float(row, "input_cost_per_million"),
             output_cost_per_million=_row_optional_float(row, "output_cost_per_million"),
+            thinking_enabled=_row_bool(row, "thinking_enabled"),
+            reasoning_effort=_row_str(row, "reasoning_effort") or "high",
+            max_output_tokens=_row_optional_int(row, "max_output_tokens"),
+            effective_source="studio",
+            api_key_source="Studio database" if _row_optional_str(row, "api_key_secret") else "not configured",
             default_for_conversation=_row_bool(row, "default_for_conversation"),
             created_at=_datetime_from_text(_row_str(row, "created_at")),
             updated_at=_datetime_from_text(_row_str(row, "updated_at")),
@@ -1276,6 +1352,9 @@ class StudioExperienceRepository:
             "context_window": request.context_window,
             "input_cost_per_million": request.input_cost_per_million,
             "output_cost_per_million": request.output_cost_per_million,
+            "thinking_enabled": request.thinking_enabled,
+            "reasoning_effort": request.reasoning_effort,
+            "max_output_tokens": request.max_output_tokens,
             "intended_roles": request.intended_roles,
             "default_for_conversation": request.default_for_conversation,
         }
@@ -1290,16 +1369,17 @@ class StudioExperienceRepository:
                     id, provider_type, name, model, base_url, api_key_secret,
                     context_window, input_cost_per_million, output_cost_per_million,
                     intended_roles_json, default_for_conversation, status, status_detail,
-                    created_at, updated_at, raw_json
+                    created_at, updated_at, raw_json, thinking_enabled, reasoning_effort,
+                    max_output_tokens
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     provider_id,
                     request.provider_type,
                     request.name,
                     request.model,
-                    request.base_url,
+                    request.base_url.rstrip("/"),
                     secret,
                     request.context_window,
                     request.input_cost_per_million,
@@ -1311,6 +1391,9 @@ class StudioExperienceRepository:
                     _row_str(existing, "created_at") if existing is not None else now,
                     now,
                     _json_dumps(raw),
+                    int(request.thinking_enabled),
+                    request.reasoning_effort,
+                    request.max_output_tokens,
                 ),
             )
 
@@ -1347,27 +1430,54 @@ class StudioExperienceRepository:
                 (status.value, detail, _datetime_to_text(datetime.now(UTC)), provider_id),
             )
 
-    def _probe_openai_compatible(self, base_url: str, api_key: str, model: str) -> None:
-        url = _chat_completions_url(base_url)
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": "ping"}],
-            "temperature": 0,
-            "max_tokens": 1,
-            "stream": False,
-        }
-        request = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+    def default_provider(self) -> ModelProvider | None:
+        """Return the saved Studio default; environment routing remains the fallback."""
+
+        if self._read_settings().deterministic_mode:
+            return FakeModelProvider()
+        with connect_database(self.database_path) as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM studio_provider_configs
+                WHERE default_for_conversation = 1
+                ORDER BY updated_at DESC LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        provider = self._provider_from_secret_row(row)
+        return provider if provider.is_available else None
+
+    def _provider_from_secret_row(self, row: sqlite3.Row) -> ModelProvider:
+        provider_type = _row_str(row, "provider_type")
+        base_url = _row_str(row, "base_url")
+        api_key = _row_optional_str(row, "api_key_secret")
+        model = _row_str(row, "model")
+        context_window = _row_optional_int(row, "context_window")
+        input_cost = _row_optional_float(row, "input_cost_per_million")
+        output_cost = _row_optional_float(row, "output_cost_per_million")
+        if provider_type == "deepseek":
+            return DeepSeekProvider(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                context_window=context_window,
+                input_cost_per_million=input_cost,
+                output_cost_per_million=output_cost,
+                thinking_enabled=_row_bool(row, "thinking_enabled"),
+                reasoning_effort=_row_str(row, "reasoning_effort") or "high",
+                max_output_tokens=_row_optional_int(row, "max_output_tokens"),
+                timeout=8,
+            )
+        return OpenAICompatibleProvider(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            context_window=context_window,
+            input_cost_per_million=input_cost,
+            output_cost_per_million=output_cost,
+            timeout=8,
         )
-        with urllib.request.urlopen(request, timeout=8) as response:
-            if response.status >= 400:
-                raise ValueError(f"HTTP {response.status}")
 
     def _read_settings(self) -> StudioSettings:
         with connect_database(self.database_path) as connection:
@@ -1410,7 +1520,13 @@ class StudioExperienceRepository:
             message=summary,
             estimated_input_tokens=_row_int(row, "estimated_input_tokens"),
             estimated_output_tokens=_row_int(row, "estimated_output_tokens"),
+            input_tokens=_row_int(row, "input_tokens"),
+            output_tokens=_row_int(row, "output_tokens"),
+            cached_input_tokens=_row_int(row, "cached_input_tokens"),
             estimated_cost=cost,
+            thinking_enabled=_row_bool(row, "thinking_enabled"),
+            reasoning_effort=_row_optional_str(row, "reasoning_effort"),
+            usage_source=_row_str(row, "usage_source"),
             deterministic=deterministic,
             context_trimmed=context_trimmed,
             success=_row_bool(row, "success"),
@@ -1557,8 +1673,11 @@ def _strategic_source(value: str | None) -> StrategicMemorySource:
 def _provider_status_label(status: StudioProviderStatus) -> str:
     labels = {
         StudioProviderStatus.CONFIGURED: "Configured",
+        StudioProviderStatus.TESTING: "Testing",
+        StudioProviderStatus.CONNECTED: "Connected",
         StudioProviderStatus.NOT_CONFIGURED: "Not configured",
         StudioProviderStatus.CONNECTION_FAILED: "Connection failed",
+        StudioProviderStatus.INSUFFICIENT_BALANCE: "Insufficient balance",
         StudioProviderStatus.LOCAL_MODE: "Local mode",
     }
     return labels[status]

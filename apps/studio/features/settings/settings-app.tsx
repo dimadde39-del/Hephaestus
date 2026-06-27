@@ -127,6 +127,9 @@ export function SettingsApp({
         name: provider.name,
         output_cost_per_million: provider.output_cost_per_million,
         provider_type: provider.provider_type,
+        thinking_enabled: provider.thinking_enabled,
+        reasoning_effort: provider.reasoning_effort,
+        max_output_tokens: provider.max_output_tokens,
       });
       await patchSettings({ deterministic_mode: false });
     }
@@ -134,8 +137,20 @@ export function SettingsApp({
   }
 
   async function testProvider(providerId: string) {
-    setTestResult(await api.testProvider(providerId));
-    setProviders(await api.providers());
+    setTestResult({
+      id: providerId,
+      status: "testing",
+      message: "Testing one minimal request…",
+      provider: "",
+      model: "",
+      latency_ms: 0,
+    });
+    try {
+      setTestResult(await api.testProvider(providerId));
+      setProviders(await api.providers());
+    } catch (nextError) {
+      setError(errorMessage(nextError, "Connection test failed."));
+    }
   }
 
   async function removeProvider(providerId: string) {
@@ -370,7 +385,21 @@ function ModelSettings({
           <label>
             Provider
             <select
-              onChange={(event) => onDraft({ ...draft, provider_type: event.target.value })}
+              onChange={(event) =>
+                onDraft(
+                  event.target.value === "deepseek"
+                    ? {
+                        ...draft,
+                        provider_type: "deepseek",
+                        name: "DeepSeek",
+                        model: "deepseek-v4-flash",
+                        base_url: "https://api.deepseek.com",
+                        thinking_enabled: true,
+                        reasoning_effort: "high",
+                      }
+                    : { ...draft, provider_type: event.target.value },
+                )
+              }
               value={draft.provider_type}
             >
               <option value="openai-compatible">OpenAI-compatible / OpenRouter</option>
@@ -399,6 +428,30 @@ function ModelSettings({
               value={draft.api_key}
             />
           </label>
+          <label>
+            Thinking
+            <input
+              checked={draft.thinking_enabled}
+              onChange={(event) => onDraft({ ...draft, thinking_enabled: event.target.checked })}
+              type="checkbox"
+            />
+          </label>
+          <label>
+            Reasoning effort
+            <select
+              onChange={(event) =>
+                onDraft({ ...draft, reasoning_effort: event.target.value as "high" | "max" })
+              }
+              value={draft.reasoning_effort}
+            >
+              <option value="high">High</option>
+              <option value="max">Max (higher cost)</option>
+            </select>
+          </label>
+          <NumberField label="Max output tokens" value={draft.max_output_tokens} onChange={(value) => onDraft({ ...draft, max_output_tokens: value })} />
+          <NumberField label="Context window" value={draft.context_window} onChange={(value) => onDraft({ ...draft, context_window: value })} />
+          <NumberField label="Input cost / 1M" value={draft.input_cost_per_million} onChange={(value) => onDraft({ ...draft, input_cost_per_million: value })} />
+          <NumberField label="Output cost / 1M" value={draft.output_cost_per_million} onChange={(value) => onDraft({ ...draft, output_cost_per_million: value })} />
         </div>
         <div className="workbench-action-row">
           <button className="workbench-primary-button" disabled={!draft.name.trim()} onClick={onCreate} type="button">
@@ -416,9 +469,12 @@ function ModelSettings({
                 <strong>{provider.name}</strong>
                 <small>
                   {provider.model || "No model"} / {provider.base_url || "local"}
+                  {" · "}
+                  {provider.thinking_enabled ? `thinking ${provider.reasoning_effort}` : "thinking off"}
+                  {" · "}key: {provider.api_key_source}
                 </small>
               </div>
-              <StatusBadge tone={provider.status === "connection_failed" ? "error" : provider.configured ? "success" : "warning"}>
+              <StatusBadge tone={["connection_failed", "insufficient_balance"].includes(provider.status) ? "error" : provider.configured ? "success" : "warning"}>
                 {provider.status_label}
               </StatusBadge>
               <div className="workbench-action-row">
@@ -437,7 +493,10 @@ function ModelSettings({
             </article>
           ))}
         </div>
-        {testResult ? <p className="workbench-muted">{testResult.message}</p> : null}
+        {testResult ? <p className="workbench-muted">{testResult.message}{testResult.model ? ` ${testResult.provider}/${testResult.model} · ${testResult.latency_ms} ms` : ""}</p> : null}
+        <p className="workbench-muted">
+          Live smoke is CLI-only and always shows its call budget first; Test connection never starts coding.
+        </p>
         <section className="workbench-detail-section">
           <h2>Usage and Economy</h2>
           <div className="usage-grid">
@@ -624,6 +683,12 @@ interface ProviderDraft {
   model: string;
   base_url: string;
   api_key: string;
+  thinking_enabled: boolean;
+  reasoning_effort: "high" | "max";
+  max_output_tokens: number | null;
+  context_window: number | null;
+  input_cost_per_million: number | null;
+  output_cost_per_million: number | null;
 }
 
 function emptyProviderDraft(): ProviderDraft {
@@ -633,6 +698,12 @@ function emptyProviderDraft(): ProviderDraft {
     model: "",
     base_url: "",
     api_key: "",
+    thinking_enabled: false,
+    reasoning_effort: "high",
+    max_output_tokens: 4096,
+    context_window: 128000,
+    input_cost_per_million: 0,
+    output_cost_per_million: 0,
   };
 }
 
@@ -645,7 +716,35 @@ function providerPayload(draft: ProviderDraft): StudioProviderUpsertRequest {
     model: draft.model,
     name: draft.name,
     provider_type: draft.provider_type,
+    thinking_enabled: draft.thinking_enabled,
+    reasoning_effort: draft.reasoning_effort,
+    max_output_tokens: draft.max_output_tokens,
+    context_window: draft.context_window,
+    input_cost_per_million: draft.input_cost_per_million,
+    output_cost_per_million: draft.output_cost_per_million,
   };
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        min="0"
+        onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
+        type="number"
+        value={value ?? ""}
+      />
+    </label>
+  );
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {

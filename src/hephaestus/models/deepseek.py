@@ -1,37 +1,89 @@
-"""Optional DeepSeek provider."""
+"""DeepSeek provider over the shared OpenAI-compatible transport."""
 
 from __future__ import annotations
 
-import json
 import os
-import urllib.request
 from collections.abc import Sequence
 from typing import Any
 
 from hephaestus.core.config import PrivacyLevel
 from hephaestus.models.base import ModelProfile, ModelRequest, ModelResponse
+from hephaestus.models.openai_compatible import OpenAICompatibleProvider, UrlOpen
 
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
-DEEPSEEK_BASE_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_BASE_URL_ENV = "DEEPSEEK_BASE_URL"
+DEEPSEEK_MODEL_ENV = "DEEPSEEK_MODEL"
+DEEPSEEK_THINKING_ENV = "HEPH_DEEPSEEK_THINKING"
+DEEPSEEK_REASONING_EFFORT_ENV = "HEPH_DEEPSEEK_REASONING_EFFORT"
+DEEPSEEK_MAX_OUTPUT_TOKENS_ENV = "HEPH_DEEPSEEK_MAX_OUTPUT_TOKENS"
+DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash"
+DEEPSEEK_DEFAULT_CONTEXT_WINDOW = 1_000_000
+DEEPSEEK_DEFAULT_INPUT_COST_PER_MILLION = 0.14
+DEEPSEEK_DEFAULT_OUTPUT_COST_PER_MILLION = 0.28
+VALID_REASONING_EFFORTS = {"high", "max"}
 
 
-class DeepSeekProvider:
+class DeepSeekProvider(OpenAICompatibleProvider):
     """Optional provider that is inactive until DEEPSEEK_API_KEY is set."""
 
     name = "deepseek"
 
-    def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key if api_key is not None else os.getenv(DEEPSEEK_API_KEY_ENV)
-
-    @property
-    def is_available(self) -> bool:
-        return bool(self.api_key)
+    def __init__(
+        self,
+        api_key: str | None = None,
+        *,
+        base_url: str | None = None,
+        model: str | None = None,
+        thinking_enabled: bool | None = None,
+        reasoning_effort: str | None = None,
+        max_output_tokens: int | None = None,
+        context_window: int | None = None,
+        input_cost_per_million: float | None = None,
+        output_cost_per_million: float | None = None,
+        timeout: float = 60,
+        urlopen: UrlOpen | None = None,
+    ) -> None:
+        resolved_effort = (
+            reasoning_effort
+            if reasoning_effort is not None
+            else os.getenv(DEEPSEEK_REASONING_EFFORT_ENV, "high")
+        ).strip().lower()
+        if resolved_effort not in VALID_REASONING_EFFORTS:
+            raise ValueError("DeepSeek reasoning_effort must be 'high' or 'max'.")
+        self.thinking_enabled = (
+            thinking_enabled
+            if thinking_enabled is not None
+            else _enabled_env(DEEPSEEK_THINKING_ENV, default=True)
+        )
+        self.reasoning_effort = resolved_effort
+        self.max_output_tokens = max_output_tokens or _positive_int_env(
+            DEEPSEEK_MAX_OUTPUT_TOKENS_ENV, default=4096
+        )
+        super().__init__(
+            base_url=base_url or os.getenv(DEEPSEEK_BASE_URL_ENV, DEEPSEEK_DEFAULT_BASE_URL),
+            api_key=api_key if api_key is not None else os.getenv(DEEPSEEK_API_KEY_ENV),
+            model=model or os.getenv(DEEPSEEK_MODEL_ENV, DEEPSEEK_DEFAULT_MODEL),
+            context_window=context_window or DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+            input_cost_per_million=(
+                input_cost_per_million
+                if input_cost_per_million is not None
+                else DEEPSEEK_DEFAULT_INPUT_COST_PER_MILLION
+            ),
+            output_cost_per_million=(
+                output_cost_per_million
+                if output_cost_per_million is not None
+                else DEEPSEEK_DEFAULT_OUTPUT_COST_PER_MILLION
+            ),
+            timeout=timeout,
+            urlopen=urlopen,
+        )
 
     def profiles(self) -> Sequence[ModelProfile]:
         return [
             ModelProfile(
                 provider="deepseek",
-                model="deepseek-v4-flash",
+                model=self.model or DEEPSEEK_DEFAULT_MODEL,
                 capabilities={
                     "analysis",
                     "coding",
@@ -43,9 +95,9 @@ class DeepSeekProvider:
                     "tool-use",
                     "writing",
                 },
-                context_window=1_000_000,
-                input_cost_per_million=0.14,
-                output_cost_per_million=0.28,
+                context_window=self.context_window,
+                input_cost_per_million=self.input_cost_per_million,
+                output_cost_per_million=self.output_cost_per_million,
                 latency_score=0.7,
                 quality_scores={
                     "analysis": 0.86,
@@ -69,88 +121,72 @@ class DeepSeekProvider:
                     "memory_extraction",
                 },
             ),
-            ModelProfile(
-                provider="deepseek",
-                model="deepseek-v4-pro",
-                capabilities={
-                    "analysis",
-                    "coding",
-                    "general",
-                    "planning",
-                    "reasoning",
-                    "repository-inspection",
-                    "safety",
-                    "tool-use",
-                    "writing",
-                },
-                context_window=1_000_000,
-                input_cost_per_million=0.435,
-                output_cost_per_million=0.87,
-                latency_score=0.55,
-                quality_scores={
-                    "analysis": 0.9,
-                    "coding": 0.88,
-                    "general": 0.88,
-                    "planning": 0.9,
-                    "reasoning": 0.9,
-                    "repository-inspection": 0.88,
-                    "safety": 0.86,
-                    "tool-use": 0.86,
-                    "writing": 0.88,
-                },
-                privacy_level=PrivacyLevel.INTERNAL,
-                supports_tools=True,
-                supports_json=True,
-                supports_streaming=True,
-                intended_roles={
-                    "conversation",
-                    "repo_question",
-                    "strategic_reasoning",
-                    "research_planning",
-                    "summarization",
-                    "memory_extraction",
-                },
-            ),
         ]
 
     def complete(self, request: ModelRequest) -> ModelResponse:
-        if not self.api_key:
-            raise RuntimeError(
-                f"DeepSeek provider unavailable. Set {DEEPSEEK_API_KEY_ENV} to enable it."
-            )
+        effective = request.model_copy(
+            update={
+                "model": request.model or self.model,
+                "max_output_tokens": min(request.max_output_tokens, self.max_output_tokens),
+                "thinking_enabled": (
+                    self.thinking_enabled
+                    if request.thinking_enabled is None
+                    else request.thinking_enabled
+                ),
+                "reasoning_effort": request.reasoning_effort or self.reasoning_effort,
+            }
+        )
+        return super().complete(effective)
 
-        model = request.model or "deepseek-v4-flash"
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": [{"role": "user", "content": request.prompt}],
-            "temperature": request.temperature,
-            "max_tokens": request.max_output_tokens,
-            "stream": False,
+    def _build_payload(self, request: ModelRequest, model: str) -> dict[str, object]:
+        payload = super()._build_payload(request, model)
+        if request.thinking_enabled:
+            payload.pop("temperature", None)
+            payload.pop("top_p", None)
+            payload.pop("presence_penalty", None)
+            payload.pop("frequency_penalty", None)
+            payload["thinking"] = {"type": "enabled"}
+            payload["reasoning_effort"] = request.reasoning_effort or self.reasoning_effort
+        return payload
+
+    def complete_tool_continuation(
+        self,
+        request: ModelRequest,
+        previous: ModelResponse,
+        tool_messages: list[dict[str, Any]],
+    ) -> ModelResponse:
+        """Continue one tool-call turn while keeping reasoning transient."""
+
+        if not previous.tool_calls:
+            raise ValueError("Tool continuation requires assistant tool_calls.")
+        assistant: dict[str, Any] = {
+            "role": "assistant",
+            "content": previous.text or None,
+            "tool_calls": previous.tool_calls,
         }
-        if request.require_json:
-            payload["response_format"] = {"type": "json_object"}
+        if previous.reasoning_content:
+            assistant["reasoning_content"] = previous.reasoning_content
+        messages = [
+            *(request.messages or [{"role": "user", "content": request.prompt}]),
+            assistant,
+            *tool_messages,
+        ]
+        return self.complete(request.model_copy(update={"messages": messages}))
 
-        http_request = urllib.request.Request(
-            DEEPSEEK_BASE_URL,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(http_request, timeout=60) as response:
-            data = json.loads(response.read().decode("utf-8"))
 
-        text = data["choices"][0]["message"]["content"]
-        usage = data.get("usage", {})
-        input_tokens = int(usage.get("prompt_tokens", 0))
-        output_tokens = int(usage.get("completion_tokens", 0))
-        profile = next(profile for profile in self.profiles() if profile.model == model)
-        return ModelResponse(
-            text=text,
-            model=f"deepseek/{model}",
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            estimated_cost=profile.estimated_cost(input_tokens, output_tokens),
-        )
+def _enabled_env(name: str, *, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+def _positive_int_env(name: str, *, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default

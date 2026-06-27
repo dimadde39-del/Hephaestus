@@ -17,6 +17,7 @@ spine, but they are not the public headline.
 - Phase 5.5A: Studio Foundation + Persistent Chat.
 - Phase 5.5B: Agent Workbench.
 - Phase 5.5C: Advanced Views + Packaging + Polish.
+- Phase 5.6A.0: DeepSeek V4 Flash First Live Smoke.
 - Phase 5.6: Claude Code Parity Program.
 - Phase 6A: Personal Context + Project Memory Expansion.
 - Phase 6B: Skill Forge.
@@ -31,6 +32,12 @@ chat product surface first; Phase 5.5B adds coding-loop, validation, approval,
 checkpoint, outcome, and tool-action workbench views; Phase 5.5C completes the
 local Studio surface with memory, settings, advanced views, onboarding,
 backup/export, and packaging polish.
+
+Phase 5.6A.0 adds a narrow, budgeted DeepSeek V4 Flash path before any parity
+program claims: configurable thinking, transient reasoning handling, real
+connectivity tests, isolated conversation/repo/coding smoke cases, usage
+telemetry, and strict `--live`/call/output/cost guards. It does not establish
+Claude Code parity or native autonomous tool calling.
 
 ## Complete
 

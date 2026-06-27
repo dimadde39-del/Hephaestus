@@ -209,6 +209,10 @@ class DeliberationResult(BaseModel):
     provider_model: str = "local/deterministic"
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    thinking_enabled: bool = False
+    reasoning_effort: str | None = None
+    provider_success: bool = True
     estimated_cost: float = Field(default=0.0, ge=0)
     budget: ConversationBudgetReport = Field(default_factory=ConversationBudgetReport)
 
@@ -312,5 +316,9 @@ class ConversationResponse(BaseModel):
     provider_model: str = "local/deterministic"
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    thinking_enabled: bool = False
+    reasoning_effort: str | None = None
+    provider_success: bool = True
     estimated_cost: float = Field(default=0.0, ge=0)
     budget: ConversationBudgetReport = Field(default_factory=ConversationBudgetReport)
