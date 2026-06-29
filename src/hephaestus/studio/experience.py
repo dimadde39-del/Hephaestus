@@ -70,6 +70,7 @@ from hephaestus.studio.schemas import (
     StudioMemorySummary,
     StudioProviderConfig,
     StudioProviderListResponse,
+    StudioProviderPatchRequest,
     StudioProviderStatus,
     StudioProviderTestResponse,
     StudioProviderUpsertRequest,
@@ -486,7 +487,7 @@ class StudioExperienceRepository:
     def update_provider(
         self,
         provider_id: str,
-        request: StudioProviderUpsertRequest,
+        request: StudioProviderPatchRequest,
     ) -> StudioProviderConfig | None:
         """Update a provider while preserving secrets when no new key is supplied."""
 
@@ -495,13 +496,32 @@ class StudioExperienceRepository:
             return self._local_provider_config()
         with connect_database(self.database_path) as connection:
             row = connection.execute(
-                "SELECT api_key_secret FROM studio_provider_configs WHERE id = ?",
+                "SELECT * FROM studio_provider_configs WHERE id = ?",
                 (provider_id,),
             ).fetchone()
         if row is None:
             return None
+        updates = request.model_dump(exclude_unset=True)
+        merged = {
+            "provider_type": _row_str(row, "provider_type"),
+            "name": _row_str(row, "name"),
+            "model": _row_str(row, "model"),
+            "base_url": _row_str(row, "base_url"),
+            "context_window": _row_optional_int(row, "context_window"),
+            "input_cost_per_million": _row_optional_float(row, "input_cost_per_million"),
+            "output_cost_per_million": _row_optional_float(row, "output_cost_per_million"),
+            "thinking_enabled": _row_bool(row, "thinking_enabled"),
+            "reasoning_effort": _row_str(row, "reasoning_effort") or "high",
+            "max_output_tokens": _row_optional_int(row, "max_output_tokens"),
+            "intended_roles": _json_loads_str_list(_row_str(row, "intended_roles_json")),
+            "default_for_conversation": _row_bool(row, "default_for_conversation"),
+            **{key: value for key, value in updates.items() if key != "api_key"},
+        }
+        if "api_key" in request.model_fields_set:
+            merged["api_key"] = request.api_key
+        complete = StudioProviderUpsertRequest.model_validate(merged)
         existing_secret = _row_optional_str(row, "api_key_secret")
-        self._save_provider(provider_id, request, existing_secret=existing_secret)
+        self._save_provider(provider_id, complete, existing_secret=existing_secret)
         return self.get_provider(provider_id)
 
     def delete_provider(self, provider_id: str) -> bool:
@@ -580,7 +600,6 @@ class StudioExperienceRepository:
                     prompt="Reply OK.",
                     model=model,
                     max_output_tokens=4,
-                    thinking_enabled=False,
                 )
             )
         except ProviderRequestError as error:
@@ -1443,6 +1462,17 @@ class StudioExperienceRepository:
                 ORDER BY updated_at DESC LIMIT 1
                 """
             ).fetchone()
+        if row is None:
+            return None
+        provider = self._provider_from_secret_row(row)
+        return provider if provider.is_available else None
+
+    def runtime_provider(self, provider_id: str) -> ModelProvider | None:
+        """Resolve a configured Studio provider without exposing its secret."""
+
+        if provider_id == "local":
+            return FakeModelProvider()
+        row = self._provider_secret_row(provider_id)
         if row is None:
             return None
         provider = self._provider_from_secret_row(row)

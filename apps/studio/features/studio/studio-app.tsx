@@ -31,7 +31,6 @@ import type {
 } from "@/lib/types";
 
 const LAST_CONVERSATION_KEY = "heph:studio:lastConversationId";
-const SCROLL_PREFIX = "heph:studio:scroll:";
 const APPEARANCE_KEY = "heph:studio:appearance";
 const ONBOARDING_KEY = "heph:studio:onboardingComplete";
 
@@ -70,7 +69,6 @@ export function StudioApp() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-  const [restoreScrollPosition, setRestoreScrollPosition] = useState<number | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileContextOpen, setMobileContextOpen] = useState(false);
   const [contextCollapsed, setContextCollapsed] = useState(false);
@@ -103,7 +101,6 @@ export function StudioApp() {
       setSendError(null);
       setActiveConversationId(conversationId);
       setActiveMessageId(options.messageId ?? null);
-      setRestoreScrollPosition(readScrollPosition(conversationId));
       setRoute({ section: "chat", conversationId, messageId: options.messageId ?? null });
       localStorage.setItem(LAST_CONVERSATION_KEY, conversationId);
       if (options.push !== false) {
@@ -618,18 +615,13 @@ export function StudioApp() {
         ) : (
           <MessageTimeline
             activeMessageId={activeMessageId}
+            conversationId={activeConversationId}
             error={sendError}
             loading={bootLoading || messagesLoading}
             messages={messages}
             onOpenArtifact={navigateToHref}
             onRetry={() => void retryLastMessage()}
-            onScrollPositionChange={(position) => {
-              if (activeConversationId) {
-                localStorage.setItem(`${SCROLL_PREFIX}${activeConversationId}`, String(position));
-              }
-            }}
             pending={pending}
-            restoreScrollPosition={restoreScrollPosition}
           />
         )
       }
@@ -823,15 +815,6 @@ function routeHeader(route: StudioRoute) {
     title: "Hephaestus Studio",
     subtitle: "Chat remains the main workspace",
   };
-}
-
-function readScrollPosition(conversationId: string) {
-  const raw = localStorage.getItem(`${SCROLL_PREFIX}${conversationId}`);
-  if (!raw) {
-    return null;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function readAppearancePreference(): AppearancePreference {

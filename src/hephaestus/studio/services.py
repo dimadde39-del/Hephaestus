@@ -54,6 +54,7 @@ from hephaestus.studio.schemas import (
     StudioMessage,
     StudioProviderConfig,
     StudioProviderListResponse,
+    StudioProviderPatchRequest,
     StudioProviderTestResponse,
     StudioProviderUpsertRequest,
     StudioSettingsPatchRequest,
@@ -494,7 +495,7 @@ class StudioService:
     def update_provider(
         self,
         provider_id: str,
-        request: StudioProviderUpsertRequest,
+        request: StudioProviderPatchRequest,
     ) -> StudioProviderConfig | None:
         """Update a provider configuration."""
 

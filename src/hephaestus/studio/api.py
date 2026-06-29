@@ -44,6 +44,7 @@ from hephaestus.studio.schemas import (
     StudioMessage,
     StudioProviderConfig,
     StudioProviderListResponse,
+    StudioProviderPatchRequest,
     StudioProviderTestResponse,
     StudioProviderUpsertRequest,
     StudioSettingsPatchRequest,
@@ -464,7 +465,7 @@ def create_provider(
 def patch_provider(
     request: Request,
     provider_id: str,
-    payload: StudioProviderUpsertRequest,
+    payload: StudioProviderPatchRequest,
 ) -> StudioProviderConfig:
     """Update a provider/model configuration without echoing secrets."""
 

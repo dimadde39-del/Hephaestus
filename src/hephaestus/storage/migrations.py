@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -1167,6 +1168,22 @@ ALTER TABLE studio_usage_events
 ADD COLUMN usage_source TEXT NOT NULL DEFAULT 'estimated';
 """
 
+MIGRATION_20 = """
+CREATE TABLE IF NOT EXISTS studio_provider_migration_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    old_provider_type TEXT NOT NULL,
+    new_provider_type TEXT NOT NULL,
+    normalized_host TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_studio_provider_migration_events_provider
+ON studio_provider_migration_events(provider_id, created_at DESC);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -1312,7 +1329,63 @@ def run_migrations(connection: sqlite3.Connection) -> None:
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (19, datetime.now(UTC).isoformat()),
         )
+    if 20 not in applied_versions:
+        connection.executescript(MIGRATION_20)
+        _migrate_deepseek_provider_types(connection)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (20, datetime.now(UTC).isoformat()),
+        )
     connection.commit()
+
+
+def _migrate_deepseek_provider_types(connection: sqlite3.Connection) -> None:
+    rows = connection.execute(
+        """
+        SELECT id, provider_type, base_url, model, raw_json
+        FROM studio_provider_configs
+        WHERE provider_type = 'openai-compatible'
+        """
+    ).fetchall()
+    for row in rows:
+        host = (urlsplit(str(row["base_url"])).hostname or "").lower().rstrip(".")
+        model = str(row["model"])
+        if host != "api.deepseek.com" or not model.lower().startswith("deepseek-"):
+            continue
+        raw_json = str(row["raw_json"] or "{}")
+        try:
+            import json
+
+            raw = json.loads(raw_json)
+            if isinstance(raw, dict):
+                raw["provider_type"] = "deepseek"
+                raw_json = json.dumps(raw, sort_keys=True, separators=(",", ":"))
+        except (TypeError, ValueError):
+            raw_json = "{}"
+        connection.execute(
+            """
+            UPDATE studio_provider_configs
+            SET provider_type = 'deepseek', raw_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (raw_json, datetime.now(UTC).isoformat(), str(row["id"])),
+        )
+        connection.execute(
+            """
+            INSERT INTO studio_provider_migration_events (
+                provider_id, event_type, old_provider_type, new_provider_type,
+                normalized_host, model, created_at
+            ) VALUES (?, 'deepseek_provider_reclassified', ?, ?, ?, ?, ?)
+            """,
+            (
+                str(row["id"]),
+                "openai-compatible",
+                "deepseek",
+                host,
+                model,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
 
 
 def _migrate_decision_traces_v3(connection: sqlite3.Connection) -> None:

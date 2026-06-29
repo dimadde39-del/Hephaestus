@@ -20,7 +20,11 @@ from hephaestus.models.live_smoke import (
     run_live_smoke,
 )
 from hephaestus.studio.experience import StudioExperienceRepository
-from hephaestus.studio.schemas import StudioProviderStatus, StudioProviderUpsertRequest
+from hephaestus.studio.schemas import (
+    StudioProviderPatchRequest,
+    StudioProviderStatus,
+    StudioProviderUpsertRequest,
+)
 
 
 class FakeResponse:
@@ -355,7 +359,93 @@ def test_studio_connection_success_uses_saved_model(tmp_path, monkeypatch) -> No
     assert tested.model == "deepseek-v4-flash"
     assert captured[0]["model"] == "deepseek-v4-flash"
     assert captured[0]["max_tokens"] == 4
-    assert "thinking" not in captured[0]
+    assert captured[0]["thinking"] == {"type": "enabled"}
+    assert captured[0]["reasoning_effort"] == "high"
+
+
+def test_deepseek_config_is_canonicalized_and_partial_edit_preserves_type(tmp_path) -> None:
+    repository = StudioExperienceRepository(tmp_path / "studio.db")
+    created = repository.create_provider(
+        StudioProviderUpsertRequest(
+            provider_type="openai-compatible",
+            name="Legacy DeepSeek",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com/",
+            api_key="write-only",
+        )
+    )
+    updated = repository.update_provider(
+        created.id,
+        StudioProviderPatchRequest(name="Renamed DeepSeek"),
+    )
+
+    assert created.provider_type == "deepseek"
+    assert updated is not None
+    assert updated.provider_type == "deepseek"
+    assert updated.name == "Renamed DeepSeek"
+    assert "write-only" not in updated.model_dump_json()
+    assert repository.runtime_provider(created.id).name == "deepseek"  # type: ignore[union-attr]
+
+
+def test_deepseek_migration_is_strict_and_audited_without_secret(tmp_path) -> None:
+    database_path = tmp_path / "studio.db"
+    repository = StudioExperienceRepository(database_path)
+    matching = repository.create_provider(
+        StudioProviderUpsertRequest(
+            provider_type="openai-compatible",
+            name="Will migrate",
+            model="custom-model",
+            base_url="https://example.test",
+            api_key="never-log-this",
+        )
+    )
+    custom = repository.create_provider(
+        StudioProviderUpsertRequest(
+            provider_type="openai-compatible",
+            name="Custom",
+            model="deepseek-v4-flash",
+            base_url="https://proxy.example.test",
+            api_key="another-secret",
+        )
+    )
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            UPDATE studio_provider_configs
+            SET provider_type='openai-compatible', base_url='https://api.deepseek.com/v1',
+                model='deepseek-v4-flash'
+            WHERE id=?
+            """,
+            (matching.id,),
+        )
+        connection.execute("DELETE FROM schema_migrations WHERE version=20")
+        connection.commit()
+
+    migrated = StudioExperienceRepository(database_path)
+    assert migrated.get_provider(matching.id).provider_type == "deepseek"  # type: ignore[union-attr]
+    assert migrated.get_provider(custom.id).provider_type == "openai-compatible"  # type: ignore[union-attr]
+    with sqlite3.connect(database_path) as connection:
+        event = connection.execute(
+            """
+            SELECT provider_id, old_provider_type, new_provider_type, normalized_host, model
+            FROM studio_provider_migration_events WHERE provider_id=?
+            """,
+            (matching.id,),
+        ).fetchone()
+        audit_text = "\n".join(
+            str(row)
+            for row in connection.execute(
+                "SELECT * FROM studio_provider_migration_events"
+            ).fetchall()
+        )
+    assert event == (
+        matching.id,
+        "openai-compatible",
+        "deepseek",
+        "api.deepseek.com",
+        "deepseek-v4-flash",
+    )
+    assert "never-log-this" not in audit_text
 
 
 @pytest.mark.parametrize(

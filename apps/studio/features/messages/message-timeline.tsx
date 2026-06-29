@@ -15,9 +15,10 @@ import { motion, useReducedMotion } from "framer-motion";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { IconButton } from "@/components/icon-button";
+import { isNearBottom, keyboardScrollTop } from "@/features/messages/scroll-policy";
 import type { StudioMessage } from "@/lib/types";
 
 interface MessageTimelineProps {
@@ -26,10 +27,9 @@ interface MessageTimelineProps {
   pending: boolean;
   error: string | null;
   activeMessageId: string | null;
-  restoreScrollPosition: number | null;
+  conversationId: string | null;
   onOpenArtifact?: (href: string) => void;
   onRetry: () => void;
-  onScrollPositionChange: (position: number) => void;
 }
 
 export function MessageTimeline({
@@ -38,12 +38,35 @@ export function MessageTimeline({
   pending,
   error,
   activeMessageId,
-  restoreScrollPosition,
+  conversationId,
   onOpenArtifact,
   onRetry,
-  onScrollPositionChange,
 }: MessageTimelineProps) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const stackRef = useRef<HTMLDivElement | null>(null);
+  const pinnedRef = useRef(true);
+  const frameRef = useRef<number | null>(null);
+  const [showJump, setShowJump] = useState(false);
+  const contentSignature = useMemo(
+    () => `${pending}:${messages.map((message) => `${message.id}:${message.content.length}`).join("|")}`,
+    [messages, pending],
+  );
+
+  function scrollToLatest(behavior: ScrollBehavior = "auto") {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior });
+    pinnedRef.current = true;
+    setShowJump(false);
+  }
+
+  function schedulePinnedScroll() {
+    if (!pinnedRef.current || frameRef.current !== null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      scrollToLatest("auto");
+    });
+  }
 
   useEffect(() => {
     if (!activeMessageId) {
@@ -55,31 +78,78 @@ export function MessageTimeline({
     element?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeMessageId, messages]);
 
-  useEffect(() => {
-    if (activeMessageId || restoreScrollPosition === null || !scrollerRef.current) {
-      return;
+  useLayoutEffect(() => {
+    if (!activeMessageId && conversationId && !loading) {
+      scrollToLatest("auto");
     }
-    scrollerRef.current.scrollTop = restoreScrollPosition;
-  }, [activeMessageId, messages, restoreScrollPosition]);
+    // Opening a conversation always starts at the latest message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, loading]);
+
+  useEffect(() => {
+    if (activeMessageId) return;
+    if (pinnedRef.current) schedulePinnedScroll();
+    else setShowJump(true);
+    // contentSignature intentionally represents streaming growth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMessageId, contentSignature]);
+
+  useEffect(() => {
+    const stack = stackRef.current;
+    if (!stack || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (pinnedRef.current) schedulePinnedScroll();
+      else setShowJump(true);
+    });
+    observer.observe(stack);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    },
+    [],
+  );
 
   if (loading) {
     return (
+      <div className="timeline-frame">
       <div className="timeline-scroll" aria-label="Loading messages">
         <div className="message-skeleton" />
         <div className="message-skeleton assistant" />
         <div className="message-skeleton short" />
       </div>
+      </div>
     );
   }
 
   return (
+    <div className="timeline-frame">
     <div
+      aria-label="Message transcript"
       className="timeline-scroll"
-      onScroll={(event) => onScrollPositionChange(event.currentTarget.scrollTop)}
+      onKeyDown={(event) => {
+        const target = event.currentTarget;
+        const next = keyboardScrollTop(event.key, target);
+        if (next === null) return;
+        event.preventDefault();
+        target.scrollTo({ top: next, behavior: "auto" });
+        pinnedRef.current = event.key === "End";
+        setShowJump(event.key !== "End");
+      }}
+      onScroll={(event) => {
+        const nearBottom = isNearBottom(event.currentTarget);
+        pinnedRef.current = nearBottom;
+        if (nearBottom) setShowJump(false);
+      }}
       ref={scrollerRef}
+      role="region"
+      tabIndex={0}
     >
       {messages.length === 0 ? <EmptyConversation /> : null}
-      <div className="message-stack" aria-live="polite">
+      <div className="message-stack" aria-live="polite" ref={stackRef}>
         {messages.map((message) => (
           <MessageBlock
             highlighted={message.id === activeMessageId}
@@ -91,6 +161,12 @@ export function MessageTimeline({
         {pending ? <PendingMessage /> : null}
         {error ? <ErrorMessage message={error} onRetry={onRetry} /> : null}
       </div>
+    </div>
+    {showJump ? (
+      <button className="jump-to-latest" onClick={() => scrollToLatest("smooth")} type="button">
+        Jump to latest
+      </button>
+    ) : null}
     </div>
   );
 }

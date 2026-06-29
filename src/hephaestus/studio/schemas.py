@@ -529,9 +529,13 @@ class StudioProviderUpsertRequest(BaseModel):
     def apply_deepseek_defaults(cls, value: Any) -> Any:
         """Apply provider-specific defaults without overriding explicit choices."""
 
-        if not isinstance(value, dict) or value.get("provider_type") != "deepseek":
+        if not isinstance(value, dict):
             return value
         configured = dict(value)
+        if _looks_like_deepseek_config(configured):
+            configured["provider_type"] = "deepseek"
+        if configured.get("provider_type") != "deepseek":
+            return configured
         configured["model"] = configured.get("model") or "deepseek-v4-flash"
         configured["base_url"] = configured.get("base_url") or "https://api.deepseek.com"
         configured.setdefault("thinking_enabled", True)
@@ -540,6 +544,36 @@ class StudioProviderUpsertRequest(BaseModel):
         if configured.get("context_window") is None:
             configured["context_window"] = 1_000_000
         return configured
+
+
+class StudioProviderPatchRequest(BaseModel):
+    """Partial provider update that preserves omitted type and secret fields."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider_type: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    model: str | None = None
+    base_url: str | None = None
+    api_key: str | None = Field(default=None, max_length=4096)
+    context_window: int | None = Field(default=None, ge=1)
+    input_cost_per_million: float | None = Field(default=None, ge=0)
+    output_cost_per_million: float | None = Field(default=None, ge=0)
+    thinking_enabled: bool | None = None
+    reasoning_effort: str | None = Field(default=None, pattern="^(high|max)$")
+    max_output_tokens: int | None = Field(default=None, ge=1)
+    intended_roles: list[str] | None = None
+    default_for_conversation: bool | None = None
+
+
+def _looks_like_deepseek_config(value: dict[str, Any]) -> bool:
+    from urllib.parse import urlsplit
+
+    if value.get("provider_type") not in {"openai-compatible", "deepseek"}:
+        return False
+    host = (urlsplit(str(value.get("base_url") or "")).hostname or "").lower().rstrip(".")
+    model = str(value.get("model") or "").lower()
+    return host == "api.deepseek.com" and model.startswith("deepseek-")
 
 
 class StudioProviderTestResponse(BaseModel):

@@ -113,6 +113,7 @@
 html,
 body {
   height: 100%;
+  min-height: 100dvh;
 }
 
 body {
@@ -152,8 +153,8 @@ textarea:focus-visible {
   background: var(--color-background);
   display: grid;
   grid-template-columns: var(--sidebar-size) minmax(0, 1fr) var(--drawer-size);
-  height: 100vh;
-  overflow: hidden;
+  height: 100dvh;
+  min-height: 100dvh;
 }
 
 .studio-shell.has-collapsed-sidebar {
@@ -634,6 +635,8 @@ textarea:focus-visible {
   background: var(--color-background);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -687,11 +690,36 @@ textarea:focus-visible {
   gap: var(--space-2);
 }
 
-.timeline-scroll {
+.timeline-frame {
   min-height: 0;
+  position: relative;
+}
+
+.timeline-scroll {
+  height: 100%;
+  min-height: 0;
+  overscroll-behavior: contain;
   overflow-y: auto;
   padding: var(--space-8) var(--space-6) var(--space-5);
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
   scroll-behavior: smooth;
+}
+
+.jump-to-latest {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  bottom: var(--space-3);
+  box-shadow: var(--shadow-panel);
+  cursor: pointer;
+  font-size: 12px;
+  left: 50%;
+  min-height: 34px;
+  padding: 0 var(--space-4);
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 4;
 }
 
 .message-stack {

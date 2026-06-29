@@ -566,7 +566,7 @@ def test_provider_settings_usage_export_and_backup_redaction(tmp_path, monkeypat
     assert exported_json.json()["format"] == "json"
     assert "secret-token-123" not in memories_export.text
     assert memory.status_code == 201
-    assert backup.json()["schema_version"] == 19
+    assert backup.json()["schema_version"] == 20
     assert Path(backup.json()["path"]).exists()
     assert restore.json()["restored"] is True
     assert incompatible_restore.status_code == 400
