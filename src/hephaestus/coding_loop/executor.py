@@ -10,6 +10,7 @@ from hephaestus.coding_loop.analysis import (
     record_coding_outcome,
     record_coding_trace,
 )
+from hephaestus.coding_loop.operations import apply_manifest
 from hephaestus.coding_loop.patcher import CodingPatcher
 from hephaestus.coding_loop.planner import CodingPlanner
 from hephaestus.coding_loop.repository import CodingLoopRepository
@@ -30,8 +31,10 @@ from hephaestus.outcomes import (
     LearningSignalType,
     OutcomeStatus,
 )
+from hephaestus.repo import RepoProfileRepository, inspect_repository
 from hephaestus.storage import RunRecord, RunRepository
 from hephaestus.tool_runtime import ToolExecutionStatus, ToolRuntime
+from hephaestus.tool_runtime.repository import ToolRuntimeRepository
 from hephaestus.validation import ValidationExecutor, ValidationStatus
 from hephaestus.validation.schemas import ValidationSuiteResult
 
@@ -101,6 +104,16 @@ class CodingLoopExecutor:
         request = self.repository.get_request(change.request_id)
         if request is None:
             raise ValueError(f"Coding request not found for change: {change.request_id}")
+        if change.manifest is not None:
+            return self._apply_manifest_change(
+                request,
+                plan,
+                change,
+                yes=yes,
+                dry_run=dry_run,
+                no_validate=no_validate,
+                rollback_on_failure=rollback_on_failure,
+            )
         review = self.reviewer.review(plan, change, validation_enabled=not no_validate)
         return self._execute_reviewed_change(
             request,
@@ -111,6 +124,103 @@ class CodingLoopExecutor:
             dry_run=dry_run,
             no_validate=no_validate,
             rollback_on_failure=rollback_on_failure,
+        )
+
+    def _apply_manifest_change(
+        self,
+        request: CodingRequest,
+        plan: CodingPlan,
+        change: CodingChangeProposal,
+        *,
+        yes: bool,
+        dry_run: bool,
+        no_validate: bool,
+        rollback_on_failure: bool,
+    ) -> CodingLoopResult:
+        if not yes:
+            return self.repository.save_result(
+                self._blocked_result(
+                    request,
+                    plan,
+                    status=CodingLoopStatus.REQUIRES_APPROVAL,
+                    summary="Manifest application requires explicit approval.",
+                    outcome_summary="Structured operations were not applied without approval.",
+                )
+            )
+        if dry_run:
+            return self.repository.save_result(
+                self._blocked_result(
+                    request,
+                    plan,
+                    status=CodingLoopStatus.PATCH_PROPOSED,
+                    summary="Manifest preflight completed; dry-run made no changes.",
+                    outcome_summary="Structured manifest was reviewed without applying it.",
+                )
+            )
+        if change.manifest is None:
+            raise ValueError("Structured manifest is missing.")
+        applied = apply_manifest(plan.repo_path, change.manifest)
+        ToolRuntimeRepository(self.database_path).save_checkpoint(applied.checkpoint)
+        validation = _validation_not_run("validation disabled")
+        status = CodingLoopStatus.COMPLETED
+        validation_id: str | None = None
+        if not no_validate:
+            report = inspect_repository(plan.repo_path)
+            RepoProfileRepository(self.database_path).save_inspection(report)
+            suite = ValidationExecutor(self.database_path, workspace_path=plan.repo_path).run(
+                plan.repo_path,
+                yes=True,
+                dry_run=False,
+                stop_on_failure=False,
+            )
+            validation = _validation_summary(suite)
+            validation_id = suite.id
+            status = (
+                CodingLoopStatus.COMPLETED
+                if suite.status == ValidationStatus.PASSED and suite.pass_count > 0
+                else CodingLoopStatus.VALIDATION_FAILED
+            )
+            if status == CodingLoopStatus.VALIDATION_FAILED and rollback_on_failure:
+                from hephaestus.tool_runtime.checkpoint import restore_checkpoint
+
+                restored = restore_checkpoint(applied.checkpoint)
+                ToolRuntimeRepository(self.database_path).save_checkpoint(restored)
+                status = CodingLoopStatus.ROLLED_BACK
+        iteration = CodingIteration(
+            request_id=request.id,
+            plan_id=plan.id,
+            change_id=change.id,
+            status=status,
+            summary=(
+                "Structured manifest applied and validation passed."
+                if status == CodingLoopStatus.COMPLETED
+                else validation.summary
+            ),
+            checkpoint_id=applied.checkpoint.id,
+            validation_result_id=validation_id,
+        )
+        self.repository.save_iteration(iteration)
+        return self.repository.save_result(
+            CodingLoopResult(
+                request_id=request.id,
+                plan_id=plan.id,
+                change_id=change.id,
+                repo_path=plan.repo_path,
+                repo_profile_id=plan.repo_profile_id,
+                conversation_id=plan.conversation_id,
+                run_id=plan.run_id,
+                active_policy_profile=plan.active_policy_profile,
+                user_request=request.user_request,
+                scope_type=plan.scope.scope_type,
+                risk=change.risk,
+                status=status,
+                summary=iteration.summary,
+                iteration_ids=[iteration.id],
+                checkpoint_ids=[applied.checkpoint.id],
+                validation_result_ids=[value for value in [validation_id] if value],
+                validation=validation,
+                metadata={"manifest_files": applied.files_touched},
+            )
         )
 
     def run(

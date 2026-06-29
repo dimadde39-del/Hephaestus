@@ -1,5 +1,9 @@
 # Roadmap
 
+Phase 5.6A.1 adds a bounded generalized greenfield coding loop using structured
+provider plans and operation manifests. Live model-quality benchmarking remains
+open; this phase does not claim Claude Code parity.
+
 Hephaestus is building toward a self-improving local AI agent for people
 building ambitious things: memory-backed, repo-aware, validation-aware, and
 careful about execution. The public alpha goal is not to look autonomous before

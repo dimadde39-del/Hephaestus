@@ -323,7 +323,17 @@ def _detect_python(root: Path, file_signals: list[RepoFileSignal]) -> DetectionR
     pyproject_path = root / "pyproject.toml"
     requirements_path = root / "requirements.txt"
     setup_path = root / "setup.py"
-    if not pyproject_path.exists() and not requirements_path.exists() and not setup_path.exists():
+    python_files = [
+        path
+        for path in root.rglob("*.py")
+        if not any(part in {".git", ".venv", "__pycache__"} for part in path.parts)
+    ]
+    if (
+        not pyproject_path.exists()
+        and not requirements_path.exists()
+        and not setup_path.exists()
+        and not python_files
+    ):
         return DetectionResult()
 
     package_data = _read_toml_object(pyproject_path) if pyproject_path.exists() else {}
@@ -340,6 +350,16 @@ def _detect_python(root: Path, file_signals: list[RepoFileSignal]) -> DetectionR
     frameworks = _python_frameworks(package_names)
     prefix = _python_prefix(managers)
     test_commands = _python_test_commands(root, package_data, package_names, prefix)
+    if not test_commands and any(
+        path.name.startswith("test") and "tests" in path.parts for path in python_files
+    ):
+        test_commands = [
+            _test_command(
+                "python -m unittest discover -v",
+                "python source/test discovery",
+                "unittest",
+            )
+        ]
     lint_commands = _python_lint_commands(package_data, package_names, prefix)
 
     return DetectionResult(

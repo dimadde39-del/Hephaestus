@@ -199,6 +199,11 @@ export function WorkbenchApp({
     setCodingDetail(detail);
   }
 
+  async function prepareManifest(planId: string) {
+    const detail = await api.prepareCodingManifest(planId);
+    setCodingDetail(detail);
+  }
+
   async function restoreCheckpoint(checkpointId: string) {
     const detail = await api.restoreCheckpoint(checkpointId, { approved: true });
     setCheckpointDetail(detail);
@@ -269,6 +274,7 @@ export function WorkbenchApp({
                 detail={codingDetail}
                 onApply={(changeId, approved) => void applyPatch(changeId, approved)}
                 onNavigate={onNavigate}
+                onPrepare={(planId) => void prepareManifest(planId)}
               />
             ) : null}
             {route.area === "coding" && !route.id && codingList ? (

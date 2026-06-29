@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DeliberationMode, ModeOption, RecentRepo } from "@/lib/types";
 
 interface ComposerProps {
+  workflow: "chat" | "plan" | "build";
   mode: DeliberationMode;
   modes: ModeOption[];
   repoProfileId: string | null;
@@ -15,9 +16,11 @@ interface ComposerProps {
   onModeChange: (mode: DeliberationMode) => void;
   onRepoChange: (repoProfileId: string | null) => void;
   onSendMessage: (message: string) => void;
+  onWorkflowChange: (workflow: "chat" | "plan" | "build") => void;
 }
 
 export function Composer({
+  workflow,
   mode,
   modes,
   repoProfileId,
@@ -27,6 +30,7 @@ export function Composer({
   onModeChange,
   onRepoChange,
   onSendMessage,
+  onWorkflowChange,
 }: ComposerProps) {
   const [draft, setDraft] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -65,6 +69,22 @@ export function Composer({
         <div className="composer-controls">
           <label>
             <Gauge aria-hidden="true" size={15} />
+            <span>Action</span>
+            <select
+              aria-label="Workflow mode"
+              disabled={disabled}
+              onChange={(event) =>
+                onWorkflowChange(event.target.value as "chat" | "plan" | "build")
+              }
+              value={workflow}
+            >
+              <option value="chat">Chat</option>
+              <option value="plan">Plan</option>
+              <option value="build">Build</option>
+            </select>
+          </label>
+          <label>
+            <Gauge aria-hidden="true" size={15} />
             <span>Mode</span>
             <select
               aria-label="Conversation mode"
@@ -100,6 +120,11 @@ export function Composer({
             <Cpu aria-hidden="true" size={14} />
             {providerLabel}
           </div>
+          {workflow !== "chat" ? (
+            <div className="provider-pill" aria-label="Coding budget">
+              3 calls · 4096 tokens · $0.05
+            </div>
+          ) : null}
         </div>
 
         <div className="composer-input-row">

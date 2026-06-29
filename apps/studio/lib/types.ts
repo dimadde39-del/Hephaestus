@@ -292,6 +292,8 @@ export interface StudioProviderConfig {
   effective_source: string;
   api_key_source: string;
   default_for_conversation: boolean;
+  default_for_coding?: boolean;
+  default_for_review?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -317,6 +319,8 @@ export interface StudioProviderUpsertRequest {
   max_output_tokens?: number | null;
   intended_roles?: string[];
   default_for_conversation?: boolean;
+  default_for_coding?: boolean;
+  default_for_review?: boolean;
 }
 
 export interface StudioProviderTestResponse {
@@ -779,6 +783,9 @@ export interface CodingDetailResponse {
   checkpoint_available: boolean;
   rollback_available: boolean;
   advanced_details: Record<string, string[]>;
+  plan_id?: string | null;
+  manifest_available?: boolean;
+  provider_usage?: string;
 }
 
 export type TrustMode = "manual" | "developer" | "local_power_user" | "strict";
@@ -821,6 +828,11 @@ export interface CodingPlanRequest {
   repo_path?: string;
   scope?: string | null;
   conversation_id?: string | null;
+  workflow_mode?: "plan" | "build";
+  provider?: string;
+  max_calls?: number;
+  max_output_tokens?: number;
+  estimated_cost_cap?: number;
 }
 
 export type CodingProposeRequest = CodingPlanRequest;

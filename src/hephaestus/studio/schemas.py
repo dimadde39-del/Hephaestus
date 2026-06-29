@@ -490,6 +490,8 @@ class StudioProviderConfig(BaseModel):
     effective_source: str = "studio"
     api_key_source: str = "not configured"
     default_for_conversation: bool = False
+    default_for_coding: bool = False
+    default_for_review: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -523,6 +525,8 @@ class StudioProviderUpsertRequest(BaseModel):
     max_output_tokens: int | None = Field(default=None, ge=1)
     intended_roles: list[str] = Field(default_factory=lambda: ["conversation"])
     default_for_conversation: bool = False
+    default_for_coding: bool = False
+    default_for_review: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -564,6 +568,8 @@ class StudioProviderPatchRequest(BaseModel):
     max_output_tokens: int | None = Field(default=None, ge=1)
     intended_roles: list[str] | None = None
     default_for_conversation: bool | None = None
+    default_for_coding: bool | None = None
+    default_for_review: bool | None = None
 
 
 def _looks_like_deepseek_config(value: dict[str, Any]) -> bool:

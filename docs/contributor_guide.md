@@ -1,5 +1,9 @@
 # Contributor Guide
 
+Greenfield coding tests use scripted/fake HTTP transports. Pytest and CI must
+never call a live provider, persist raw reasoning, or write outside their
+temporary target repository.
+
 This guide gives new contributors the project context behind
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 

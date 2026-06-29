@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -37,6 +37,7 @@ class CodingScopeType(StrEnum):
     REFACTOR = "refactor"
     CONFIG = "config"
     UNKNOWN = "unknown"
+    GREENFIELD = "greenfield_project"
 
 
 class CodingRisk(StrEnum):
@@ -45,6 +46,114 @@ class CodingRisk(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class CodingTaskIntent(StrEnum):
+    GREENFIELD_PROJECT = "greenfield_project"
+    FEATURE = "feature"
+    BUGFIX = "bugfix"
+    REFACTOR = "refactor"
+    TESTS = "tests"
+    DOCUMENTATION = "documentation"
+    ANALYSIS_ONLY = "analysis_only"
+
+
+class CodingWorkflowMode(StrEnum):
+    CHAT = "chat"
+    PLAN = "plan"
+    BUILD = "build"
+
+
+class CodingBudget(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_calls: int = Field(default=3, ge=1, le=10)
+    max_output_tokens: int = Field(default=4096, ge=1, le=32768)
+    estimated_cost_cap: float = Field(default=0.05, gt=0)
+    calls: int = Field(default=0, ge=0)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    estimated_cost: float = Field(default=0, ge=0)
+
+
+class ProposedFile(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    path: str
+    purpose: str
+
+
+class ProviderProjectPlan(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    task_summary: str
+    architecture: list[str] = Field(default_factory=list)
+    proposed_files: list[ProposedFile] = Field(default_factory=list)
+    implementation_approach: list[str] = Field(default_factory=list)
+    tests: list[str] = Field(default_factory=list)
+    validation_commands: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+
+
+class CreateFile(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    operation: Literal["create"]
+    path: str
+    content: str
+    encoding: Literal["utf-8"] = "utf-8"
+    executable: bool = False
+
+
+class ModifyFile(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    operation: Literal["modify"]
+    path: str
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mode: Literal["unified_diff", "replace"]
+    unified_diff: str | None = None
+    content: str | None = None
+
+    @field_validator("content", mode="after")
+    @classmethod
+    def _validate_payload(cls, value: str | None, info: Any) -> str | None:
+        mode = info.data.get("mode")
+        diff = info.data.get("unified_diff")
+        if mode == "replace" and value is None:
+            raise ValueError("replacement content is required")
+        if mode == "unified_diff" and not diff:
+            raise ValueError("unified_diff is required")
+        return value
+
+
+class DeleteFile(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    operation: Literal["delete"]
+    path: str
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class MoveFile(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    operation: Literal["move"]
+    source_path: str
+    destination_path: str
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+FileOperation = Annotated[
+    CreateFile | ModifyFile | DeleteFile | MoveFile,
+    Field(discriminator="operation"),
+]
+
+
+class OperationManifest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    task_summary: str
+    assumptions: list[str] = Field(default_factory=list)
+    operations: list[FileOperation] = Field(min_length=1, max_length=24)
+    validation_commands: list[str] = Field(default_factory=list)
+    expected_files: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
 
 
 class CodingRequest(BaseModel):
@@ -61,6 +170,9 @@ class CodingRequest(BaseModel):
     user_request: str
     requested_scope: CodingScopeType | None = None
     provider: str = "auto"
+    task_intent: CodingTaskIntent | None = None
+    workflow_mode: CodingWorkflowMode = CodingWorkflowMode.PLAN
+    budget: CodingBudget = Field(default_factory=CodingBudget)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -134,6 +246,11 @@ class CodingPlan(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
+    provider_plan: ProviderProjectPlan | None = None
+    provider_name: str = "local"
+    provider_model: str = "deterministic"
+    provider_source: str = "local"
+    budget: CodingBudget = Field(default_factory=CodingBudget)
 
     @field_validator(
         "likely_files",
@@ -209,6 +326,7 @@ class CodingChangeProposal(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
+    manifest: OperationManifest | None = None
 
     @field_validator("validation_commands", "decision_trace_ids", "outcome_ids", mode="after")
     @classmethod

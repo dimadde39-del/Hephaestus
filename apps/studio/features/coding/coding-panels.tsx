@@ -54,9 +54,10 @@ interface CodingDetailProps {
   detail: CodingDetailResponse;
   onNavigate: (href: string) => void;
   onApply: (changeId: string, approved: boolean) => void;
+  onPrepare: (planId: string) => void;
 }
 
-export function CodingDetailView({ detail, onNavigate, onApply }: CodingDetailProps) {
+export function CodingDetailView({ detail, onNavigate, onApply, onPrepare }: CodingDetailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const primaryPatch = detail.changes[0] ?? null;
 
@@ -73,6 +74,16 @@ export function CodingDetailView({ detail, onNavigate, onApply }: CodingDetailPr
           </div>
         </div>
         <div className="workbench-action-row">
+          {detail.plan_id && !detail.manifest_available && detail.changes.length === 0 ? (
+            <button
+              className="workbench-primary-button"
+              onClick={() => onPrepare(detail.plan_id ?? "")}
+              type="button"
+            >
+              <Play aria-hidden="true" size={15} />
+              Approve plan and prepare changes
+            </button>
+          ) : null}
           {detail.linked_conversation ? (
             <button
               className="workbench-secondary-button"
@@ -108,6 +119,7 @@ export function CodingDetailView({ detail, onNavigate, onApply }: CodingDetailPr
             <dd>{detail.policy_trust_profile}</dd>
           </div>
         </dl>
+        {detail.provider_usage ? <p className="workbench-muted">{detail.provider_usage}</p> : null}
       </DetailSection>
 
       {detail.plan ? (

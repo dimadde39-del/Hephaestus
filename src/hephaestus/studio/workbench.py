@@ -21,6 +21,8 @@ from hephaestus.coding_loop import (
     CodingRisk,
     CodingScopeType,
 )
+from hephaestus.coding_loop.greenfield import GreenfieldCodingExecutor
+from hephaestus.coding_loop.schemas import CodingWorkflowMode
 from hephaestus.outcomes import (
     LearningSignal,
     OutcomeRecord,
@@ -487,6 +489,9 @@ class CodingDetailResponse(BaseModel):
     checkpoint_available: bool
     rollback_available: bool
     advanced_details: dict[str, list[str]]
+    plan_id: str | None = None
+    manifest_available: bool = False
+    provider_usage: str = ""
 
 
 class TrustRule(BaseModel):
@@ -533,6 +538,11 @@ class CodingPlanRequest(BaseModel):
     repo_path: str = "."
     scope: CodingScopeType | None = None
     conversation_id: str | None = None
+    workflow_mode: CodingWorkflowMode = CodingWorkflowMode.PLAN
+    provider: str = "auto"
+    max_calls: int = Field(default=3, ge=1)
+    max_output_tokens: int = Field(default=4096, ge=1)
+    estimated_cost_cap: float = Field(default=0.05, gt=0)
 
 
 class CodingProposeRequest(CodingPlanRequest):
@@ -710,20 +720,54 @@ class WorkbenchService:
                 "outcomes": _outcome_ids(detail),
                 "learning_signals": _learning_signal_ids(detail),
             },
+            plan_id=detail.plan.id if detail.plan is not None else None,
+            manifest_available=bool(detail.change and detail.change.manifest),
+            provider_usage=(
+                (
+                    f"{detail.plan.provider_name}/{detail.plan.provider_model} · "
+                    f"{detail.plan.budget.calls} calls · "
+                    f"{detail.plan.budget.input_tokens}/{detail.plan.budget.output_tokens} tokens · "
+                    f"${detail.plan.budget.estimated_cost:.6f}"
+                )
+                if detail.plan is not None
+                else ""
+            ),
         )
 
     def create_coding_plan(self, request: CodingPlanRequest) -> CodingDetailResponse:
         """Create a coding plan through the Python orchestrator."""
 
-        coding_request, _plan = CodingLoopExecutor(self.database_path).plan(
-            request.user_request,
-            repo_path=request.repo_path,
-            scope=request.scope,
-            conversation_id=request.conversation_id,
-        )
+        if request.scope is not None:
+            coding_request, _plan = CodingLoopExecutor(self.database_path).plan(
+                request.user_request,
+                repo_path=request.repo_path,
+                scope=request.scope,
+                conversation_id=request.conversation_id,
+            )
+        else:
+            coding_request, _plan = GreenfieldCodingExecutor(self.database_path).plan(
+                request.user_request,
+                repo_path=request.repo_path,
+                provider=request.provider,
+                workflow_mode=request.workflow_mode,
+                max_calls=request.max_calls,
+                max_output_tokens=request.max_output_tokens,
+                estimated_cost_cap=request.estimated_cost_cap,
+            )
+            if request.conversation_id is not None:
+                self._attach_coding_request_to_conversation(
+                    coding_request.id, request.conversation_id
+                )
         detail = self.get_coding(coding_request.id)
         if detail is None:
             raise RuntimeError("Coding plan was created but could not be reloaded.")
+        return detail
+
+    def prepare_coding_manifest(self, plan_id: str, *, approved: bool) -> CodingDetailResponse:
+        change = GreenfieldCodingExecutor(self.database_path).prepare(plan_id, approved=approved)
+        detail = self.get_coding(change.request_id)
+        if detail is None:
+            raise RuntimeError("Coding manifest was created but could not be reloaded.")
         return detail
 
     def propose_coding_change(self, request: CodingProposeRequest) -> CodingDetailResponse:
@@ -1670,7 +1714,7 @@ def _patch_views(detail: CodingLoopDetail) -> list[CodingPatchView]:
         CodingLoopStatus.VALIDATION_FAILED,
         CodingLoopStatus.ROLLED_BACK,
     }
-    return [
+    patches = [
         CodingPatchView(
             id=patch.tool_patch_id or patch.id,
             status=_coding_status(detail.change.status.value),
@@ -1685,6 +1729,25 @@ def _patch_views(detail: CodingLoopDetail) -> list[CodingPatchView]:
         )
         for patch in detail.change.patch_set.patches
     ]
+    if detail.change.manifest is not None:
+        patches.append(
+            CodingPatchView(
+                id=detail.change.id,
+                status=_coding_status(detail.change.status.value),
+                summary=detail.change.summary,
+                files=detail.change.patch_set.files_touched,
+                proposed=True,
+                applied=applied,
+                diff=detail.change.manifest.model_dump_json(indent=2),
+                diff_stats=DiffStats(
+                    line_count=len(detail.change.manifest.model_dump_json().splitlines()),
+                    large=False,
+                ),
+                review_result="Structured manifest passed schema validation; apply approval required.",
+                protected_files=[],
+            )
+        )
+    return patches
 
 
 def _result_summary(detail: CodingLoopDetail) -> str:

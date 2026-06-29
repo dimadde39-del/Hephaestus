@@ -55,6 +55,7 @@ export function StudioApp() {
   const [conversationDetail, setConversationDetail] = useState<ConversationDetail | null>(null);
   const [messages, setMessages] = useState<StudioMessage[]>([]);
   const [mode, setMode] = useState<DeliberationMode>("balanced");
+  const [workflow, setWorkflow] = useState<"chat" | "plan" | "build">("chat");
   const [repoProfileId, setRepoProfileId] = useState<string | null>(null);
   const [bootLoading, setBootLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -347,6 +348,24 @@ export function StudioApp() {
     setSendError(null);
     setLastFailedMessage(null);
     try {
+      if (workflow !== "chat") {
+        const repoPath = repos.find((repo) => repo.id === repoProfileId)?.path;
+        if (!repoPath) {
+          throw new Error("Select a repository before planning coding work.");
+        }
+        const detail = await api.createCodingPlan({
+          user_request: content,
+          repo_path: repoPath,
+          conversation_id: activeConversationId,
+          workflow_mode: workflow,
+          provider: "auto",
+          max_calls: 3,
+          max_output_tokens: 4096,
+          estimated_cost_cap: 0.05,
+        });
+        navigateToHref(detail.summary.href);
+        return;
+      }
       const conversationId =
         activeConversationId ??
         (
@@ -465,9 +484,11 @@ export function StudioApp() {
             onModeChange={(nextMode) => void updateMode(nextMode)}
             onRepoChange={(nextRepoId) => void updateRepo(nextRepoId)}
             onSendMessage={(message) => void sendMessage(message)}
+            onWorkflowChange={setWorkflow}
             providerLabel={providerLabel}
             repoProfileId={repoProfileId}
             repos={repos}
+            workflow={workflow}
           />
         ) : null
       }

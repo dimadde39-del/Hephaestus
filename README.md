@@ -116,6 +116,7 @@ mode when no provider key is configured.
 | Safe local tools | Works |
 | Real validation execution | Works |
 | Repo-aware coding loop | Works for small scoped changes |
+| Provider-backed greenfield coding | Structured plan/manifest flow with explicit approval |
 | Studio persistent chat | Works |
 | Studio agent workbench views | Works |
 | Studio memory management | Works |
@@ -165,6 +166,7 @@ approval, the loop stays in planning, proposal, and dry-run mode.
 Hephaestus is useful today, but it is still an alpha. It is not:
 
 - a fully autonomous coding agent;
+- a native open-ended model tool loop;
 - a cloud or VPS daemon;
 - a voice or Jarvis-style assistant;
 - a browser automation agent;
@@ -393,6 +395,7 @@ validation evidence instead of simulated evidence.
 - [Roadmap](docs/roadmap.md)
 - [Release evidence](docs/release_evidence.md)
 - [Repo-aware coding loop](docs/repo_aware_coding_loop.md)
+- [Greenfield coding loop](docs/greenfield_coding_loop.md)
 - [Studio](docs/studio.md)
 - [Studio architecture](docs/studio_architecture.md)
 - [Studio chat history](docs/studio_chat_history.md)

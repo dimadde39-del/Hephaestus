@@ -28,6 +28,7 @@ from hephaestus.coding_loop import (
     CodingLoopRepository,
     CodingScopeType,
 )
+from hephaestus.coding_loop.greenfield import CodingProviderError, GreenfieldCodingExecutor
 from hephaestus.coding_loop.renderer import (
     build_coding_change_renderable,
     build_coding_conversation_proposal,
@@ -36,6 +37,7 @@ from hephaestus.coding_loop.renderer import (
     build_coding_results_table,
     build_coding_show_renderable,
 )
+from hephaestus.coding_loop.schemas import CodingWorkflowMode
 from hephaestus.conversation import (
     ConversationMemoryUpdate,
     ConversationRequest,
@@ -748,17 +750,54 @@ def code_plan(
         CodingScopeType | None,
         typer.Option("--scope", help="Optional scope override."),
     ] = None,
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Coding provider: auto, local, real, deepseek, or Studio provider ID."),
+    ] = "auto",
+    max_calls: Annotated[int, typer.Option("--max-calls", min=1)] = 3,
+    max_output_tokens: Annotated[int, typer.Option("--max-output-tokens", min=1)] = 4096,
+    estimated_cost_cap: Annotated[float, typer.Option("--estimated-cost-cap", min=0.000001)] = 0.05,
 ) -> None:
     """Plan a scoped repo change without proposing or applying a patch."""
 
     try:
-        request, plan = CodingLoopExecutor().plan(request_text, repo_path=repo, scope=scope)
-    except (FileNotFoundError, NotADirectoryError, ValueError) as error:
+        if scope is not None:
+            request, plan = CodingLoopExecutor().plan(request_text, repo_path=repo, scope=scope)
+        else:
+            request, plan = GreenfieldCodingExecutor().plan(
+                request_text,
+                repo_path=repo,
+                provider=provider,
+                workflow_mode=CodingWorkflowMode.PLAN,
+                max_calls=max_calls,
+                max_output_tokens=max_output_tokens,
+                estimated_cost_cap=estimated_cost_cap,
+            )
+    except (CodingProviderError, FileNotFoundError, NotADirectoryError, ValueError) as error:
         console.print(f"[red]{error}[/red]")
         raise typer.Exit(1) from error
     console.print(build_coding_plan_renderable(plan))
     console.print(f"Saved coding request: {request.id}")
     console.print(f"Saved coding plan: {plan.id}")
+
+
+@code_app.command("prepare")
+def code_prepare(
+    plan_id: Annotated[str, typer.Argument(help="Approved coding plan ID.")],
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Approve the plan and allow manifest generation."),
+    ] = False,
+) -> None:
+    """Generate a structured operation manifest after explicit plan approval."""
+
+    try:
+        change = GreenfieldCodingExecutor().prepare(plan_id, approved=yes)
+    except (CodingProviderError, PermissionError, ValueError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    console.print(build_coding_change_renderable(change))
+    console.print(f"Saved coding change: {change.id}")
 
 
 @code_app.command("propose")

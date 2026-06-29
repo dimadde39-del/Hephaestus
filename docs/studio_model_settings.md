@@ -1,5 +1,9 @@
 # Studio Model Settings
 
+Conversation, coding, and review defaults are independent. A provider may be
+selected for more than one role, but conversation default never silently
+becomes coding default.
+
 Settings -> Models is the local provider and usage surface. It is intentionally
 restrained: configure a provider, test it, choose a default, and understand
 rough usage.

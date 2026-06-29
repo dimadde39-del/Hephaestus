@@ -1,5 +1,9 @@
 # Hephaestus Studio Workbench
 
+Coding detail supports provider-backed project plans and structured
+create/modify/delete/move manifests. Plan generation and apply are separate,
+explicit approval gates.
+
 Phase 5.5B adds Workbench to Studio.
 
 ```text

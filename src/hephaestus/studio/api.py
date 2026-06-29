@@ -645,6 +645,23 @@ def propose_coding_change(
         raise _bad_workbench_request("CODING_PROPOSE_FAILED", str(error)) from error
 
 
+@router.post("/coding/plans/{plan_id}/prepare", response_model=CodingDetailResponse)
+def prepare_coding_manifest(
+    request: Request,
+    plan_id: str,
+    payload: Annotated[CodingApplyRequest | None, Body()] = None,
+) -> CodingDetailResponse:
+    """Generate an operation manifest after explicit plan approval."""
+
+    try:
+        return get_studio_service(request).workbench.prepare_coding_manifest(
+            plan_id,
+            approved=bool(payload and payload.approved),
+        )
+    except (PermissionError, ValueError) as error:
+        raise _bad_workbench_request("CODING_PREPARE_FAILED", str(error)) from error
+
+
 @router.post("/coding/{change_id}/apply", response_model=CodingDetailResponse)
 def apply_coding_change(
     request: Request,

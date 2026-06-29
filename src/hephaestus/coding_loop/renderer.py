@@ -28,6 +28,13 @@ def build_coding_plan_renderable(plan: CodingPlan) -> RenderableType:
                     f"Scope: {plan.scope.scope_type.value}",
                     f"Risk: {plan.scope.risk.value}",
                     f"Status: {plan.status.value}",
+                    f"Provider: {plan.provider_name} / {plan.provider_model}",
+                    f"Source: {plan.provider_source}",
+                    (
+                        f"Usage: {plan.budget.calls} calls, "
+                        f"{plan.budget.input_tokens}/{plan.budget.output_tokens} tokens, "
+                        f"${plan.budget.estimated_cost:.6f}"
+                    ),
                     f"Patch possible: {'yes' if plan.patch_proposal_possible else 'no'}",
                     f"Approval: {plan.approval_behavior}",
                     "",
@@ -63,7 +70,16 @@ def build_coding_change_renderable(change: CodingChangeProposal) -> RenderableTy
             ),
             title="Patch Proposal",
         ),
-        Syntax(change.patch_set.diff or "(no diff)", "diff", word_wrap=True),
+        Syntax(
+            change.patch_set.diff
+            or (
+                change.manifest.model_dump_json(indent=2)
+                if change.manifest is not None
+                else "(no diff)"
+            ),
+            "json" if change.manifest is not None else "diff",
+            word_wrap=True,
+        ),
         Panel(
             "\n".join(
                 [

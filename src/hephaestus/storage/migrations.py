@@ -6,7 +6,7 @@ import sqlite3
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -1184,6 +1184,36 @@ CREATE INDEX IF NOT EXISTS idx_studio_provider_migration_events_provider
 ON studio_provider_migration_events(provider_id, created_at DESC);
 """
 
+MIGRATION_21 = """
+ALTER TABLE studio_provider_configs
+ADD COLUMN default_for_coding INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE studio_provider_configs
+ADD COLUMN default_for_review INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE conversation_sessions
+ADD COLUMN workflow_mode TEXT NOT NULL DEFAULT 'chat';
+
+CREATE TABLE IF NOT EXISTS coding_model_calls (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    source TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+    estimated_cost REAL NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 1,
+    error_code TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_model_calls_request
+ON coding_model_calls(request_id, created_at);
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -1335,6 +1365,12 @@ def run_migrations(connection: sqlite3.Connection) -> None:
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (20, datetime.now(UTC).isoformat()),
+        )
+    if 21 not in applied_versions:
+        connection.executescript(MIGRATION_21)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (21, datetime.now(UTC).isoformat()),
         )
     connection.commit()
 

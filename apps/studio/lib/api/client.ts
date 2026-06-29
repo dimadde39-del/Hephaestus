@@ -418,6 +418,16 @@ export class StudioApiClient {
     });
   }
 
+  prepareCodingManifest(planId: string) {
+    return this.request<CodingDetailResponse>(
+      `/coding/plans/${encodeURIComponent(planId)}/prepare`,
+      {
+        method: "POST",
+        body: JSON.stringify({ approved: true }),
+      },
+    );
+  }
+
   proposeCodingChange(payload: CodingProposeRequest) {
     return this.request<CodingDetailResponse>("/coding/propose", {
       method: "POST",

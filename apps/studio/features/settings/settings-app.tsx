@@ -136,6 +136,17 @@ export function SettingsApp({
     setProviders(await api.providers());
   }
 
+  async function setProviderRoleDefault(
+    provider: StudioProviderConfig,
+    role: "coding" | "review",
+  ) {
+    await api.updateProvider(provider.id, {
+      name: provider.name,
+      [role === "coding" ? "default_for_coding" : "default_for_review"]: true,
+    });
+    setProviders(await api.providers());
+  }
+
   async function testProvider(providerId: string) {
     setTestResult({
       id: providerId,
@@ -222,6 +233,9 @@ export function SettingsApp({
                 onDraft={setProviderDraft}
                 onRemove={(providerId) => void removeProvider(providerId)}
                 onSetDefault={(provider) => void setProviderDefault(provider)}
+                onSetRoleDefault={(provider, role) =>
+                  void setProviderRoleDefault(provider, role)
+                }
                 onTest={(providerId) => void testProvider(providerId)}
               />
             ) : null}
@@ -360,6 +374,7 @@ function ModelSettings({
   onDraft,
   onCreate,
   onSetDefault,
+  onSetRoleDefault,
   onTest,
   onRemove,
 }: {
@@ -371,6 +386,10 @@ function ModelSettings({
   onDraft: (draft: ProviderDraft) => void;
   onCreate: () => void;
   onSetDefault: (provider: StudioProviderConfig) => void;
+  onSetRoleDefault: (
+    provider: StudioProviderConfig,
+    role: "coding" | "review",
+  ) => void;
   onTest: (providerId: string) => void;
   onRemove: (providerId: string) => void;
 }) {
@@ -480,6 +499,20 @@ function ModelSettings({
               <div className="workbench-action-row">
                 <button className="workbench-secondary-button" onClick={() => onSetDefault(provider)} type="button">
                   {provider.default_for_conversation ? "Default" : "Use as default"}
+                </button>
+                <button
+                  className="workbench-secondary-button"
+                  onClick={() => onSetRoleDefault(provider, "coding")}
+                  type="button"
+                >
+                  {provider.default_for_coding ? "Coding default" : "Use for coding"}
+                </button>
+                <button
+                  className="workbench-secondary-button"
+                  onClick={() => onSetRoleDefault(provider, "review")}
+                  type="button"
+                >
+                  {provider.default_for_review ? "Review default" : "Use for review"}
                 </button>
                 <button className="workbench-secondary-button" onClick={() => onTest(provider.id)} type="button">
                   Test connection
@@ -712,6 +745,8 @@ function providerPayload(draft: ProviderDraft): StudioProviderUpsertRequest {
     api_key: draft.api_key || null,
     base_url: draft.base_url,
     default_for_conversation: false,
+    default_for_coding: false,
+    default_for_review: false,
     intended_roles: ["conversation", "strategic_reasoning", "repo_question"],
     model: draft.model,
     name: draft.name,

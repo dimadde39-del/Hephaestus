@@ -515,6 +515,8 @@ class StudioExperienceRepository:
             "max_output_tokens": _row_optional_int(row, "max_output_tokens"),
             "intended_roles": _json_loads_str_list(_row_str(row, "intended_roles_json")),
             "default_for_conversation": _row_bool(row, "default_for_conversation"),
+            "default_for_coding": _row_bool(row, "default_for_coding"),
+            "default_for_review": _row_bool(row, "default_for_review"),
             **{key: value for key, value in updates.items() if key != "api_key"},
         }
         if "api_key" in request.model_fields_set:
@@ -1341,6 +1343,8 @@ class StudioExperienceRepository:
             effective_source="studio",
             api_key_source="Studio database" if _row_optional_str(row, "api_key_secret") else "not configured",
             default_for_conversation=_row_bool(row, "default_for_conversation"),
+            default_for_coding=_row_bool(row, "default_for_coding"),
+            default_for_review=_row_bool(row, "default_for_review"),
             created_at=_datetime_from_text(_row_str(row, "created_at")),
             updated_at=_datetime_from_text(_row_str(row, "updated_at")),
         )
@@ -1355,6 +1359,10 @@ class StudioExperienceRepository:
         now = _datetime_to_text(datetime.now(UTC))
         if request.default_for_conversation:
             self._set_default_provider(provider_id)
+        if request.default_for_coding:
+            self._set_default_provider_for_role(provider_id, "coding")
+        if request.default_for_review:
+            self._set_default_provider_for_role(provider_id, "review")
         secret = request.api_key if request.api_key is not None else existing_secret
         configured = bool(secret) or request.provider_type == "local"
         status = (
@@ -1376,6 +1384,8 @@ class StudioExperienceRepository:
             "max_output_tokens": request.max_output_tokens,
             "intended_roles": request.intended_roles,
             "default_for_conversation": request.default_for_conversation,
+            "default_for_coding": request.default_for_coding,
+            "default_for_review": request.default_for_review,
         }
         with connect_database(self.database_path) as connection:
             existing = connection.execute(
@@ -1389,9 +1399,9 @@ class StudioExperienceRepository:
                     context_window, input_cost_per_million, output_cost_per_million,
                     intended_roles_json, default_for_conversation, status, status_detail,
                     created_at, updated_at, raw_json, thinking_enabled, reasoning_effort,
-                    max_output_tokens
+                    max_output_tokens, default_for_coding, default_for_review
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     provider_id,
@@ -1413,6 +1423,8 @@ class StudioExperienceRepository:
                     int(request.thinking_enabled),
                     request.reasoning_effort,
                     request.max_output_tokens,
+                    int(request.default_for_coding),
+                    int(request.default_for_review),
                 ),
             )
 
@@ -1422,6 +1434,18 @@ class StudioExperienceRepository:
             if provider_id != "local":
                 connection.execute(
                     "UPDATE studio_provider_configs SET default_for_conversation = 1 WHERE id = ?",
+                    (provider_id,),
+                )
+
+    def _set_default_provider_for_role(self, provider_id: str, role: str) -> None:
+        if role not in {"coding", "review"}:
+            raise ValueError(f"Unsupported provider role: {role}")
+        column = f"default_for_{role}"
+        with connect_database(self.database_path) as connection:
+            connection.execute(f"UPDATE studio_provider_configs SET {column} = 0")
+            if provider_id != "local":
+                connection.execute(
+                    f"UPDATE studio_provider_configs SET {column} = 1 WHERE id = ?",
                     (provider_id,),
                 )
 
@@ -1477,6 +1501,20 @@ class StudioExperienceRepository:
             return None
         provider = self._provider_from_secret_row(row)
         return provider if provider.is_available else None
+
+    def default_coding_provider(self) -> tuple[ModelProvider, str] | None:
+        with connect_database(self.database_path) as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM studio_provider_configs
+                WHERE default_for_coding = 1
+                ORDER BY updated_at DESC LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        provider = self._provider_from_secret_row(row)
+        return (provider, _row_str(row, "id")) if provider.is_available else None
 
     def _provider_from_secret_row(self, row: sqlite3.Row) -> ModelProvider:
         provider_type = _row_str(row, "provider_type")
