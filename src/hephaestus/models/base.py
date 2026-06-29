@@ -22,7 +22,10 @@ class ModelProfile(BaseModel):
     capabilities: set[str] = Field(default_factory=set)
     context_window: int = Field(gt=0)
     input_cost_per_million: float = Field(ge=0)
+    cached_input_cost_per_million: float | None = Field(default=None, ge=0)
     output_cost_per_million: float = Field(ge=0)
+    cost_metadata_source: str = "unknown"
+    pricing_version: str | None = None
     latency_score: QualityScore = 0.5
     quality_scores: dict[str, QualityScore] = Field(default_factory=dict)
     privacy_level: PrivacyLevel = PrivacyLevel.INTERNAL
@@ -35,9 +38,22 @@ class ModelProfile(BaseModel):
     def identifier(self) -> str:
         return f"{self.provider}/{self.model}"
 
-    def estimated_cost(self, input_tokens: int, output_tokens: int) -> float:
+    def estimated_cost(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        *,
+        cached_input_tokens: int = 0,
+    ) -> float:
+        uncached_input_tokens = max(0, input_tokens - cached_input_tokens)
+        cached_rate = (
+            self.cached_input_cost_per_million
+            if self.cached_input_cost_per_million is not None
+            else self.input_cost_per_million
+        )
         return (
-            input_tokens / 1_000_000 * self.input_cost_per_million
+            uncached_input_tokens / 1_000_000 * self.input_cost_per_million
+            + cached_input_tokens / 1_000_000 * cached_rate
             + output_tokens / 1_000_000 * self.output_cost_per_million
         )
 
@@ -74,6 +90,23 @@ class ModelRequest(BaseModel):
     thinking_enabled: bool | None = None
     reasoning_effort: str | None = None
     messages: list[dict[str, Any]] | None = None
+    system_prompt: str | None = None
+    max_transport_attempts: int = Field(default=1, ge=1, le=3)
+    call_kind: str = "completion"
+
+
+class ModelTransportAttempt(BaseModel):
+    """One HTTP/network attempt for a logical model call."""
+
+    model_config = ConfigDict(frozen=True)
+
+    attempt_index: int = Field(ge=1)
+    success: bool
+    error_code: str = ""
+    timeout_type: str | None = None
+    status_code: int | None = None
+    latency_ms: int = Field(default=0, ge=0)
+    transient: bool = False
 
 
 class ModelResponse(BaseModel):
@@ -85,6 +118,12 @@ class ModelResponse(BaseModel):
     output_tokens: int = Field(ge=0)
     estimated_cost: float = Field(ge=0)
     cached_input_tokens: int = Field(default=0, ge=0)
+    usage_source: str = "provider"
+    cost_metadata_source: str = "unknown"
+    pricing_version: str | None = None
+    finish_reason: str | None = None
+    response_truncated: bool = False
+    transport_attempts: list[ModelTransportAttempt] = Field(default_factory=list)
     thinking_enabled: bool = False
     reasoning_effort: str | None = None
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)

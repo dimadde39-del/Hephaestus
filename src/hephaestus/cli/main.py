@@ -755,6 +755,14 @@ def code_plan(
         typer.Option("--provider", help="Coding provider: auto, local, real, deepseek, or Studio provider ID."),
     ] = "auto",
     max_calls: Annotated[int, typer.Option("--max-calls", min=1)] = 3,
+    max_network_attempts: Annotated[
+        int | None,
+        typer.Option("--max-network-attempts", min=1),
+    ] = None,
+    max_format_repair_calls: Annotated[
+        int,
+        typer.Option("--max-format-repair-calls", min=0),
+    ] = 1,
     max_output_tokens: Annotated[int, typer.Option("--max-output-tokens", min=1)] = 4096,
     estimated_cost_cap: Annotated[float, typer.Option("--estimated-cost-cap", min=0.000001)] = 0.05,
 ) -> None:
@@ -770,6 +778,8 @@ def code_plan(
                 provider=provider,
                 workflow_mode=CodingWorkflowMode.PLAN,
                 max_calls=max_calls,
+                max_network_attempts=max_network_attempts,
+                max_format_repair_calls=max_format_repair_calls,
                 max_output_tokens=max_output_tokens,
                 estimated_cost_cap=estimated_cost_cap,
             )

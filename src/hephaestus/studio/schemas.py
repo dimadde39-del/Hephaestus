@@ -13,6 +13,7 @@ from hephaestus.conversation.schemas import (
     ConversationRole,
     DeliberationMode,
 )
+from hephaestus.models.catalog import pricing_for
 
 
 class StudioStatus(StrEnum):
@@ -483,7 +484,10 @@ class StudioProviderConfig(BaseModel):
     intended_roles: list[str] = Field(default_factory=list)
     context_window: int | None = None
     input_cost_per_million: float | None = None
+    cached_input_cost_per_million: float | None = None
     output_cost_per_million: float | None = None
+    pricing_metadata_source: str = ""
+    pricing_version: str = ""
     thinking_enabled: bool = False
     reasoning_effort: str = "high"
     max_output_tokens: int | None = None
@@ -519,7 +523,10 @@ class StudioProviderUpsertRequest(BaseModel):
     api_key: str | None = Field(default=None, max_length=4096)
     context_window: int | None = Field(default=None, ge=1)
     input_cost_per_million: float | None = Field(default=None, ge=0)
+    cached_input_cost_per_million: float | None = Field(default=None, ge=0)
     output_cost_per_million: float | None = Field(default=None, ge=0)
+    pricing_metadata_source: str = ""
+    pricing_version: str = ""
     thinking_enabled: bool = False
     reasoning_effort: str = Field(default="high", pattern="^(high|max)$")
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -547,6 +554,18 @@ class StudioProviderUpsertRequest(BaseModel):
             configured["max_output_tokens"] = 4096
         if configured.get("context_window") is None:
             configured["context_window"] = 1_000_000
+        pricing = pricing_for("deepseek", str(configured["model"]))
+        if pricing is not None:
+            if configured.get("input_cost_per_million") in {None, 0}:
+                configured["input_cost_per_million"] = pricing.input_cost_per_million
+            if configured.get("cached_input_cost_per_million") in {None, 0}:
+                configured["cached_input_cost_per_million"] = pricing.cached_input_cost_per_million
+            if configured.get("output_cost_per_million") in {None, 0}:
+                configured["output_cost_per_million"] = pricing.output_cost_per_million
+            configured["pricing_metadata_source"] = configured.get(
+                "pricing_metadata_source"
+            ) or pricing.source
+            configured["pricing_version"] = configured.get("pricing_version") or pricing.version
         return configured
 
 
@@ -562,7 +581,10 @@ class StudioProviderPatchRequest(BaseModel):
     api_key: str | None = Field(default=None, max_length=4096)
     context_window: int | None = Field(default=None, ge=1)
     input_cost_per_million: float | None = Field(default=None, ge=0)
+    cached_input_cost_per_million: float | None = Field(default=None, ge=0)
     output_cost_per_million: float | None = Field(default=None, ge=0)
+    pricing_metadata_source: str | None = None
+    pricing_version: str | None = None
     thinking_enabled: bool | None = None
     reasoning_effort: str | None = Field(default=None, pattern="^(high|max)$")
     max_output_tokens: int | None = Field(default=None, ge=1)

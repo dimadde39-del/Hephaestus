@@ -32,8 +32,10 @@ def build_coding_plan_renderable(plan: CodingPlan) -> RenderableType:
                     f"Source: {plan.provider_source}",
                     (
                         f"Usage: {plan.budget.calls} calls, "
+                        f"{plan.budget.transport_attempts} transport attempts, "
+                        f"{plan.budget.format_repair_calls} repairs, "
                         f"{plan.budget.input_tokens}/{plan.budget.output_tokens} tokens, "
-                        f"${plan.budget.estimated_cost:.6f}"
+                        f"{_cost_text(plan.budget.estimated_cost, plan.budget.cost_metadata_source)}"
                     ),
                     f"Patch possible: {'yes' if plan.patch_proposal_possible else 'no'}",
                     f"Approval: {plan.approval_behavior}",
@@ -254,6 +256,12 @@ def _next_command_panel(plan: CodingPlan) -> Panel:
     else:
         text = "Provide a clearer target file or exact find/replace text."
     return Panel(text, title="Next")
+
+
+def _cost_text(estimated_cost: float, metadata_source: str) -> str:
+    if estimated_cost == 0 and metadata_source == "unknown":
+        return "Cost unknown"
+    return f"${estimated_cost:.6f}"
 
 
 def _result_panel(result: CodingLoopResult) -> Panel:

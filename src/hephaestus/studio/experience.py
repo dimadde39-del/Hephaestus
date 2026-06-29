@@ -1298,7 +1298,10 @@ class StudioExperienceRepository:
             intended_roles=["conversation", "fallback", "testing"],
             context_window=6000,
             input_cost_per_million=0.0,
+            cached_input_cost_per_million=0.0,
             output_cost_per_million=0.0,
+            pricing_metadata_source="local",
+            pricing_version="",
             thinking_enabled=False,
             reasoning_effort="high",
             max_output_tokens=4000,
@@ -1336,7 +1339,12 @@ class StudioExperienceRepository:
             intended_roles=_json_loads_str_list(_row_str(row, "intended_roles_json")),
             context_window=_row_optional_int(row, "context_window"),
             input_cost_per_million=_row_optional_float(row, "input_cost_per_million"),
+            cached_input_cost_per_million=_row_optional_float(
+                row, "cached_input_cost_per_million"
+            ),
             output_cost_per_million=_row_optional_float(row, "output_cost_per_million"),
+            pricing_metadata_source=_row_str(row, "pricing_metadata_source"),
+            pricing_version=_row_str(row, "pricing_version"),
             thinking_enabled=_row_bool(row, "thinking_enabled"),
             reasoning_effort=_row_str(row, "reasoning_effort") or "high",
             max_output_tokens=_row_optional_int(row, "max_output_tokens"),
@@ -1378,7 +1386,10 @@ class StudioExperienceRepository:
             "base_url": request.base_url,
             "context_window": request.context_window,
             "input_cost_per_million": request.input_cost_per_million,
+            "cached_input_cost_per_million": request.cached_input_cost_per_million,
             "output_cost_per_million": request.output_cost_per_million,
+            "pricing_metadata_source": request.pricing_metadata_source,
+            "pricing_version": request.pricing_version,
             "thinking_enabled": request.thinking_enabled,
             "reasoning_effort": request.reasoning_effort,
             "max_output_tokens": request.max_output_tokens,
@@ -1399,9 +1410,10 @@ class StudioExperienceRepository:
                     context_window, input_cost_per_million, output_cost_per_million,
                     intended_roles_json, default_for_conversation, status, status_detail,
                     created_at, updated_at, raw_json, thinking_enabled, reasoning_effort,
-                    max_output_tokens, default_for_coding, default_for_review
+                    max_output_tokens, default_for_coding, default_for_review,
+                    cached_input_cost_per_million, pricing_metadata_source, pricing_version
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     provider_id,
@@ -1425,6 +1437,9 @@ class StudioExperienceRepository:
                     request.max_output_tokens,
                     int(request.default_for_coding),
                     int(request.default_for_review),
+                    request.cached_input_cost_per_million,
+                    request.pricing_metadata_source,
+                    request.pricing_version,
                 ),
             )
 
@@ -1523,7 +1538,10 @@ class StudioExperienceRepository:
         model = _row_str(row, "model")
         context_window = _row_optional_int(row, "context_window")
         input_cost = _row_optional_float(row, "input_cost_per_million")
+        cached_input_cost = _row_optional_float(row, "cached_input_cost_per_million")
         output_cost = _row_optional_float(row, "output_cost_per_million")
+        pricing_source = _row_str(row, "pricing_metadata_source") or "unknown"
+        pricing_version = _row_str(row, "pricing_version") or None
         if provider_type == "deepseek":
             return DeepSeekProvider(
                 base_url=base_url,
@@ -1531,11 +1549,13 @@ class StudioExperienceRepository:
                 model=model,
                 context_window=context_window,
                 input_cost_per_million=input_cost,
+                cached_input_cost_per_million=cached_input_cost,
                 output_cost_per_million=output_cost,
+                cost_metadata_source=pricing_source,
+                pricing_version=pricing_version,
                 thinking_enabled=_row_bool(row, "thinking_enabled"),
                 reasoning_effort=_row_str(row, "reasoning_effort") or "high",
                 max_output_tokens=_row_optional_int(row, "max_output_tokens"),
-                timeout=8,
             )
         return OpenAICompatibleProvider(
             base_url=base_url,
@@ -1543,8 +1563,10 @@ class StudioExperienceRepository:
             model=model,
             context_window=context_window,
             input_cost_per_million=input_cost,
+            cached_input_cost_per_million=cached_input_cost,
             output_cost_per_million=output_cost,
-            timeout=8,
+            cost_metadata_source=pricing_source,
+            pricing_version=pricing_version,
         )
 
     def _read_settings(self) -> StudioSettings:

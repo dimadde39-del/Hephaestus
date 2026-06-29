@@ -19,6 +19,7 @@ from hephaestus.models.live_smoke import (
     _CallBudget,
     run_live_smoke,
 )
+from hephaestus.storage.migrations import _migrate_deepseek_pricing_metadata
 from hephaestus.studio.experience import StudioExperienceRepository
 from hephaestus.studio.schemas import (
     StudioProviderPatchRequest,
@@ -189,7 +190,7 @@ def test_timeout_is_sanitized() -> None:
     provider = DeepSeekProvider(api_key="test", urlopen=timeout)
     with pytest.raises(ProviderRequestError, match="timed out") as caught:
         provider.complete(ModelRequest(prompt="hi"))
-    assert caught.value.code == "timeout"
+    assert caught.value.code == "connect_timeout"
 
 
 def test_no_network_without_live_and_preflight_is_redacted(tmp_path) -> None:
@@ -446,6 +447,58 @@ def test_deepseek_migration_is_strict_and_audited_without_secret(tmp_path) -> No
         "deepseek-v4-flash",
     )
     assert "never-log-this" not in audit_text
+
+
+def test_deepseek_zero_cost_metadata_migrates_without_overwriting_custom_prices(tmp_path) -> None:
+    database_path = tmp_path / "studio.db"
+    repository = StudioExperienceRepository(database_path)
+    zero_cost = repository.create_provider(
+        StudioProviderUpsertRequest(
+            provider_type="deepseek",
+            name="Zero cost",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com",
+            api_key="secret",
+        )
+    )
+    custom = repository.create_provider(
+        StudioProviderUpsertRequest(
+            provider_type="deepseek",
+            name="Custom cost",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com",
+            api_key="secret",
+            input_cost_per_million=9.0,
+            cached_input_cost_per_million=8.0,
+            output_cost_per_million=7.0,
+        )
+    )
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            UPDATE studio_provider_configs
+            SET input_cost_per_million=0, cached_input_cost_per_million=0,
+                output_cost_per_million=0, pricing_metadata_source='', pricing_version=''
+            WHERE id=?
+            """,
+            (zero_cost.id,),
+        )
+        _migrate_deepseek_pricing_metadata(connection)
+        connection.commit()
+
+    migrated = StudioExperienceRepository(database_path)
+    migrated_zero = migrated.get_provider(zero_cost.id)
+    migrated_custom = migrated.get_provider(custom.id)
+
+    assert migrated_zero is not None
+    assert migrated_zero.input_cost_per_million == 0.14
+    assert migrated_zero.cached_input_cost_per_million == 0.0028
+    assert migrated_zero.output_cost_per_million == 0.28
+    assert migrated_zero.pricing_metadata_source == "provider-catalog:deepseek"
+    assert migrated_custom is not None
+    assert migrated_custom.input_cost_per_million == 9.0
+    assert migrated_custom.cached_input_cost_per_million == 8.0
+    assert migrated_custom.output_cost_per_million == 7.0
 
 
 @pytest.mark.parametrize(

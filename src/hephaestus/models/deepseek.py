@@ -8,7 +8,8 @@ from typing import Any
 
 from hephaestus.core.config import PrivacyLevel
 from hephaestus.models.base import ModelProfile, ModelRequest, ModelResponse
-from hephaestus.models.openai_compatible import OpenAICompatibleProvider, UrlOpen
+from hephaestus.models.catalog import DEEPSEEK_V4_FLASH_PRICING, pricing_for
+from hephaestus.models.openai_compatible import OpenAICompatibleProvider, ProviderTimeouts, UrlOpen
 
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
 DEEPSEEK_BASE_URL_ENV = "DEEPSEEK_BASE_URL"
@@ -16,11 +17,18 @@ DEEPSEEK_MODEL_ENV = "DEEPSEEK_MODEL"
 DEEPSEEK_THINKING_ENV = "HEPH_DEEPSEEK_THINKING"
 DEEPSEEK_REASONING_EFFORT_ENV = "HEPH_DEEPSEEK_REASONING_EFFORT"
 DEEPSEEK_MAX_OUTPUT_TOKENS_ENV = "HEPH_DEEPSEEK_MAX_OUTPUT_TOKENS"
+DEEPSEEK_CONNECT_TIMEOUT_ENV = "HEPH_DEEPSEEK_CONNECT_TIMEOUT"
+DEEPSEEK_READ_TIMEOUT_ENV = "HEPH_DEEPSEEK_READ_TIMEOUT"
+DEEPSEEK_WRITE_TIMEOUT_ENV = "HEPH_DEEPSEEK_WRITE_TIMEOUT"
+DEEPSEEK_POOL_TIMEOUT_ENV = "HEPH_DEEPSEEK_POOL_TIMEOUT"
 DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash"
 DEEPSEEK_DEFAULT_CONTEXT_WINDOW = 1_000_000
-DEEPSEEK_DEFAULT_INPUT_COST_PER_MILLION = 0.14
-DEEPSEEK_DEFAULT_OUTPUT_COST_PER_MILLION = 0.28
+DEEPSEEK_DEFAULT_INPUT_COST_PER_MILLION = DEEPSEEK_V4_FLASH_PRICING.input_cost_per_million
+DEEPSEEK_DEFAULT_CACHED_INPUT_COST_PER_MILLION = (
+    DEEPSEEK_V4_FLASH_PRICING.cached_input_cost_per_million
+)
+DEEPSEEK_DEFAULT_OUTPUT_COST_PER_MILLION = DEEPSEEK_V4_FLASH_PRICING.output_cost_per_million
 VALID_REASONING_EFFORTS = {"high", "max"}
 
 
@@ -40,8 +48,12 @@ class DeepSeekProvider(OpenAICompatibleProvider):
         max_output_tokens: int | None = None,
         context_window: int | None = None,
         input_cost_per_million: float | None = None,
+        cached_input_cost_per_million: float | None = None,
         output_cost_per_million: float | None = None,
-        timeout: float = 60,
+        cost_metadata_source: str | None = None,
+        pricing_version: str | None = None,
+        timeout: float = 120,
+        timeouts: ProviderTimeouts | None = None,
         urlopen: UrlOpen | None = None,
     ) -> None:
         resolved_effort = (
@@ -60,23 +72,57 @@ class DeepSeekProvider(OpenAICompatibleProvider):
         self.max_output_tokens = max_output_tokens or _positive_int_env(
             DEEPSEEK_MAX_OUTPUT_TOKENS_ENV, default=4096
         )
+        selected_model = model or os.getenv(DEEPSEEK_MODEL_ENV) or DEEPSEEK_DEFAULT_MODEL
+        pricing = pricing_for("deepseek", selected_model)
+        timeout_settings = timeouts or ProviderTimeouts(
+            connect=_positive_float_env(DEEPSEEK_CONNECT_TIMEOUT_ENV, default=10.0),
+            read=_positive_float_env(DEEPSEEK_READ_TIMEOUT_ENV, default=120.0),
+            write=_positive_float_env(DEEPSEEK_WRITE_TIMEOUT_ENV, default=30.0),
+            pool=_positive_float_env(DEEPSEEK_POOL_TIMEOUT_ENV, default=10.0),
+        )
         super().__init__(
             base_url=base_url or os.getenv(DEEPSEEK_BASE_URL_ENV, DEEPSEEK_DEFAULT_BASE_URL),
             api_key=api_key if api_key is not None else os.getenv(DEEPSEEK_API_KEY_ENV),
-            model=model or os.getenv(DEEPSEEK_MODEL_ENV, DEEPSEEK_DEFAULT_MODEL),
+            model=selected_model,
             context_window=context_window or DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
             input_cost_per_million=(
                 input_cost_per_million
                 if input_cost_per_million is not None
+                else pricing.input_cost_per_million
+                if pricing is not None
                 else DEEPSEEK_DEFAULT_INPUT_COST_PER_MILLION
+            ),
+            cached_input_cost_per_million=(
+                cached_input_cost_per_million
+                if cached_input_cost_per_million is not None
+                else pricing.cached_input_cost_per_million
+                if pricing is not None
+                else DEEPSEEK_DEFAULT_CACHED_INPUT_COST_PER_MILLION
             ),
             output_cost_per_million=(
                 output_cost_per_million
                 if output_cost_per_million is not None
+                else pricing.output_cost_per_million
+                if pricing is not None
                 else DEEPSEEK_DEFAULT_OUTPUT_COST_PER_MILLION
             ),
             timeout=timeout,
+            timeouts=timeout_settings,
             urlopen=urlopen,
+            cost_metadata_source=(
+                cost_metadata_source
+                if cost_metadata_source is not None
+                else pricing.source
+                if pricing is not None
+                else "unknown"
+            ),
+            pricing_version=(
+                pricing_version
+                if pricing_version is not None
+                else pricing.version
+                if pricing is not None
+                else None
+            ),
         )
 
     def profiles(self) -> Sequence[ModelProfile]:
@@ -97,7 +143,10 @@ class DeepSeekProvider(OpenAICompatibleProvider):
                 },
                 context_window=self.context_window,
                 input_cost_per_million=self.input_cost_per_million,
+                cached_input_cost_per_million=self.cached_input_cost_per_million,
                 output_cost_per_million=self.output_cost_per_million,
+                cost_metadata_source=self.cost_metadata_source,
+                pricing_version=self.pricing_version,
                 latency_score=0.7,
                 quality_scores={
                     "analysis": 0.86,
@@ -187,6 +236,17 @@ def _positive_int_env(name: str, *, default: int) -> int:
         return default
     try:
         value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _positive_float_env(name: str, *, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
     except ValueError:
         return default
     return value if value > 0 else default

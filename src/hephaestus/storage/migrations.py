@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
+
+DEEPSEEK_V4_FLASH_INPUT_COST_PER_MILLION = 0.14
+DEEPSEEK_V4_FLASH_CACHED_INPUT_COST_PER_MILLION = 0.0028
+DEEPSEEK_V4_FLASH_OUTPUT_COST_PER_MILLION = 0.28
+DEEPSEEK_V4_FLASH_PRICING_SOURCE = "provider-catalog:deepseek"
+DEEPSEEK_V4_FLASH_PRICING_VERSION = "2026-06-29"
 
 MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -1214,6 +1221,50 @@ CREATE INDEX IF NOT EXISTS idx_coding_model_calls_request
 ON coding_model_calls(request_id, created_at);
 """
 
+MIGRATION_22 = """
+ALTER TABLE studio_provider_configs
+ADD COLUMN cached_input_cost_per_million REAL;
+
+ALTER TABLE studio_provider_configs
+ADD COLUMN pricing_metadata_source TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE studio_provider_configs
+ADD COLUMN pricing_version TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN finish_reason TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN content_length INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE coding_model_calls
+ADD COLUMN content_sha256 TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN json_parse_status TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN validation_errors_json TEXT NOT NULL DEFAULT '[]';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN timeout_type TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN latency_ms INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE coding_model_calls
+ADD COLUMN cost_metadata_source TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN pricing_version TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN transport_attempts_json TEXT NOT NULL DEFAULT '[]';
+
+ALTER TABLE coding_model_calls
+ADD COLUMN raw_json TEXT NOT NULL DEFAULT '{}';
+"""
+
 _DECISION_TRACE_COLUMNS: dict[str, str] = {
     "parent_id": "TEXT REFERENCES decision_traces(id) ON DELETE SET NULL",
     "phase": "TEXT NOT NULL DEFAULT 'runtime'",
@@ -1372,7 +1423,86 @@ def run_migrations(connection: sqlite3.Connection) -> None:
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
             (21, datetime.now(UTC).isoformat()),
         )
+    if 22 not in applied_versions:
+        connection.executescript(MIGRATION_22)
+        _migrate_deepseek_pricing_metadata(connection)
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+            (22, datetime.now(UTC).isoformat()),
+        )
     connection.commit()
+
+
+def _migrate_deepseek_pricing_metadata(connection: sqlite3.Connection) -> None:
+    original_row_factory = connection.row_factory
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        """
+        SELECT id, input_cost_per_million, output_cost_per_million,
+               cached_input_cost_per_million, raw_json
+        FROM studio_provider_configs
+        WHERE provider_type = 'deepseek' AND lower(model) = 'deepseek-v4-flash'
+        """
+    ).fetchall()
+    connection.row_factory = original_row_factory
+    for row in rows:
+        input_cost = row["input_cost_per_million"]
+        output_cost = row["output_cost_per_million"]
+        cached_input_cost = row["cached_input_cost_per_million"]
+        next_input = (
+            DEEPSEEK_V4_FLASH_INPUT_COST_PER_MILLION
+            if input_cost is None or float(input_cost) == 0.0
+            else float(input_cost)
+        )
+        next_output = (
+            DEEPSEEK_V4_FLASH_OUTPUT_COST_PER_MILLION
+            if output_cost is None or float(output_cost) == 0.0
+            else float(output_cost)
+        )
+        next_cached = (
+            DEEPSEEK_V4_FLASH_CACHED_INPUT_COST_PER_MILLION
+            if cached_input_cost is None or float(cached_input_cost) == 0.0
+            else float(cached_input_cost)
+        )
+        raw_json = str(row["raw_json"] or "{}")
+        try:
+            raw = json.loads(raw_json)
+            if not isinstance(raw, dict):
+                raw = {}
+        except (TypeError, ValueError):
+            raw = {}
+        raw.update(
+            {
+                "input_cost_per_million": next_input,
+                "cached_input_cost_per_million": next_cached,
+                "output_cost_per_million": next_output,
+                "pricing_metadata_source": DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+                "pricing_version": DEEPSEEK_V4_FLASH_PRICING_VERSION,
+            }
+        )
+        connection.execute(
+            """
+            UPDATE studio_provider_configs
+            SET input_cost_per_million = ?,
+                cached_input_cost_per_million = ?,
+                output_cost_per_million = ?,
+                pricing_metadata_source = ?,
+                pricing_version = ?,
+                raw_json = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                next_input,
+                next_cached,
+                next_output,
+                DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+                DEEPSEEK_V4_FLASH_PRICING_VERSION,
+                json.dumps(raw, sort_keys=True, separators=(",", ":")),
+                datetime.now(UTC).isoformat(),
+                str(row["id"]),
+            ),
+        )
 
 
 def _migrate_deepseek_provider_types(connection: sqlite3.Connection) -> None:

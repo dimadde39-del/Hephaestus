@@ -1,14 +1,27 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import json
 import subprocess
+import urllib.request
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from hephaestus.coding_loop.executor import CodingLoopExecutor
-from hephaestus.coding_loop.greenfield import GreenfieldCodingExecutor, classify_task_intent
+from hephaestus.coding_loop.greenfield import (
+    CodingProviderError,
+    GreenfieldCodingExecutor,
+    classify_task_intent,
+)
 from hephaestus.coding_loop.operations import apply_manifest, preflight_manifest
+from hephaestus.coding_loop.provider_contract import (
+    StructuredParseFailure,
+    parse_structured_response,
+)
+from hephaestus.coding_loop.renderer import _cost_text
 from hephaestus.coding_loop.schemas import (
     CodingTaskIntent,
     CodingWorkflowMode,
@@ -17,8 +30,26 @@ from hephaestus.coding_loop.schemas import (
     ModifyFile,
     MoveFile,
     OperationManifest,
+    ProviderProjectPlan,
 )
-from hephaestus.models import DeepSeekProvider, ModelRequest, ModelResponse
+from hephaestus.models import DeepSeekProvider, ModelRequest, ModelResponse, ProviderRequestError
+
+VALID_PLAN_JSON = json.dumps(
+    {
+        "task_summary": "Build TaskForge",
+        "architecture": ["stdlib package and unittest"],
+        "proposed_files": [
+            {"path": "taskforge/__main__.py", "purpose": "CLI"},
+            {"path": "tests/test_cli.py", "purpose": "tests"},
+            {"path": "README.md", "purpose": "usage"},
+        ],
+        "implementation_approach": ["argparse and JSON"],
+        "tests": ["add and list"],
+        "validation_commands": ["python -m unittest discover -v"],
+        "assumptions": [],
+        "risks": [],
+    }
+)
 
 
 class ScriptedProvider(DeepSeekProvider):
@@ -26,8 +57,10 @@ class ScriptedProvider(DeepSeekProvider):
         super().__init__(api_key="test")
         self.responses = responses
         self.calls = 0
+        self.requests: list[ModelRequest] = []
 
     def complete(self, request: ModelRequest) -> ModelResponse:
+        self.requests.append(request)
         text = self.responses[self.calls]
         self.calls += 1
         return ModelResponse(
@@ -40,6 +73,256 @@ class ScriptedProvider(DeepSeekProvider):
             reasoning_effort="high",
             reasoning_content="must never persist",
         )
+
+
+class FakeResponse:
+    status = 200
+
+    def __init__(self, payload: dict[str, Any] | None = None, *, raw: bytes | None = None) -> None:
+        self.payload = payload or {
+            "choices": [{"message": {"content": VALID_PLAN_JSON}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        self.raw = raw
+
+    def __enter__(self) -> FakeResponse:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self.raw if self.raw is not None else json.dumps(self.payload).encode()
+
+
+class TimeoutOnReadResponse(FakeResponse):
+    def read(self) -> bytes:
+        raise TimeoutError
+
+
+def test_deepseek_plan_request_uses_json_mode_and_contract_prompt(tmp_path: Path) -> None:
+    captured: list[dict[str, Any]] = []
+
+    def urlopen(request: urllib.request.Request, *, timeout: float) -> FakeResponse:
+        captured.append(json.loads(bytes(request.data or b"{}")))
+        return FakeResponse()
+
+    target = tmp_path / "target"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, capture_output=True)
+    provider = DeepSeekProvider(api_key="test", urlopen=urlopen)
+    executor = GreenfieldCodingExecutor(
+        tmp_path / "db.sqlite", provider_override=provider, provider_source="fake-http"
+    )
+
+    executor.plan("Create TaskForge", repo_path=target, workflow_mode=CodingWorkflowMode.BUILD)
+
+    payload = captured[0]
+    assert payload["response_format"] == {"type": "json_object"}
+    system = payload["messages"][0]["content"]
+    assert "JSON" in system
+    assert "top-level JSON object" in system
+    assert "markdown fences" in system
+    assert "task_summary" in system
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        VALID_PLAN_JSON,
+        f"\ufeff  {VALID_PLAN_JSON}\n",
+        f"```json\n{VALID_PLAN_JSON}\n```",
+    ],
+)
+def test_structured_parser_accepts_direct_whitespace_and_single_fence(content: str) -> None:
+    parsed = parse_structured_response(content, ProviderProjectPlan, "plan")
+
+    assert parsed.value.task_summary == "Build TaskForge"
+
+
+@pytest.mark.parametrize(
+    ("content", "status"),
+    [
+        (f"{VALID_PLAN_JSON}\n{VALID_PLAN_JSON}", "multiple_top_level_objects"),
+        ("{not json", "invalid_json"),
+        ("[]", "not_json_object"),
+    ],
+)
+def test_structured_parser_rejects_invalid_shapes(content: str, status: str) -> None:
+    with pytest.raises(StructuredParseFailure) as caught:
+        parse_structured_response(content, ProviderProjectPlan, "plan")
+
+    assert caught.value.status == status
+
+
+def test_structured_parser_reports_schema_validation_errors() -> None:
+    with pytest.raises(StructuredParseFailure) as caught:
+        parse_structured_response('{"task_summary":null}', ProviderProjectPlan, "plan")
+
+    assert caught.value.status == "schema_validation_failed"
+    assert caught.value.validation_errors
+    assert caught.value.failure_code == "PLAN_SCHEMA_VALIDATION_FAILED"
+
+
+def test_format_repair_succeeds_once_without_full_regeneration(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, capture_output=True)
+    provider = ScriptedProvider(['{"task_summary":null}', VALID_PLAN_JSON])
+    executor = GreenfieldCodingExecutor(
+        tmp_path / "db.sqlite", provider_override=provider, provider_source="fake-http"
+    )
+
+    _request, plan = executor.plan(
+        "Create TaskForge", repo_path=target, workflow_mode=CodingWorkflowMode.BUILD
+    )
+
+    assert plan.summary == "Build TaskForge"
+    assert provider.calls == 2
+    assert [request.call_kind for request in provider.requests] == ["plan", "format_repair"]
+    assert "Original final content" in provider.requests[1].prompt
+
+
+def test_failed_format_repair_stops_with_precise_code(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, capture_output=True)
+    provider = ScriptedProvider(
+        ['{"task_summary":null}', '{"task_summary":null}']
+    )
+    executor = GreenfieldCodingExecutor(
+        tmp_path / "db.sqlite", provider_override=provider, provider_source="fake-http"
+    )
+
+    with pytest.raises(CodingProviderError, match="PLAN_FORMAT_REPAIR_FAILED"):
+        executor.plan("Create TaskForge", repo_path=target, workflow_mode=CodingWorkflowMode.BUILD)
+
+    assert provider.calls == 2
+    assert not [path for path in target.iterdir() if path.name != ".git"]
+
+
+def test_read_timeout_retries_once_and_accounts_attempts() -> None:
+    calls = 0
+
+    def urlopen(request: urllib.request.Request, *, timeout: float) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return TimeoutOnReadResponse()
+        return FakeResponse()
+
+    provider = DeepSeekProvider(api_key="test", urlopen=urlopen)
+    response = provider.complete(
+        ModelRequest(prompt="hi", max_transport_attempts=2, require_json=True)
+    )
+
+    assert response.text == VALID_PLAN_JSON
+    assert calls == 2
+    assert [attempt.error_code for attempt in response.transport_attempts] == [
+        "read_timeout",
+        "",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "code"),
+    [
+        (401, b"unauthorized", "unauthorized"),
+        (402, b"insufficient balance", "insufficient_balance"),
+        (400, b"invalid model", "invalid_model"),
+    ],
+)
+def test_non_transient_provider_errors_do_not_retry(status: int, body: bytes, code: str) -> None:
+    calls = 0
+
+    def urlopen(request: urllib.request.Request, *, timeout: float) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        raise urllib.error.HTTPError(request.full_url, status, "failure", None, io.BytesIO(body))
+
+    provider = DeepSeekProvider(api_key="test", urlopen=urlopen)
+
+    with pytest.raises(ProviderRequestError) as caught:
+        provider.complete(ModelRequest(prompt="hi", max_transport_attempts=2))
+
+    assert caught.value.code == code
+    assert calls == 1
+
+
+def test_keep_alive_prefixed_response_is_accepted() -> None:
+    raw = b"\n\n" + json.dumps(
+        {
+            "choices": [{"message": {"content": VALID_PLAN_JSON}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 4, "completion_tokens": 4},
+        }
+    ).encode()
+
+    def urlopen(request: urllib.request.Request, *, timeout: float) -> FakeResponse:
+        return FakeResponse(raw=raw)
+
+    provider = DeepSeekProvider(api_key="test", urlopen=urlopen)
+    response = provider.complete(ModelRequest(prompt="hi", require_json=True))
+
+    assert response.finish_reason == "stop"
+    assert response.text == VALID_PLAN_JSON
+
+
+def test_sse_keep_alive_comments_are_ignored() -> None:
+    payload = json.dumps(
+        {
+            "choices": [{"message": {"content": VALID_PLAN_JSON}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 4, "completion_tokens": 4},
+        }
+    )
+    raw = f": keep-alive\n\ndata: {payload}\n\ndata: [DONE]\n".encode()
+
+    def urlopen(request: urllib.request.Request, *, timeout: float) -> FakeResponse:
+        return FakeResponse(raw=raw)
+
+    provider = DeepSeekProvider(api_key="test", urlopen=urlopen)
+    response = provider.complete(ModelRequest(prompt="hi", require_json=True))
+
+    assert response.text == VALID_PLAN_JSON
+
+
+def test_budget_tracks_logical_calls_transport_attempts_and_repairs(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, capture_output=True)
+    calls = 0
+
+    def urlopen(request: urllib.request.Request, *, timeout: float) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return TimeoutOnReadResponse()
+        if calls == 2:
+            payload = {
+                "choices": [{"message": {"content": '{"task_summary":null}'}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+            }
+            return FakeResponse(payload)
+        return FakeResponse()
+
+    provider = DeepSeekProvider(api_key="test", urlopen=urlopen)
+    executor = GreenfieldCodingExecutor(
+        tmp_path / "db.sqlite", provider_override=provider, provider_source="fake-http"
+    )
+
+    _request, plan = executor.plan(
+        "Create TaskForge",
+        repo_path=target,
+        workflow_mode=CodingWorkflowMode.BUILD,
+        max_network_attempts=3,
+    )
+
+    assert plan.budget.calls == 2
+    assert plan.budget.transport_attempts == 3
+    assert plan.budget.format_repair_calls == 1
+
+
+def test_cost_unknown_is_not_rendered_as_false_zero() -> None:
+    assert _cost_text(0.0, "unknown") == "Cost unknown"
 
 
 def test_manifest_create_modify_move_delete_and_preflight(tmp_path: Path) -> None:
@@ -159,8 +442,6 @@ class CliTest(unittest.TestCase):
         result = subprocess.run([sys.executable, "-m", "taskforge", "--help"])
         self.assertEqual(result.returncode, 0)
 """
-    import json
-
     manifest_json = json.dumps(
         {
             "task_summary": "Implement TaskForge",

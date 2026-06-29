@@ -68,13 +68,19 @@ class CodingBudget(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     max_calls: int = Field(default=3, ge=1, le=10)
+    max_network_attempts: int = Field(default=6, ge=1, le=20)
+    max_format_repair_calls: int = Field(default=1, ge=0, le=3)
     max_output_tokens: int = Field(default=4096, ge=1, le=32768)
     estimated_cost_cap: float = Field(default=0.05, gt=0)
     calls: int = Field(default=0, ge=0)
+    transport_attempts: int = Field(default=0, ge=0)
+    format_repair_calls: int = Field(default=0, ge=0)
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
     cached_input_tokens: int = Field(default=0, ge=0)
     estimated_cost: float = Field(default=0, ge=0)
+    cost_metadata_source: str = "unknown"
+    pricing_version: str | None = None
 
 
 class ProposedFile(BaseModel):
