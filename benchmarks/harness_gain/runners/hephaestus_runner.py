@@ -62,15 +62,22 @@ def run(
             failure_code=_provider_code(error),
             failure_detail=error.code,
             usage=_read_usage(database),
+            session_export=_failure_session(database, selected),
         )
     except CodingProviderError as error:
         code = FailureCode.BUDGET_EXCEEDED if "budget" in str(error).lower() else FailureCode.FORMAT_FAILURE
-        return RunnerResult(failure_code=code, failure_detail=str(error), usage=_read_usage(database))
+        return RunnerResult(
+            failure_code=code,
+            failure_detail=str(error),
+            usage=_read_usage(database),
+            session_export=_failure_session(database, selected),
+        )
     except (PermissionError, FileNotFoundError, ValueError) as error:
         return RunnerResult(
             failure_code=FailureCode.MANIFEST_FAILURE,
             failure_detail=str(error),
             usage=_read_usage(database),
+            session_export=_failure_session(database, selected),
         )
     hidden_target = target
     failed_snapshot = result.metadata.get("failed_snapshot")
@@ -164,3 +171,35 @@ def _provider_code(error: ProviderRequestError) -> FailureCode:
     if error.timeout_type:
         return FailureCode.PROVIDER_TIMEOUT
     return FailureCode.PROVIDER_COMPATIBILITY_FAILURE
+
+
+def _failure_session(database: Path, provider: ModelProvider) -> dict[str, object]:
+    calls: list[dict[str, object]] = []
+    if database.exists():
+        with sqlite3.connect(database) as connection:
+            rows = connection.execute(
+                """
+                SELECT stage, provider, model, source, success, error_code
+                FROM coding_model_calls
+                WHERE stage NOT LIKE '%_contract'
+                ORDER BY created_at
+                """
+            ).fetchall()
+        calls = [
+            {
+                "stage": row[0],
+                "provider": row[1],
+                "model": row[2],
+                "source": row[3],
+                "success": bool(row[4]),
+                "error_code": row[5],
+            }
+            for row in rows
+        ]
+    profile = provider.profiles()[0]
+    return {
+        "status": "provider_or_contract_failure",
+        "provider": provider.name,
+        "configured_model": profile.model,
+        "calls": calls,
+    }

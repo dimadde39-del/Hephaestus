@@ -408,9 +408,21 @@ def validate_pilot(root: Path, records: list[RunRecord]) -> dict[str, Any]:
             )
         if record.arm_id == ArmId.HEPHAESTUS:
             session = json.loads((artifact / "session-export.json").read_text(encoding="utf-8"))
+            observed_models = [
+                str(call.get("model", "")).split("/")[-1]
+                for call in session.get("calls", [])
+                if isinstance(call, dict)
+            ]
             checks["hephaestus_real_provider"] &= (
                 session.get("provider") == "deepseek"
-                and str(session.get("model", "")).split("/")[-1] == "deepseek-v4-flash"
+                and (
+                    str(session.get("model", "")).split("/")[-1] == "deepseek-v4-flash"
+                    or (
+                        session.get("configured_model") == "deepseek-v4-flash"
+                        and bool(observed_models)
+                        and all(model == "deepseek-v4-flash" for model in observed_models)
+                    )
+                )
             )
         if record.arm_id == ArmId.BARE_ONE_SHOT:
             checks["bare_call_limits"] &= record.logical_provider_calls == 1

@@ -1,4 +1,4 @@
-# Protocol 5.6B.2
+# Protocol 5.6B.3
 
 ## Frozen comparison
 
@@ -60,4 +60,10 @@ DeepSeek model prefix during pilot audit, and avoids treating the audit field
 `secrets_absent` as a secret value. It also sets package managers to offline
 mode, disables Git HTTPS for the MiMo subprocess, and audits session tool calls
 for explicit network clients and Git push/clone. The invalid v1 run artifacts
+remain intact.
+
+`5.6B.3` follows an invalid four-run pilot under `5.6B.2`. It exports a
+redacted provider/model call summary when Hephaestus fails before producing its
+normal success session export. This lets pilot validation distinguish a real
+DeepSeek coding failure from missing observability. All v1 and v2 artifacts
 remain intact.

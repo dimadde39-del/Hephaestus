@@ -183,6 +183,23 @@ def test_hephaestus_official_runner_with_fake_provider(tmp_path: Path) -> None:
     assert result.usage.logical_provider_calls == 2
 
 
+def test_hephaestus_failure_exports_provider_model_summary(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    runtime = tmp_path / "runtime"
+    result = hephaestus_runner.run(
+        "Create a tiny project.",
+        target,
+        runtime,
+        ScriptedDeepSeek(["{}"]),
+    )
+    assert not result.declared_success
+    assert result.session_export["provider"] == "deepseek"
+    assert result.session_export["configured_model"] == "deepseek-v4-flash"
+    calls = result.session_export["calls"]
+    assert isinstance(calls, list) and calls[0]["model"] == "deepseek-v4-flash"
+
+
 def test_usage_cost_and_secret_redaction(tmp_path: Path) -> None:
     responses = [
         ModelResponse(
@@ -244,7 +261,7 @@ def test_randomized_schedule_is_reproducible_and_interleaved() -> None:
 def test_report_generation(tmp_path: Path) -> None:
     now = datetime.now(UTC)
     record = RunRecord(
-        protocol_version="5.6B.2",
+        protocol_version="5.6B.3",
         phase="main",
         run_id="main-task-bare_one_shot-r1",
         task_id="task",

@@ -1,6 +1,6 @@
 # DeepSeek harness-gain benchmark
 
-Protocol `5.6B.2` compares the same `deepseek-v4-flash` model in four modes:
+Protocol `5.6B.3` compares the same `deepseek-v4-flash` model in four modes:
 bare one-shot, bare plan→implementation, MiMo-Code 0.1.4, and Hephaestus.
 
 Live state is deliberately outside git at
