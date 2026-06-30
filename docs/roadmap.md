@@ -14,6 +14,12 @@ bare one-shot, bare two-stage, MiMo-Code, and Hephaestus, with external hidden
 validators, fixed scheduling, explicit budgets, immutable live artifacts, and
 infrastructure-failure separation. Results remain protocol-specific.
 
+The completed `5.6B.5` main track did not show a Hephaestus quality gain:
+Hephaestus scored 50.62 versus 52.38 one-shot and 61.12 two-stage. MiMo-Code
+scored 79.88 with materially greater token, call, cost, and latency use. A
+future phase should improve structured-output reliability before repeating the
+benchmark; the existing results remain immutable evidence.
+
 Hephaestus is a model-agnostic intelligence harness. A model provides raw
 intellectual potential; Hephaestus turns it into checked work through context,
 planning, tools, validation, repair, outcome evidence, and learning. The public

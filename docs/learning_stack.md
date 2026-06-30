@@ -16,6 +16,12 @@ with deterministic hidden validators. It reports raw metrics and harness deltas
 without collapsing cost, latency, exact pass, hidden pass, false success, and
 infrastructure failures into one claim.
 
+Protocol 5.6B.5 showed a useful negative result: Hephaestus had zero false
+successes but no exact passes and no verifier-adjusted score gain over either
+bare arm. MiMo-Code achieved 4/8 exact passes at substantially higher resource
+use. Verification improved outcome honesty here; it did not by itself improve
+implementation quality.
+
 This does not mean a weaker model always beats a stronger one. It means that on
 bounded tasks, a good harness can sometimes let a weaker model outperform a
 stronger model that lacks comparable context, tools, verification, and recovery.

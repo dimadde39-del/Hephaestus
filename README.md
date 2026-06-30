@@ -21,7 +21,10 @@ That is a measurement claim to prove with evidence, not a blanket promise.
 
 Phase 5.6B includes a frozen same-model harness-gain protocol comparing bare
 DeepSeek, two-stage prompting, MiMo-Code, and Hephaestus. It makes no winner
-claim before deterministic live results exist. See the
+claim beyond the measured task set. Protocol 5.6B.5 found mean scores of 52.38,
+61.12, 79.88, and 50.62 respectively for bare one-shot, bare two-stage,
+MiMo-Code, and Hephaestus; Hephaestus did not improve model quality in this
+sample. See the
 [harness-gain protocol](docs/benchmarks/harness_gain_protocol.md).
 
 ## What It Does Today
