@@ -1,4 +1,4 @@
-# Protocol 5.6B.4
+# Protocol 5.6B.5
 
 ## Frozen comparison
 
@@ -74,3 +74,9 @@ pipe, so the orchestrator did not regain control. The runner now launches a new
 process group and kills the complete process tree at the wall limit before
 collecting partial session telemetry. Completed and incomplete v3 main
 artifacts remain intact.
+
+`5.6B.5` follows an invalid pilot under `5.6B.4`. A timed-out MiMo run had one
+new primary session and one new child checkpoint-writer session. The exporter
+now treats the complete newly-created parent/child tree as one fresh benchmark
+run, aggregates usage across it, and recovers spend from preserved incomplete
+MiMo targets that have no final metadata record.

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmarks.harness_gain import PROTOCOL_VERSION
-from benchmarks.harness_gain.reporting import effective_cost, load_records, write_reports
+from benchmarks.harness_gain.reporting import live_spend, load_records, write_reports
 from benchmarks.harness_gain.runners import (
     bare_one_shot,
     bare_two_stage,
@@ -128,7 +128,7 @@ def run_phase(root: Path, phase: str) -> list[RunRecord]:
         if not pilot.get("passed") or pilot.get("protocol_version") != PROTOCOL_VERSION:
             raise RuntimeError("BLOCKED_PILOT_INVALID")
     existing = load_records(root / "artifacts")
-    spent = sum(effective_cost(root, record) for record in existing)
+    spent = live_spend(root, existing)
     records: list[RunRecord] = []
     for item in schedule(phase):
         projected = _project_next_cost(existing + records, item.arm_id)

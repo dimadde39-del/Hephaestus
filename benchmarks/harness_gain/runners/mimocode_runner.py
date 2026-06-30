@@ -76,7 +76,7 @@ def run(prompt: str, target: Path, session_root: Path) -> RunnerResult:
     except subprocess.TimeoutExpired as error:
         new_sessions = _session_ids(target) - before_sessions
         session = _export_session(new_sessions)
-        session["fresh_session"] = len(new_sessions) == 1
+        session["fresh_session"] = bool(new_sessions)
         session["new_session_count"] = len(new_sessions)
         session["terminated_at_wall_limit"] = True
         usage = _usage(session)
@@ -91,7 +91,7 @@ def run(prompt: str, target: Path, session_root: Path) -> RunnerResult:
         )
     new_sessions = _session_ids(target) - before_sessions
     session = _export_session(new_sessions) or _parse_json_output(process.stdout)
-    session["fresh_session"] = len(new_sessions) == 1
+    session["fresh_session"] = bool(new_sessions)
     session["new_session_count"] = len(new_sessions)
     session["environment_policy"] = {
         "package_managers_offline": True,
@@ -273,60 +273,84 @@ def _session_ids(target: Path) -> set[str]:
 
 
 def _export_session(session_ids: set[str]) -> dict[str, Any]:
-    if len(session_ids) != 1 or not DATABASE.exists():
+    if not session_ids or not DATABASE.exists():
         return {}
-    session_id = next(iter(session_ids))
+    placeholders = ",".join("?" for _ in session_ids)
+    parameters = tuple(sorted(session_ids))
     try:
         with sqlite3.connect(f"file:{DATABASE}?mode=ro", uri=True, timeout=5) as connection:
-            session = connection.execute(
-                """
-                SELECT id, directory, title, version, summary_additions, summary_deletions,
-                       summary_files, time_created, time_updated
-                FROM session WHERE id = ?
+            sessions = connection.execute(
+                f"""
+                SELECT id, parent_id, directory, title, version, summary_additions,
+                       summary_deletions, summary_files, time_created, time_updated
+                FROM session WHERE id IN ({placeholders})
+                ORDER BY time_created
                 """,
-                (session_id,),
-            ).fetchone()
+                parameters,
+            ).fetchall()
             messages = connection.execute(
-                "SELECT id, agent_id, time_created, time_updated, data FROM message WHERE session_id = ? ORDER BY time_created",
-                (session_id,),
+                f"""
+                SELECT id, session_id, agent_id, time_created, time_updated, data
+                FROM message WHERE session_id IN ({placeholders}) ORDER BY time_created
+                """,
+                parameters,
             ).fetchall()
             parts = connection.execute(
-                "SELECT id, message_id, time_created, time_updated, data FROM part WHERE session_id = ? ORDER BY time_created",
-                (session_id,),
+                f"""
+                SELECT id, session_id, message_id, time_created, time_updated, data
+                FROM part WHERE session_id IN ({placeholders}) ORDER BY time_created
+                """,
+                parameters,
             ).fetchall()
     except sqlite3.Error:
         return {}
-    if session is None:
+    if not sessions:
         return {}
+    session_rows = [
+        {
+            "id": row[0],
+            "parent_id": row[1],
+            "directory": row[2],
+            "title": row[3],
+            "version": row[4],
+            "summary_additions": row[5],
+            "summary_deletions": row[6],
+            "summary_files": row[7],
+            "time_created": row[8],
+            "time_updated": row[9],
+        }
+        for row in sessions
+    ]
+    primary = next(
+        (
+            session
+            for session in session_rows
+            if session["parent_id"] not in session_ids
+        ),
+        session_rows[0],
+    )
     payload = {
-        "session": {
-            "id": session[0],
-            "directory": session[1],
-            "title": session[2],
-            "version": session[3],
-            "summary_additions": session[4],
-            "summary_deletions": session[5],
-            "summary_files": session[6],
-            "time_created": session[7],
-            "time_updated": session[8],
-        },
+        "session": primary,
+        "sessions": session_rows,
         "messages": [
             {
                 "id": row[0],
-                "agent_id": row[1],
-                "time_created": row[2],
-                "time_updated": row[3],
-                "data": _safe_json(row[4]),
+                "session_id": row[1],
+                "agent_id": row[2],
+                "time_created": row[3],
+                "time_updated": row[4],
+                "data": _safe_json(row[5]),
             }
             for row in messages
         ],
         "parts": [
             {
                 "id": row[0],
-                "message_id": row[1],
-                "time_created": row[2],
-                "time_updated": row[3],
-                "data": _safe_json(row[4]),
+                "session_id": row[1],
+                "message_id": row[2],
+                "time_created": row[3],
+                "time_updated": row[4],
+                "data": _safe_json(row[5]),
             }
             for row in parts
         ],
@@ -342,3 +366,7 @@ def _safe_json(value: Any) -> Any:
         return json.loads(value)
     except json.JSONDecodeError:
         return value
+
+
+def usage_for_target(target: Path) -> ProviderUsage:
+    return _usage(_export_session(_session_ids(target)))

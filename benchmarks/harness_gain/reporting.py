@@ -40,7 +40,7 @@ def write_reports(root: Path, records: list[RunRecord], *, phase: str = "main") 
         "base_url": "https://api.deepseek.com",
         "sample_size": len(selected),
         "current_protocol_cost": sum(record.estimated_cost for record in selected),
-        "global_cost": sum(effective_cost(root, record) for record in records),
+        "global_cost": live_spend(root, records),
         "arms": stats,
         "harness_gains": gains,
         "runs": [record.model_dump(mode="json") for record in selected],
@@ -63,9 +63,32 @@ def effective_cost(root: Path, record: RunRecord) -> float:
 
     try:
         session = json.loads(session_path.read_text(encoding="utf-8"))
-        return _usage(session).estimated_cost
+        recovered = _usage(session).estimated_cost
+        if recovered > 0:
+            return recovered
+        from benchmarks.harness_gain.runners.mimocode_runner import usage_for_target
+
+        return usage_for_target(root / "targets" / record.run_id).estimated_cost
     except (OSError, ValueError, TypeError):
         return 0.0
+
+
+def live_spend(root: Path, records: list[RunRecord]) -> float:
+    total = sum(effective_cost(root, record) for record in records)
+    recorded_ids = {record.run_id for record in records}
+    from benchmarks.harness_gain.runners.mimocode_runner import usage_for_target
+
+    targets = root / "targets"
+    if not targets.exists():
+        return total
+    for target in targets.iterdir():
+        if (
+            target.is_dir()
+            and "-mimocode-r" in target.name
+            and target.name not in recorded_ids
+        ):
+            total += usage_for_target(target).estimated_cost
+    return total
 
 
 def _write_csv(path: Path, records: list[RunRecord]) -> None:

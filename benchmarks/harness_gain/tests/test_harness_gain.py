@@ -284,7 +284,7 @@ def test_randomized_schedule_is_reproducible_and_interleaved() -> None:
 def test_report_generation(tmp_path: Path) -> None:
     now = datetime.now(UTC)
     record = RunRecord(
-        protocol_version="5.6B.4",
+        protocol_version="5.6B.5",
         phase="main",
         run_id="main-task-bare_one_shot-r1",
         task_id="task",
