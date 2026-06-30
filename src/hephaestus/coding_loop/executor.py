@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,11 +11,18 @@ from hephaestus.coding_loop.analysis import (
     record_coding_outcome,
     record_coding_trace,
 )
+from hephaestus.coding_loop.greenfield import CodingProviderError, GreenfieldCodingExecutor
 from hephaestus.coding_loop.operations import apply_manifest
 from hephaestus.coding_loop.patcher import CodingPatcher
 from hephaestus.coding_loop.planner import CodingPlanner
 from hephaestus.coding_loop.repository import CodingLoopRepository
 from hephaestus.coding_loop.reviewer import CodingPatchReviewer
+from hephaestus.coding_loop.rollback import (
+    cleanup_after_rollback,
+    cleanup_metadata,
+    create_failed_workspace_snapshot,
+    snapshot_artifact_root,
+)
 from hephaestus.coding_loop.schemas import (
     CodingChangeProposal,
     CodingIteration,
@@ -26,14 +34,16 @@ from hephaestus.coding_loop.schemas import (
     CodingScopeType,
     CodingValidationSummary,
 )
+from hephaestus.coding_loop.validation import CodingValidationEngine
+from hephaestus.models import ModelProvider
 from hephaestus.outcomes import (
     LearningDirection,
     LearningSignalType,
     OutcomeStatus,
 )
-from hephaestus.repo import RepoProfileRepository, inspect_repository
 from hephaestus.storage import RunRecord, RunRepository
 from hephaestus.tool_runtime import ToolExecutionStatus, ToolRuntime
+from hephaestus.tool_runtime.checkpoint import restore_checkpoint
 from hephaestus.tool_runtime.repository import ToolRuntimeRepository
 from hephaestus.validation import ValidationExecutor, ValidationStatus
 from hephaestus.validation.schemas import ValidationSuiteResult
@@ -42,9 +52,17 @@ from hephaestus.validation.schemas import ValidationSuiteResult
 class CodingLoopExecutor:
     """Plan, propose, review, apply, validate, and optionally rollback."""
 
-    def __init__(self, database_path: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        database_path: Path | str | None = None,
+        *,
+        provider_override: ModelProvider | None = None,
+        provider_source: str = "injected",
+    ) -> None:
         self.repository = CodingLoopRepository(database_path)
         self.database_path = self.repository.database_path
+        self.provider_override = provider_override
+        self.provider_source = provider_source
         self.planner = CodingPlanner(self.database_path)
         self.patcher = CodingPatcher(self.database_path)
         self.reviewer = CodingPatchReviewer(self.database_path)
@@ -92,6 +110,9 @@ class CodingLoopExecutor:
         dry_run: bool = False,
         no_validate: bool = False,
         rollback_on_failure: bool = False,
+        allow_one_repair: bool = False,
+        retain_failed_snapshot: bool = False,
+        artifact_root: Path | str | None = None,
     ) -> CodingLoopResult:
         """Apply a previously proposed coding change."""
 
@@ -113,6 +134,9 @@ class CodingLoopExecutor:
                 dry_run=dry_run,
                 no_validate=no_validate,
                 rollback_on_failure=rollback_on_failure,
+                allow_one_repair=allow_one_repair,
+                retain_failed_snapshot=retain_failed_snapshot,
+                artifact_root=artifact_root,
             )
         review = self.reviewer.review(plan, change, validation_enabled=not no_validate)
         return self._execute_reviewed_change(
@@ -124,6 +148,7 @@ class CodingLoopExecutor:
             dry_run=dry_run,
             no_validate=no_validate,
             rollback_on_failure=rollback_on_failure,
+            allow_one_repair=allow_one_repair,
         )
 
     def _apply_manifest_change(
@@ -136,6 +161,9 @@ class CodingLoopExecutor:
         dry_run: bool,
         no_validate: bool,
         rollback_on_failure: bool,
+        allow_one_repair: bool,
+        retain_failed_snapshot: bool,
+        artifact_root: Path | str | None,
     ) -> CodingLoopResult:
         if not yes:
             return self.repository.save_result(
@@ -164,27 +192,84 @@ class CodingLoopExecutor:
         validation = _validation_not_run("validation disabled")
         status = CodingLoopStatus.COMPLETED
         validation_id: str | None = None
+        validation_ids: list[str] = []
+        repair_attempted = False
+        repair_result = "not_attempted"
+        repair_checkpoint_id: str | None = None
+        cleanup_info: dict[str, object] | None = None
+        snapshot_info: dict[str, str] | None = None
         if not no_validate:
-            report = inspect_repository(plan.repo_path)
-            RepoProfileRepository(self.database_path).save_inspection(report)
-            suite = ValidationExecutor(self.database_path, workspace_path=plan.repo_path).run(
+            engine = CodingValidationEngine(self.database_path)
+            validation_plan = engine.plan_for_manifest(
                 plan.repo_path,
-                yes=True,
-                dry_run=False,
-                stop_on_failure=False,
+                change.manifest,
+                repo_profile_id=plan.repo_profile_id,
+                persist=True,
             )
+            suite = engine.run(plan.repo_path, change.manifest, plan=validation_plan, yes=True)
             validation = _validation_summary(suite)
             validation_id = suite.id
+            validation_ids.append(suite.id)
             status = (
                 CodingLoopStatus.COMPLETED
                 if suite.status == ValidationStatus.PASSED and suite.pass_count > 0
                 else CodingLoopStatus.VALIDATION_FAILED
             )
+            final_suite = suite
+            repair_inventory = None
+            if status == CodingLoopStatus.VALIDATION_FAILED and allow_one_repair:
+                repair_attempted = True
+                try:
+                    repair_manifest = GreenfieldCodingExecutor(
+                        self.database_path,
+                        provider_override=self.provider_override,
+                        provider_source=self.provider_source,
+                    ).repair(
+                        request_id=request.id,
+                        plan_id=plan.id,
+                        change_id=change.id,
+                        validation=suite,
+                        current_diff=_git_diff(Path(plan.repo_path)),
+                        created_file_inventory=applied.files_touched,
+                        approved=True,
+                    )
+                    repaired = apply_manifest(plan.repo_path, repair_manifest)
+                    repair_inventory = repaired.inventory
+                    repair_checkpoint_id = repaired.checkpoint.id
+                    ToolRuntimeRepository(self.database_path).save_checkpoint(repaired.checkpoint)
+                    final_suite = engine.run(plan.repo_path, change.manifest, plan=validation_plan, yes=True)
+                    validation = _validation_summary(final_suite)
+                    validation_id = final_suite.id
+                    validation_ids.append(final_suite.id)
+                    status = (
+                        CodingLoopStatus.COMPLETED
+                        if final_suite.status == ValidationStatus.PASSED and final_suite.pass_count > 0
+                        else CodingLoopStatus.VALIDATION_FAILED
+                    )
+                    repair_result = "validation_passed" if status == CodingLoopStatus.COMPLETED else "validation_failed"
+                except (CodingProviderError, PermissionError, ValueError, FileNotFoundError) as error:
+                    repair_result = f"failed: {error}"
+                    final_suite = suite
             if status == CodingLoopStatus.VALIDATION_FAILED and rollback_on_failure:
-                from hephaestus.tool_runtime.checkpoint import restore_checkpoint
-
+                if retain_failed_snapshot:
+                    snapshot = create_failed_workspace_snapshot(
+                        plan.repo_path,
+                        snapshot_artifact_root(artifact_root, final_suite.id),
+                        suite=final_suite,
+                    )
+                    snapshot_info = {
+                        "snapshot_path": snapshot.snapshot_path,
+                        "diff_path": snapshot.diff_path,
+                        "hashes_path": snapshot.hashes_path,
+                        "validation_path": snapshot.validation_path,
+                    }
                 restored = restore_checkpoint(applied.checkpoint)
                 ToolRuntimeRepository(self.database_path).save_checkpoint(restored)
+                inventories = [applied.inventory]
+                if repair_inventory is not None:
+                    inventories.append(repair_inventory)
+                cleanup = cleanup_after_rollback(plan.repo_path, inventories)
+                cleanup_info = cleanup_metadata(cleanup)
                 status = CodingLoopStatus.ROLLED_BACK
         iteration = CodingIteration(
             request_id=request.id,
@@ -198,6 +283,18 @@ class CodingLoopExecutor:
             ),
             checkpoint_id=applied.checkpoint.id,
             validation_result_id=validation_id,
+            rollback_checkpoint_id=applied.checkpoint.id if status == CodingLoopStatus.ROLLED_BACK else None,
+            metadata={
+                "manifest_files": applied.files_touched,
+                "normalized_validation_plan": change.metadata.get("normalized_validation_plan"),
+                "initial_validation_result_id": validation_ids[0] if validation_ids else None,
+                "final_validation_result_id": validation_id,
+                "repair_attempted": repair_attempted,
+                "repair_result": repair_result,
+                "repair_checkpoint_id": repair_checkpoint_id,
+                "rollback_cleanup": cleanup_info,
+                "failed_snapshot": snapshot_info,
+            },
         )
         self.repository.save_iteration(iteration)
         return self.repository.save_result(
@@ -216,10 +313,12 @@ class CodingLoopExecutor:
                 status=status,
                 summary=iteration.summary,
                 iteration_ids=[iteration.id],
-                checkpoint_ids=[applied.checkpoint.id],
-                validation_result_ids=[value for value in [validation_id] if value],
+                checkpoint_ids=[
+                    value for value in [applied.checkpoint.id, repair_checkpoint_id] if value
+                ],
+                validation_result_ids=validation_ids,
                 validation=validation,
-                metadata={"manifest_files": applied.files_touched},
+                metadata=iteration.metadata,
             )
         )
 
@@ -234,6 +333,7 @@ class CodingLoopExecutor:
         no_validate: bool = False,
         rollback_on_failure: bool = False,
         scope: CodingScopeType | None = None,
+        allow_one_repair: bool = False,
     ) -> CodingLoopResult:
         """Run the first bounded coding loop iteration."""
 
@@ -288,6 +388,7 @@ class CodingLoopExecutor:
             dry_run=False,
             no_validate=no_validate,
             rollback_on_failure=rollback_on_failure,
+            allow_one_repair=allow_one_repair,
         )
 
     def _execute_reviewed_change(
@@ -301,6 +402,7 @@ class CodingLoopExecutor:
         dry_run: bool,
         no_validate: bool,
         rollback_on_failure: bool,
+        allow_one_repair: bool = False,
     ) -> CodingLoopResult:
         change = change.model_copy(
             update={
@@ -808,6 +910,21 @@ def _run_id(plan: CodingPlan, run_repository: RunRepository) -> str:
     return run_repository.save_run(
         RunRecord(goal=f"Coding loop: {plan.user_request}", mode="coding_loop")
     ).id
+
+
+def _git_diff(root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "diff", "--no-ext-diff", "--", "."],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return completed.stdout
 
 
 def _status_from_apply(status: ToolExecutionStatus) -> CodingLoopStatus:

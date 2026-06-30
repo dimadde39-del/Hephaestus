@@ -21,6 +21,7 @@ from hephaestus.coding_loop.schemas import (
     CodingScope,
     CodingScopeType,
     CodingValidationSummary,
+    RepairManifest,
 )
 
 __all__ = [
@@ -44,4 +45,5 @@ __all__ = [
     "CodingScope",
     "CodingScopeType",
     "CodingValidationSummary",
+    "RepairManifest",
 ]

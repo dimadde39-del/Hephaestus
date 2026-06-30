@@ -27,9 +27,14 @@ from hephaestus.coding_loop.schemas import (
     CodingScopeType,
     CodingTaskIntent,
     CodingWorkflowMode,
+    DeleteFile,
+    ModifyFile,
+    MoveFile,
     OperationManifest,
     ProviderProjectPlan,
+    RepairManifest,
 )
+from hephaestus.coding_loop.validation import CodingValidationEngine
 from hephaestus.conversation.providers import list_conversation_providers
 from hephaestus.models import (
     DeepSeekProvider,
@@ -40,6 +45,7 @@ from hephaestus.models import (
 )
 from hephaestus.models.base import ModelResponse
 from hephaestus.storage.sqlite import connect_database
+from hephaestus.validation.schemas import ValidationSuiteResult
 
 
 class CodingProviderError(RuntimeError):
@@ -164,6 +170,12 @@ class GreenfieldCodingExecutor:
             schema=OperationManifest,
             label="manifest",
         )
+        validation_plan = CodingValidationEngine(self.database_path).plan_for_manifest(
+            plan.repo_path,
+            manifest,
+            repo_profile_id=plan.repo_profile_id,
+            persist=True,
+        )
         request = request.model_copy(update={"budget": budget, "updated_at": datetime.now(UTC)})
         self.repository.create_coding_request(request)
         change = CodingChangeProposal(
@@ -176,7 +188,7 @@ class GreenfieldCodingExecutor:
             risk=CodingRisk.MEDIUM,
             scope_type=plan.scope.scope_type,
             patch_set=CodingPatchSet(files_touched=_manifest_files(manifest)),
-            validation_commands=manifest.validation_commands,
+            validation_commands=validation_plan.command_texts,
             checkpoint_plan=plan.checkpoint_plan,
             manifest=manifest,
             metadata={
@@ -184,9 +196,98 @@ class GreenfieldCodingExecutor:
                 "provider_model": response.model,
                 "provider_source": source,
                 "budget": budget.model_dump(mode="json"),
+                "validation_plan_id": validation_plan.id,
+                "normalized_validation_plan": validation_plan.metadata,
             },
         )
         return self.repository.save_change_proposal(change)
+
+    def repair(
+        self,
+        *,
+        request_id: str,
+        plan_id: str,
+        change_id: str,
+        validation: ValidationSuiteResult,
+        current_diff: str,
+        created_file_inventory: list[str],
+        approved: bool,
+    ) -> OperationManifest:
+        """Ask the coding provider for one strict validation-coupled repair manifest."""
+
+        if not approved:
+            raise PermissionError("Repair approval is required before requesting a repair.")
+        request = self.repository.get_request(request_id)
+        if request is None:
+            raise ValueError(f"Coding request not found: {request_id}")
+        plan = self.repository.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Coding plan not found: {plan_id}")
+        change = self.repository.get_change_proposal(change_id)
+        if change is None or change.manifest is None:
+            raise ValueError(f"Coding change manifest not found: {change_id}")
+        if request.budget.validation_repair_calls >= request.budget.max_validation_repair_calls:
+            raise CodingProviderError("Validation repair budget exhausted.")
+        selected, source = self._resolve_provider(request.provider)
+        prompt = _validation_repair_prompt(
+            plan=plan.provider_plan,
+            manifest=change.manifest,
+            validation=validation,
+            current_diff=current_diff,
+            created_file_inventory=created_file_inventory,
+            remaining_budget={
+                "remaining_provider_calls": request.budget.max_calls - request.budget.calls,
+                "remaining_cost_budget": request.budget.estimated_cost_cap - request.budget.estimated_cost,
+                "remaining_validation_repairs": (
+                    request.budget.max_validation_repair_calls
+                    - request.budget.validation_repair_calls
+                ),
+            },
+        )
+        response = self._complete(
+            selected,
+            source,
+            request.id,
+            "validation_repair",
+            prompt,
+            request.budget,
+            schema=RepairManifest,
+            label="repair",
+        )
+        budget = _updated_budget(request.budget, response, is_validation_repair=True)
+        try:
+            parsed = parse_structured_response(response.text, RepairManifest, "repair")
+            self._record_contract_event(
+                request.id,
+                "validation_repair",
+                selected,
+                source,
+                response,
+                parsed.status,
+                [],
+            )
+        except StructuredParseFailure as failure:
+            self._record_contract_failure(
+                request.id,
+                "validation_repair",
+                selected,
+                source,
+                response,
+                failure,
+            )
+            raise CodingProviderError(f"REPAIR_SCHEMA_VALIDATION_FAILED: {failure.message}") from failure
+        repair = parsed.value
+        _validate_repair_manifest(repair)
+        request = request.model_copy(update={"budget": budget, "updated_at": datetime.now(UTC)})
+        self.repository.create_coding_request(request)
+        return OperationManifest(
+            task_summary=repair.task_summary,
+            assumptions=[],
+            operations=repair.operations,
+            validation_commands=repair.validation_commands,
+            expected_files=repair.expected_files,
+            risks=repair.risks,
+        )
 
     def _project_plan(
         self,
@@ -614,12 +715,15 @@ def _updated_budget(
     response: ModelResponse,
     *,
     is_repair: bool = False,
+    is_validation_repair: bool = False,
 ) -> CodingBudget:
     return budget.model_copy(
         update={
             "calls": budget.calls + 1,
             "transport_attempts": budget.transport_attempts + len(response.transport_attempts),
             "format_repair_calls": budget.format_repair_calls + (1 if is_repair else 0),
+            "validation_repair_calls": budget.validation_repair_calls
+            + (1 if is_validation_repair else 0),
             "input_tokens": budget.input_tokens + response.input_tokens,
             "output_tokens": budget.output_tokens + response.output_tokens,
             "cached_input_tokens": budget.cached_input_tokens + response.cached_input_tokens,
@@ -668,6 +772,40 @@ def _manifest_prompt(plan: ProviderProjectPlan | None, root: Path) -> str:
     )
 
 
+def _validation_repair_prompt(
+    *,
+    plan: ProviderProjectPlan | None,
+    manifest: OperationManifest,
+    validation: ValidationSuiteResult,
+    current_diff: str,
+    created_file_inventory: list[str],
+    remaining_budget: dict[str, int | float],
+) -> str:
+    failed = next((item for item in validation.evidence if item.failure_classification), None)
+    evidence = {
+        "validation_command": failed.command if failed is not None else "",
+        "exit_code": failed.exit_code if failed is not None else None,
+        "stdout": (failed.stdout_summary if failed is not None else "")[:2000],
+        "stderr": (failed.stderr_summary if failed is not None else "")[:2000],
+        "failure_classification": failed.failure_classification if failed is not None else "",
+        "suite_summary": validation.summary,
+    }
+    return (
+        "Return JSON only matching RepairManifest. This is one bounded validation repair. "
+        "Allowed operations are create, modify, delete, move and must stay inside the repository. "
+        "Do not touch .git or .hephaestus. Do not delete tests, disable tests, replace meaningful "
+        "assertions with empty checks, hide the failing command, or claim success. "
+        "Repair only the implementation or legitimate test expectation mismatch needed for the "
+        "reported validation failure.\n"
+        f"Approved plan: {json.dumps(plan.model_dump(mode='json') if plan else {}, ensure_ascii=False)}\n"
+        f"Current operation manifest: {manifest.model_dump_json()}\n"
+        f"Current diff: {current_diff[:12000]}\n"
+        f"Created file inventory: {json.dumps(created_file_inventory, ensure_ascii=False)}\n"
+        f"Validation evidence: {json.dumps(evidence, ensure_ascii=False)}\n"
+        f"Remaining budget: {json.dumps(remaining_budget, ensure_ascii=False)}"
+    )
+
+
 def _manifest_files(manifest: OperationManifest) -> list[str]:
     result: list[str] = []
     for operation in manifest.operations:
@@ -676,3 +814,31 @@ def _manifest_files(manifest: OperationManifest) -> list[str]:
         else:
             result.extend([operation.source_path, operation.destination_path])
     return list(dict.fromkeys(result))
+
+
+def _validate_repair_manifest(repair: RepairManifest) -> None:
+    for operation in repair.operations:
+        paths = (
+            [operation.source_path, operation.destination_path]
+            if isinstance(operation, MoveFile)
+            else [operation.path]
+        )
+        for path in paths:
+            normalized = path.replace("\\", "/")
+            if normalized.startswith((".git/", ".hephaestus/")):
+                raise CodingProviderError("Repair attempted to touch a protected repository path.")
+        if isinstance(operation, DeleteFile) and any(_is_test_path(path) for path in paths):
+            raise CodingProviderError("Repair cannot delete tests to fake a green result.")
+        if isinstance(operation, MoveFile) and _is_test_path(operation.source_path) and not _is_test_path(operation.destination_path):
+            raise CodingProviderError("Repair cannot move tests out of test discovery paths.")
+        if isinstance(operation, ModifyFile) and _is_test_path(operation.path):
+            payload = operation.content or operation.unified_diff or ""
+            lowered = payload.lower()
+            if "assert" not in lowered and "unittest" not in lowered:
+                raise CodingProviderError("Repair cannot replace meaningful tests with empty checks.")
+
+
+def _is_test_path(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    parts = normalized.split("/")
+    return "tests" in parts or Path(normalized).name.startswith("test_")

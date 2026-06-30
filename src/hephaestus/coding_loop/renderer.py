@@ -33,7 +33,8 @@ def build_coding_plan_renderable(plan: CodingPlan) -> RenderableType:
                     (
                         f"Usage: {plan.budget.calls} calls, "
                         f"{plan.budget.transport_attempts} transport attempts, "
-                        f"{plan.budget.format_repair_calls} repairs, "
+                        f"{plan.budget.format_repair_calls} format repairs, "
+                        f"{plan.budget.validation_repair_calls} validation repairs, "
                         f"{plan.budget.input_tokens}/{plan.budget.output_tokens} tokens, "
                         f"{_cost_text(plan.budget.estimated_cost, plan.budget.cost_metadata_source)}"
                     ),
@@ -82,6 +83,7 @@ def build_coding_change_renderable(change: CodingChangeProposal) -> RenderableTy
             "json" if change.manifest is not None else "diff",
             word_wrap=True,
         ),
+        _normalized_validation_panel(change),
         Panel(
             "\n".join(
                 [
@@ -246,6 +248,47 @@ def _validation_panel(plan: CodingPlan) -> Panel:
         "\n".join(plan.validation_commands) or "No validation commands detected.",
         title=f"Validation Plan {plan.validation_plan_id or ''}".strip(),
     )
+
+
+def _normalized_validation_panel(change: CodingChangeProposal) -> Panel:
+    plan = change.metadata.get("normalized_validation_plan")
+    if not isinstance(plan, dict):
+        return Panel("Validation commands will be normalized before execution.", title="Normalized Validation")
+    proposed = [str(item) for item in plan.get("model_proposed_commands", [])]
+    normalized = [str(item) for item in plan.get("deterministic_normalized_commands", [])]
+    reasons = [str(item) for item in plan.get("normalization_reasons", [])]
+    locations = [str(item) for item in plan.get("expected_test_locations", [])]
+    stages = [str(item) for item in plan.get("validation_stages", [])]
+    timeouts = plan.get("timeouts", {})
+    timeout_lines = (
+        [f"{command}: {seconds}s" for command, seconds in timeouts.items()]
+        if isinstance(timeouts, dict)
+        else []
+    )
+    lines = [
+        "Model-proposed validation commands:",
+        *_lines_or_none(proposed),
+        "",
+        "Deterministic normalized commands:",
+        *_lines_or_none(normalized),
+        "",
+        "Reasons:",
+        *_lines_or_none(reasons),
+        "",
+        "Expected test locations:",
+        *_lines_or_none(locations),
+        "",
+        f"Estimated validation stages: {len(stages)}",
+        *[f"- {item}" for item in stages],
+        "",
+        "Timeouts:",
+        *(timeout_lines or ["- default"]),
+    ]
+    return Panel("\n".join(lines), title="Normalized Validation")
+
+
+def _lines_or_none(values: list[str]) -> list[str]:
+    return [f"- {item}" for item in values] or ["- none"]
 
 
 def _next_command_panel(plan: CodingPlan) -> Panel:

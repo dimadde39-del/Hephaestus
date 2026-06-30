@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import TypedDict
 from uuid import uuid4
 
 from hephaestus.decision import DecisionAlternative, DecisionTraceRepository, SafetyDecision, metric
@@ -21,6 +22,23 @@ from hephaestus.validation.schemas import (
     ValidationCommandType,
     ValidationExecutionPlan,
 )
+
+
+class NormalizedValidationCommand(TypedDict):
+    command: str
+    model_command: str
+    reason: str
+    source: str
+    framework: str
+    timeout_seconds: int
+
+
+class NormalizedValidationPlan(TypedDict):
+    commands: list[NormalizedValidationCommand]
+    normalization_reasons: list[str]
+    expected_test_locations: list[str]
+    validation_stages: list[str]
+    fallback_commands: list[str]
 
 
 class ValidationPlanner:
@@ -313,6 +331,154 @@ def build_validation_execution_plan(
     )
 
 
+def build_candidate_validation_plan(
+    path: Path | str,
+    *,
+    model_commands: list[str],
+    changed_files: list[str],
+    expected_files: list[str] | None = None,
+    database_path: Path | str | None = None,
+    repo_profile_id: str | None = None,
+    persist: bool = False,
+) -> ValidationExecutionPlan:
+    """Normalize model-proposed validation commands into a deterministic plan."""
+
+    root = Path(path).resolve()
+    plan_id = f"validation_plan_{uuid4().hex[:12]}"
+    normalized = normalize_model_validation_commands(
+        root,
+        model_commands=model_commands,
+        changed_files=changed_files,
+        expected_files=expected_files or [],
+    )
+    commands = [
+        ValidationCommand(
+            id=f"validation_cmd_{uuid4().hex[:12]}",
+            plan_id=plan_id,
+            repo_profile_id=repo_profile_id,
+            command=item["command"],
+            command_type=classify_validation_command_type(item["command"], source=item["source"]),
+            source=item["source"],
+            framework=item["framework"],
+            order=index,
+            risk_level=ToolRiskLevel.SAFE_VALIDATION,
+            requires_approval=True,
+            reasons=[item["reason"], "normalized validation execution requires approval"],
+            timeout_seconds=int(item["timeout_seconds"]),
+            metadata={
+                "model_command": item["model_command"],
+                "normalization_reason": item["reason"],
+                "expected_test_locations": normalized["expected_test_locations"],
+                "fallback_commands": normalized["fallback_commands"],
+            },
+        )
+        for index, item in enumerate(normalized["commands"], start=1)
+    ]
+    plan = ValidationExecutionPlan(
+        id=plan_id,
+        repo_path=str(root),
+        repo_profile_id=repo_profile_id,
+        commands=commands,
+        notes=[
+            "Model-proposed validation commands are candidates and were normalized deterministically.",
+            *[str(reason) for reason in normalized["normalization_reasons"]],
+        ],
+        confidence=0.82 if commands else 0.35,
+        metadata={
+            "model_proposed_commands": model_commands,
+            "deterministic_normalized_commands": [command.command for command in commands],
+            "normalization_reasons": normalized["normalization_reasons"],
+            "expected_test_locations": normalized["expected_test_locations"],
+            "validation_stages": normalized["validation_stages"],
+            "stage_count": len(normalized["validation_stages"]),
+            "fallback_commands": normalized["fallback_commands"],
+            "timeouts": {command.command: command.timeout_seconds for command in commands},
+        },
+    )
+    if persist:
+        ValidationRepository(database_path).save_plan(plan)
+    return plan
+
+
+def normalize_model_validation_commands(
+    root: Path,
+    *,
+    model_commands: list[str],
+    changed_files: list[str],
+    expected_files: list[str],
+) -> NormalizedValidationPlan:
+    """Return normalized command records and explain every normalization."""
+
+    files = _dedupe_paths([*changed_files, *expected_files, *_existing_test_files(root)])
+    test_files = [path for path in files if _is_python_test_file(path)]
+    has_python = any(path.endswith(".py") for path in files) or (root / "pyproject.toml").exists()
+    test_dirs = _test_dirs(test_files)
+    commands: list[NormalizedValidationCommand] = []
+    reasons: list[str] = []
+    fallback_commands: list[str] = []
+    seen: set[str] = set()
+    proposed = [command for command in model_commands if command.strip()]
+
+    for command in proposed:
+        normalized_command, reason = _normalize_python_test_command(command, test_dirs)
+        if normalized_command is None:
+            if _safe_functional_smoke(command):
+                normalized_command = command.strip()
+                reason = "kept safe functional smoke command proposed by model"
+            else:
+                reasons.append(
+                    f"Skipped unsafe or non-validation candidate `{command}`; functional smoke is opt-in and bounded."
+                )
+                continue
+        if normalized_command in seen:
+            continue
+        seen.add(normalized_command)
+        reasons.append(reason)
+        commands.append(
+            {
+                "command": normalized_command,
+                "model_command": command,
+                "reason": reason,
+                "source": "deterministic_normalizer",
+                "framework": "python-unittest" if "unittest" in normalized_command else "",
+                "timeout_seconds": 120,
+            }
+        )
+
+    if has_python and test_files and not any("unittest" in str(item["command"]) or "pytest" in str(item["command"]) for item in commands):
+        command = _preferred_unittest_command(test_dirs)
+        reason = "added deterministic unittest discovery because Python test files were detected"
+        commands.append(
+            {
+                "command": command,
+                "model_command": "",
+                "reason": reason,
+                "source": "deterministic_normalizer",
+                "framework": "python-unittest",
+                "timeout_seconds": 120,
+            }
+        )
+        reasons.append(reason)
+
+    if test_dirs:
+        fallback = _preferred_unittest_command(test_dirs)
+        if all(str(item["command"]) != fallback for item in commands):
+            fallback_commands.append(fallback)
+
+    stages = ["structure"]
+    if has_python:
+        stages.append("syntax/import")
+    if test_files:
+        stages.extend(["test_discovery", "test_execution"])
+    return {
+        "commands": commands,
+        "normalization_reasons": _dedupe_text(reasons),
+        "expected_test_locations": sorted(test_files),
+        "validation_stages": stages,
+        "fallback_commands": fallback_commands[:1],
+    }
+
+
 def _dedupe_test_commands(commands: list[TestCommand]) -> list[TestCommand]:
     seen: set[str] = set()
     deduped: list[TestCommand] = []
@@ -323,6 +489,73 @@ def _dedupe_test_commands(commands: list[TestCommand]) -> list[TestCommand]:
         seen.add(normalized)
         deduped.append(command)
     return deduped
+
+
+def _dedupe_text(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+
+def _dedupe_paths(values: list[str]) -> list[str]:
+    normalized = [str(PurePosixPath(value.replace("\\", "/"))) for value in values if value.strip()]
+    return _dedupe_text(normalized)
+
+
+def _normalize_python_test_command(command: str, test_dirs: list[str]) -> tuple[str | None, str]:
+    normalized = " ".join(command.split())
+    lower = normalized.lower()
+    if "pytest" in lower:
+        return normalized, "kept pytest command because the model explicitly proposed pytest"
+    if "python -m unittest" not in lower and "unittest" not in lower:
+        return None, ""
+    preferred = _preferred_unittest_command(test_dirs)
+    if test_dirs and normalized == "python -m unittest discover -v":
+        return (
+            preferred,
+            "normalized generic unittest discovery to explicit tests directory and test_*.py pattern",
+        )
+    if test_dirs and " discover" in lower and " -s " not in f" {lower} ":
+        return (
+            preferred,
+            "normalized unittest discovery without -s because test files exist under an explicit tests directory",
+        )
+    return normalized, "kept model unittest command; it already specifies discovery scope"
+
+
+def _preferred_unittest_command(test_dirs: list[str]) -> str:
+    directory = "tests" if "tests" in test_dirs else (test_dirs[0] if test_dirs else ".")
+    return f'python -m unittest discover -s {directory} -p "test_*.py" -v'
+
+
+def _existing_test_files(root: Path) -> list[str]:
+    ignored = {".git", ".hephaestus", ".venv", "node_modules", "__pycache__"}
+    if not root.exists():
+        return []
+    return [
+        str(path.relative_to(root)).replace("\\", "/")
+        for path in root.rglob("test_*.py")
+        if path.is_file() and not any(part in ignored for part in path.relative_to(root).parts)
+    ]
+
+
+def _is_python_test_file(path: str) -> bool:
+    pure = PurePosixPath(path.replace("\\", "/"))
+    return pure.name.startswith("test_") and pure.suffix == ".py"
+
+
+def _test_dirs(test_files: list[str]) -> list[str]:
+    dirs = [
+        str(PurePosixPath(path.replace("\\", "/")).parent)
+        for path in test_files
+    ]
+    return _dedupe_text(["." if item == "." else item for item in dirs])
+
+
+def _safe_functional_smoke(command: str) -> bool:
+    normalized = " ".join(command.split()).lower()
+    if not normalized:
+        return False
+    read_only_tokens = (" --help", " -h", " version", " --version")
+    return normalized.startswith("python -m ") and any(token in normalized for token in read_only_tokens)
 
 
 def _plan_rationale(command: ValidationCommand) -> str:

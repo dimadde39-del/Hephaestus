@@ -24,6 +24,17 @@ _COMMAND_TYPE_ORDER: dict[ValidationCommandType, int] = {
     ValidationCommandType.CUSTOM: 7,
 }
 
+VALIDATION_STRUCTURE_FAILED = "VALIDATION_STRUCTURE_FAILED"
+VALIDATION_SYNTAX_FAILED = "VALIDATION_SYNTAX_FAILED"
+VALIDATION_IMPORT_FAILED = "VALIDATION_IMPORT_FAILED"
+VALIDATION_NO_TESTS_DISCOVERED = "VALIDATION_NO_TESTS_DISCOVERED"
+VALIDATION_TESTS_FAILED = "VALIDATION_TESTS_FAILED"
+VALIDATION_TIMEOUT = "VALIDATION_TIMEOUT"
+VALIDATION_COMMAND_NOT_FOUND = "VALIDATION_COMMAND_NOT_FOUND"
+REPAIR_REJECTED = "REPAIR_REJECTED"
+REPAIR_FAILED = "REPAIR_FAILED"
+ROLLBACK_RESIDUE_DETECTED = "ROLLBACK_RESIDUE_DETECTED"
+
 
 def command_type_order(command_type: ValidationCommandType) -> int:
     """Return stable execution order for command categories."""
@@ -88,6 +99,42 @@ def warning_count(stdout: str, stderr: str) -> int:
 
     text = "\n".join([stdout, stderr])
     return sum(1 for line in text.splitlines() if re.search(r"\bwarning\b", line, re.IGNORECASE))
+
+
+def parse_test_counts(stdout: str, stderr: str) -> dict[str, int]:
+    """Parse common unittest/pytest count summaries from command output."""
+
+    text = "\n".join([stdout, stderr])
+    counts: dict[str, int] = {}
+    ran_match = re.search(r"\bRan\s+(\d+)\s+tests?\b", text, re.IGNORECASE)
+    if ran_match:
+        counts["discovered"] = int(ran_match.group(1))
+    collected_match = re.search(r"\bcollected\s+(\d+)\s+items?\b", text, re.IGNORECASE)
+    if collected_match:
+        counts["discovered"] = int(collected_match.group(1))
+    passed_match = re.search(r"\b(\d+)\s+passed\b", text, re.IGNORECASE)
+    if passed_match:
+        counts["passed"] = int(passed_match.group(1))
+    failed_match = re.search(r"\b(\d+)\s+failed\b", text, re.IGNORECASE)
+    if failed_match:
+        counts["failed"] = int(failed_match.group(1))
+    skipped_match = re.search(r"\b(\d+)\s+skipped\b", text, re.IGNORECASE)
+    if skipped_match:
+        counts["skipped"] = int(skipped_match.group(1))
+    return counts
+
+
+def output_indicates_no_tests(stdout: str, stderr: str) -> bool:
+    """Return true for common zero-test discovery messages."""
+
+    text = "\n".join([stdout, stderr])
+    patterns = [
+        r"\bRan\s+0\s+tests?\b",
+        r"\bcollected\s+0\s+items?\b",
+        r"\bno\s+tests?\s+ran\b",
+        r"\bNO\s+TESTS\s+RAN\b",
+    ]
+    return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
 
 
 def classify_validation_failure(
@@ -226,7 +273,7 @@ def build_release_validation_summary(
 
 def _failure_classification(evidence: ValidationEvidence) -> str:
     if evidence.status == ValidationStatus.TIMED_OUT:
-        return "timeout"
+        return VALIDATION_TIMEOUT
     if evidence.status == ValidationStatus.BLOCKED:
         return "policy_blocked"
     if evidence.status == ValidationStatus.REQUIRES_APPROVAL:
@@ -234,7 +281,12 @@ def _failure_classification(evidence: ValidationEvidence) -> str:
     if evidence.status == ValidationStatus.SKIPPED:
         return "skipped"
     if evidence.command_type == ValidationCommandType.TEST:
-        return "test_failure"
+        if evidence.failure_classification == VALIDATION_NO_TESTS_DISCOVERED:
+            return VALIDATION_NO_TESTS_DISCOVERED
+        output = "\n".join([evidence.stdout_summary, evidence.stderr_summary])
+        if re.search(r"\b(ModuleNotFoundError|ImportError)\b", output):
+            return VALIDATION_IMPORT_FAILED
+        return VALIDATION_TESTS_FAILED
     if evidence.command_type == ValidationCommandType.LINT:
         return "lint_failure"
     if evidence.command_type == ValidationCommandType.TYPECHECK:

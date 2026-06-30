@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from hephaestus.coding_loop.schemas import OperationManifest, ProviderProjectPlan
+from hephaestus.coding_loop.schemas import OperationManifest, ProviderProjectPlan, RepairManifest
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)
 
@@ -184,6 +184,15 @@ def _required_fields(schema: type[BaseModel]) -> list[str]:
             "expected_files",
             "risks",
         ]
+    if schema is RepairManifest:
+        return [
+            "task_summary",
+            "failure_classification",
+            "operations",
+            "validation_commands",
+            "expected_files",
+            "risks",
+        ]
     return [name for name, field in schema.model_fields.items() if field.is_required()]
 
 
@@ -214,6 +223,23 @@ def _example_data(schema: type[BaseModel]) -> dict[str, Any]:
             ],
             "validation_commands": ["python -m unittest discover -v"],
             "expected_files": ["README.md"],
+            "risks": [],
+        }
+    if schema is RepairManifest:
+        return {
+            "task_summary": "Repair validation failure.",
+            "failure_classification": "VALIDATION_TESTS_FAILED",
+            "operations": [
+                {
+                    "operation": "modify",
+                    "path": "taskforge/storage.py",
+                    "expected_sha256": "0" * 64,
+                    "mode": "replace",
+                    "content": "print('fixed')\n",
+                }
+            ],
+            "validation_commands": ["python -m unittest discover -s tests -p \"test_*.py\" -v"],
+            "expected_files": ["taskforge/storage.py", "tests/test_storage.py"],
             "risks": [],
         }
     raise TypeError(f"No compact example registered for {schema.__name__}.")

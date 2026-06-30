@@ -70,11 +70,13 @@ class CodingBudget(BaseModel):
     max_calls: int = Field(default=3, ge=1, le=10)
     max_network_attempts: int = Field(default=6, ge=1, le=20)
     max_format_repair_calls: int = Field(default=1, ge=0, le=3)
+    max_validation_repair_calls: int = Field(default=1, ge=0, le=3)
     max_output_tokens: int = Field(default=4096, ge=1, le=32768)
     estimated_cost_cap: float = Field(default=0.05, gt=0)
     calls: int = Field(default=0, ge=0)
     transport_attempts: int = Field(default=0, ge=0)
     format_repair_calls: int = Field(default=0, ge=0)
+    validation_repair_calls: int = Field(default=0, ge=0)
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
     cached_input_tokens: int = Field(default=0, ge=0)
@@ -157,6 +159,19 @@ class OperationManifest(BaseModel):
     task_summary: str
     assumptions: list[str] = Field(default_factory=list)
     operations: list[FileOperation] = Field(min_length=1, max_length=24)
+    validation_commands: list[str] = Field(default_factory=list)
+    expected_files: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+
+
+class RepairManifest(BaseModel):
+    """Strict provider contract for one validation-coupled repair attempt."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    task_summary: str
+    failure_classification: str
+    operations: list[FileOperation] = Field(min_length=1, max_length=12)
     validation_commands: list[str] = Field(default_factory=list)
     expected_files: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)

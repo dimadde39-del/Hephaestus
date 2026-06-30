@@ -1,17 +1,34 @@
 """Real validation execution and release evidence."""
 
 from hephaestus.validation.analysis import (
+    REPAIR_FAILED,
+    REPAIR_REJECTED,
+    ROLLBACK_RESIDUE_DETECTED,
+    VALIDATION_COMMAND_NOT_FOUND,
+    VALIDATION_IMPORT_FAILED,
+    VALIDATION_NO_TESTS_DISCOVERED,
+    VALIDATION_STRUCTURE_FAILED,
+    VALIDATION_SYNTAX_FAILED,
+    VALIDATION_TESTS_FAILED,
+    VALIDATION_TIMEOUT,
     adjusted_readiness_score,
     aggregate_suite_status,
     build_release_validation_summary,
     classify_validation_command_type,
     classify_validation_failure,
+    output_indicates_no_tests,
+    parse_test_counts,
     readiness_delta_for_validation,
     suite_evidence_mode,
     validation_status_from_tool_result,
 )
 from hephaestus.validation.executor import ValidationExecutor, run_validation_plan
-from hephaestus.validation.planner import ValidationPlanner, build_validation_execution_plan
+from hephaestus.validation.planner import (
+    ValidationPlanner,
+    build_candidate_validation_plan,
+    build_validation_execution_plan,
+    normalize_model_validation_commands,
+)
 from hephaestus.validation.repository import ValidationRepository
 from hephaestus.validation.schemas import (
     ReleaseValidationSummary,
@@ -28,6 +45,16 @@ from hephaestus.validation.schemas import (
 
 __all__ = [
     "ReleaseValidationSummary",
+    "REPAIR_FAILED",
+    "REPAIR_REJECTED",
+    "ROLLBACK_RESIDUE_DETECTED",
+    "VALIDATION_COMMAND_NOT_FOUND",
+    "VALIDATION_IMPORT_FAILED",
+    "VALIDATION_NO_TESTS_DISCOVERED",
+    "VALIDATION_STRUCTURE_FAILED",
+    "VALIDATION_SYNTAX_FAILED",
+    "VALIDATION_TESTS_FAILED",
+    "VALIDATION_TIMEOUT",
     "ValidationCommand",
     "ValidationCommandType",
     "ValidationEvidence",
@@ -43,9 +70,13 @@ __all__ = [
     "adjusted_readiness_score",
     "aggregate_suite_status",
     "build_release_validation_summary",
+    "build_candidate_validation_plan",
     "build_validation_execution_plan",
     "classify_validation_command_type",
     "classify_validation_failure",
+    "normalize_model_validation_commands",
+    "output_indicates_no_tests",
+    "parse_test_counts",
     "readiness_delta_for_validation",
     "run_validation_plan",
     "suite_evidence_mode",

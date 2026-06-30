@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
+from hephaestus.coding_loop.rollback import ScopedInventory, build_scoped_inventory
 from hephaestus.coding_loop.schemas import (
     CreateFile,
     DeleteFile,
@@ -36,6 +37,7 @@ class PreparedOperation:
 class ManifestApplyResult:
     files_touched: list[str]
     checkpoint: CheckpointRecord
+    inventory: ScopedInventory
     rolled_back: bool = False
 
 
@@ -90,6 +92,7 @@ def preflight_manifest(root: Path | str, manifest: OperationManifest) -> list[Pr
 def apply_manifest(root: Path | str, manifest: OperationManifest) -> ManifestApplyResult:
     workspace = Path(root).resolve()
     prepared = preflight_manifest(workspace, manifest)
+    inventory = build_scoped_inventory(workspace, manifest)
     affected = sorted(
         {
             str(path.relative_to(workspace)).replace("\\", "/")
@@ -125,7 +128,7 @@ def apply_manifest(root: Path | str, manifest: OperationManifest) -> ManifestApp
                 and item.source.exists()
             ):
                 item.source.unlink()
-        return ManifestApplyResult(files_touched=affected, checkpoint=checkpoint)
+        return ManifestApplyResult(files_touched=affected, checkpoint=checkpoint, inventory=inventory)
     except Exception:
         for temporary, _, _ in staged:
             if temporary.exists():

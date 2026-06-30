@@ -855,6 +855,18 @@ def code_apply(
         bool,
         typer.Option("--rollback-on-failure", help="Restore the checkpoint if validation fails."),
     ] = False,
+    allow_one_repair: Annotated[
+        bool,
+        typer.Option("--allow-one-repair", help="Allow one bounded provider repair after genuine validation failure."),
+    ] = False,
+    retain_failed_snapshot: Annotated[
+        bool,
+        typer.Option("--retain-failed-snapshot", help="Save a sanitized failed workspace snapshot before rollback."),
+    ] = False,
+    artifact_root: Annotated[
+        Path | None,
+        typer.Option("--artifact-root", help="Directory for retained failed-workspace artifacts."),
+    ] = None,
 ) -> None:
     """Apply a previously proposed patch with approval gates."""
 
@@ -865,6 +877,9 @@ def code_apply(
             dry_run=dry_run,
             no_validate=no_validate,
             rollback_on_failure=rollback_on_failure,
+            allow_one_repair=allow_one_repair,
+            retain_failed_snapshot=retain_failed_snapshot,
+            artifact_root=artifact_root,
         )
     except (FileNotFoundError, PermissionError, ValueError) as error:
         console.print(f"[red]{error}[/red]")
@@ -901,6 +916,10 @@ def code_run(
         bool,
         typer.Option("--rollback-on-failure", help="Restore the checkpoint if validation fails."),
     ] = False,
+    allow_one_repair: Annotated[
+        bool,
+        typer.Option("--allow-one-repair", help="Allow one bounded provider repair after genuine validation failure."),
+    ] = False,
     scope: Annotated[
         CodingScopeType | None,
         typer.Option("--scope", help="Optional scope override."),
@@ -918,6 +937,7 @@ def code_run(
             no_validate=no_validate,
             rollback_on_failure=rollback_on_failure,
             scope=scope,
+            allow_one_repair=allow_one_repair,
         )
     except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as error:
         console.print(f"[red]{error}[/red]")

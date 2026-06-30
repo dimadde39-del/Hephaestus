@@ -5,6 +5,8 @@ from typer.testing import CliRunner
 from hephaestus.cli.main import app
 from hephaestus.release import ReleasePlanningOrchestrator, ReleasePlanningRequest
 from hephaestus.validation import (
+    VALIDATION_TESTS_FAILED,
+    VALIDATION_TIMEOUT,
     ValidationCommand,
     ValidationCommandType,
     ValidationExecutionPlan,
@@ -81,7 +83,7 @@ def test_validation_failure_classification_and_learning_signal(tmp_path: Path) -
     assert suite.status == ValidationStatus.FAILED
     assert suite.fail_count == 1
     assert suite.evidence[0].failure is not None
-    assert suite.evidence[0].failure.classification == "test_failure"
+    assert suite.evidence[0].failure.classification == VALIDATION_TESTS_FAILED
     assert suite.learning_signal_ids
 
 
@@ -108,7 +110,7 @@ def test_validation_timeout_behavior(tmp_path: Path) -> None:
     assert suite.status == ValidationStatus.TIMED_OUT
     assert suite.timed_out_count == 1
     assert suite.evidence[0].failure is not None
-    assert suite.evidence[0].failure.classification == "timeout"
+    assert suite.evidence[0].failure.classification == VALIDATION_TIMEOUT
 
 
 def test_release_plan_with_validation_evidence(tmp_path: Path) -> None:

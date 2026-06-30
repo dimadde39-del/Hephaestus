@@ -558,6 +558,9 @@ class CodingApplyRequest(BaseModel):
     dry_run: bool = False
     no_validate: bool = False
     rollback_on_failure: bool = False
+    allow_one_repair: bool = False
+    retain_failed_snapshot: bool = False
+    artifact_root: str | None = None
 
 
 class ValidationPlanRequest(BaseModel):
@@ -802,6 +805,9 @@ class WorkbenchService:
             dry_run=request.dry_run,
             no_validate=request.no_validate,
             rollback_on_failure=request.rollback_on_failure,
+            allow_one_repair=request.allow_one_repair,
+            retain_failed_snapshot=request.retain_failed_snapshot,
+            artifact_root=request.artifact_root,
         )
         detail = self.get_coding(result.request_id)
         if detail is None:
