@@ -9,6 +9,7 @@ from pathlib import Path
 from benchmarks.harness_gain.orchestrator import (
     ARMS,
     _init_git,
+    _mimo_forbidden_commands,
     prepare_live_root,
     schedule,
 )
@@ -103,7 +104,39 @@ def test_mimo_command_and_environment_isolation(tmp_path: Path) -> None:
     env = mimocode_runner.isolated_environment(tmp_path / "session")
     assert env["HOME"] == env["USERPROFILE"]
     assert env["MIMOCODE_DISABLE_PROJECT_CONFIG"] == "true"
+    assert env["PIP_NO_INDEX"] == "1"
+    assert env["GIT_CONFIG_VALUE_0"] == "never"
     assert "DEEPSEEK_API_KEY" not in env
+    assert _mimo_forbidden_commands(
+        {"parts": [{"data": {"state": {"input": {"command": "git push origin main"}}}}]}
+    )
+
+
+def test_mimo_nested_usage_accounting() -> None:
+    usage = mimocode_runner._usage(
+        {
+            "messages": [
+                {
+                    "data": {
+                        "providerID": "deepseek-bench",
+                        "modelID": "deepseek-v4-flash",
+                        "tokens": {
+                            "total": 130,
+                            "input": 100,
+                            "output": 10,
+                            "reasoning": 5,
+                            "cache": {"read": 15, "write": 0},
+                        },
+                    }
+                }
+            ]
+        }
+    )
+    assert usage.logical_provider_calls == 1
+    assert usage.input_tokens == 115
+    assert usage.cached_tokens == 15
+    assert usage.output_tokens == 15
+    assert usage.estimated_cost > 0
 
 
 def test_hephaestus_official_runner_with_fake_provider(tmp_path: Path) -> None:
@@ -174,6 +207,7 @@ def test_usage_cost_and_secret_redaction(tmp_path: Path) -> None:
     assert usage.estimated_cost == 0.30000000000000004
     assert "[REDACTED]" in redact_text("Authorization: Bearer sk-abcdefghijklmnop")
     assert redact_data({"reasoning_content": "private"})["reasoning_content"] == "[REDACTED]"
+    assert redact_data({"secrets_absent": True})["secrets_absent"] is True
     (tmp_path / "safe.txt").write_text("ordinary output", encoding="utf-8")
     assert scan_artifacts(tmp_path) == []
 
@@ -210,7 +244,7 @@ def test_randomized_schedule_is_reproducible_and_interleaved() -> None:
 def test_report_generation(tmp_path: Path) -> None:
     now = datetime.now(UTC)
     record = RunRecord(
-        protocol_version="5.6B.1",
+        protocol_version="5.6B.2",
         phase="main",
         run_id="main-task-bare_one_shot-r1",
         task_id="task",

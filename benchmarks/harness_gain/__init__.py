@@ -1,4 +1,3 @@
 """Reproducible same-model coding-harness benchmark."""
 
-PROTOCOL_VERSION = "5.6B.1"
-
+PROTOCOL_VERSION = "5.6B.2"

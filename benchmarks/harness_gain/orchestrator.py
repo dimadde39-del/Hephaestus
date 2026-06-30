@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmarks.harness_gain import PROTOCOL_VERSION
-from benchmarks.harness_gain.reporting import load_records, write_reports
+from benchmarks.harness_gain.reporting import effective_cost, load_records, write_reports
 from benchmarks.harness_gain.runners import (
     bare_one_shot,
     bare_two_stage,
@@ -75,8 +75,15 @@ def prepare_live_root(root: Path) -> None:
             "__pycache__/\n.pytest_cache/\n*.pyc\n.validator-temp/\n", encoding="utf-8"
         )
     shutil.copy2(Path(__file__).with_name("hidden_validator.py"), root / "validators" / "hidden_validator.py")
+    protocol_lock = root / "protocol-lock.json"
+    if protocol_lock.exists():
+        previous = json.loads(protocol_lock.read_text(encoding="utf-8"))
+        previous_version = str(previous.get("protocol_version", "unknown")).replace(".", "_")
+        archived_lock = root / f"protocol-lock-{previous_version}.json"
+        if previous.get("protocol_version") != PROTOCOL_VERSION and not archived_lock.exists():
+            shutil.copy2(protocol_lock, archived_lock)
     write_json(
-        root / "protocol-lock.json",
+        protocol_lock,
         {
             "protocol_version": PROTOCOL_VERSION,
             "seed": SEED,
@@ -117,10 +124,11 @@ def run_phase(root: Path, phase: str) -> list[RunRecord]:
     prepare_live_root(root)
     if phase == "main":
         pilot_path = root / "reports" / "pilot-validation.json"
-        if not pilot_path.exists() or not json.loads(pilot_path.read_text(encoding="utf-8")).get("passed"):
+        pilot = json.loads(pilot_path.read_text(encoding="utf-8")) if pilot_path.exists() else {}
+        if not pilot.get("passed") or pilot.get("protocol_version") != PROTOCOL_VERSION:
             raise RuntimeError("BLOCKED_PILOT_INVALID")
     existing = load_records(root / "artifacts")
-    spent = sum(record.estimated_cost for record in existing)
+    spent = sum(effective_cost(root, record) for record in existing)
     records: list[RunRecord] = []
     for item in schedule(phase):
         projected = _project_next_cost(existing + records, item.arm_id)
@@ -145,7 +153,18 @@ def run_phase(root: Path, phase: str) -> list[RunRecord]:
     all_records = existing + records
     if phase == "pilot":
         audit = validate_pilot(root, records)
-        write_json(root / "reports" / "pilot-validation.json", audit)
+        canonical = root / "reports" / "pilot-validation.json"
+        if canonical.exists():
+            previous = json.loads(canonical.read_text(encoding="utf-8"))
+            previous_version = str(previous.get("protocol_version", "unknown")).replace(".", "_")
+            archived = root / "reports" / f"pilot-validation-{previous_version}.json"
+            if not archived.exists():
+                shutil.copy2(canonical, archived)
+        write_json(canonical, audit)
+        write_json(
+            root / "reports" / f"pilot-validation-{PROTOCOL_VERSION.replace('.', '_')}.json",
+            audit,
+        )
         write_reports(root, all_records, phase="pilot")
         if not audit["passed"]:
             raise RuntimeError("BLOCKED_PILOT_INVALID")
@@ -156,7 +175,10 @@ def run_phase(root: Path, phase: str) -> list[RunRecord]:
 
 def execute_run(root: Path, phase: str, scheduled: ScheduledRun) -> RunRecord:
     task = get_task(scheduled.task_id)
-    run_id = f"{phase}-{scheduled.task_id}-{scheduled.arm_id.value}-r{scheduled.run_index}"
+    version = PROTOCOL_VERSION.replace(".", "_")
+    run_id = (
+        f"{phase}-{version}-{scheduled.task_id}-{scheduled.arm_id.value}-r{scheduled.run_index}"
+    )
     target = root / "targets" / run_id
     artifact = root / "artifacts" / run_id
     session = root / "mimo-sessions" / run_id
@@ -349,6 +371,8 @@ def validate_pilot(root: Path, records: list[RunRecord]) -> dict[str, Any]:
         ),
         "mimo_not_auto": True,
         "mimo_fresh_session": True,
+        "mimo_model_and_provider": True,
+        "mimo_no_forbidden_network_or_push": True,
         "hephaestus_real_provider": True,
         "bare_call_limits": True,
         "hidden_not_in_context": True,
@@ -378,11 +402,15 @@ def validate_pilot(root: Path, records: list[RunRecord]) -> dict[str, Any]:
                 (root / "mimo-sessions" / record.run_id).is_dir()
                 and session_export.get("fresh_session") is True
             )
+            checks["mimo_model_and_provider"] &= _mimo_models_are_canonical(session_export)
+            checks["mimo_no_forbidden_network_or_push"] &= not _mimo_forbidden_commands(
+                session_export
+            )
         if record.arm_id == ArmId.HEPHAESTUS:
             session = json.loads((artifact / "session-export.json").read_text(encoding="utf-8"))
             checks["hephaestus_real_provider"] &= (
                 session.get("provider") == "deepseek"
-                and session.get("model") == "deepseek-v4-flash"
+                and str(session.get("model", "")).split("/")[-1] == "deepseek-v4-flash"
             )
         if record.arm_id == ArmId.BARE_ONE_SHOT:
             checks["bare_call_limits"] &= record.logical_provider_calls == 1
@@ -397,6 +425,49 @@ def validate_pilot(root: Path, records: list[RunRecord]) -> dict[str, Any]:
         "passed": all(checks.values()),
         "checks": checks,
     }
+
+
+def _mimo_models_are_canonical(session: dict[str, Any]) -> bool:
+    messages = session.get("messages")
+    if not isinstance(messages, list):
+        return False
+    provider_rows = []
+    for message in messages:
+        data = message.get("data") if isinstance(message, dict) else None
+        if isinstance(data, dict) and data.get("providerID"):
+            provider_rows.append((data.get("providerID"), data.get("modelID"), data.get("mode")))
+    return bool(provider_rows) and all(
+        provider == "deepseek-bench"
+        and model == "deepseek-v4-flash"
+        and mode not in {"max", "compose", "auto"}
+        for provider, model, mode in provider_rows
+    )
+
+
+def _mimo_forbidden_commands(session: dict[str, Any]) -> list[str]:
+    forbidden = (
+        "git push",
+        "git clone",
+        "curl http",
+        "wget http",
+        "invoke-webrequest",
+        "invoke-restmethod",
+        "start-bitstransfer",
+        "ssh ",
+        "scp ",
+    )
+    findings: list[str] = []
+    parts = session.get("parts")
+    if not isinstance(parts, list):
+        return ["session parts unavailable"]
+    for part in parts:
+        data = part.get("data") if isinstance(part, dict) else None
+        state = data.get("state") if isinstance(data, dict) else None
+        tool_input = state.get("input") if isinstance(state, dict) else None
+        command = tool_input.get("command") if isinstance(tool_input, dict) else None
+        if isinstance(command, str) and any(marker in command.lower() for marker in forbidden):
+            findings.append(command[:200])
+    return findings
 
 
 def _write_run_artifacts(

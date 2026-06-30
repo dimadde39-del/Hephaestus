@@ -25,7 +25,11 @@ def load_records(artifact_root: Path, phase: str | None = None) -> list[RunRecor
 def write_reports(root: Path, records: list[RunRecord], *, phase: str = "main") -> dict[str, Any]:
     reports = root / "reports"
     reports.mkdir(parents=True, exist_ok=True)
-    selected = [record for record in records if record.phase == phase]
+    selected = [
+        record
+        for record in records
+        if record.phase == phase and record.protocol_version == PROTOCOL_VERSION
+    ]
     stats = arm_statistics(selected)
     gains = harness_gains(stats)
     payload = {
@@ -35,7 +39,8 @@ def write_reports(root: Path, records: list[RunRecord], *, phase: str = "main") 
         "provider": "deepseek",
         "base_url": "https://api.deepseek.com",
         "sample_size": len(selected),
-        "global_cost": sum(record.estimated_cost for record in selected),
+        "current_protocol_cost": sum(record.estimated_cost for record in selected),
+        "global_cost": sum(effective_cost(root, record) for record in records),
         "arms": stats,
         "harness_gains": gains,
         "runs": [record.model_dump(mode="json") for record in selected],
@@ -46,6 +51,21 @@ def write_reports(root: Path, records: list[RunRecord], *, phase: str = "main") 
     write_text(reports / "failures.md", _failures(selected))
     write_text(reports / "methodology.md", _methodology(selected))
     return payload
+
+
+def effective_cost(root: Path, record: RunRecord) -> float:
+    if record.estimated_cost > 0 or record.arm_id.value != "mimocode":
+        return record.estimated_cost
+    session_path = root / "artifacts" / record.run_id / "session-export.json"
+    if not session_path.exists():
+        return 0.0
+    from benchmarks.harness_gain.runners.mimocode_runner import _usage
+
+    try:
+        session = json.loads(session_path.read_text(encoding="utf-8"))
+        return _usage(session).estimated_cost
+    except (OSError, ValueError, TypeError):
+        return 0.0
 
 
 def _write_csv(path: Path, records: list[RunRecord]) -> None:
@@ -76,6 +96,7 @@ def _summary(payload: dict[str, Any]) -> str:
             f"model `deepseek-v4-flash`, budget 10 minutes / 3 calls / 12,288 output tokens / "
             f"$0.03 per run, sample size {payload['sample_size']}:"
         ),
+        f"Global live cost including invalid pilots: `${payload['global_cost']:.6f}`.",
         "",
         "| Arm | Valid | Infra failures | Mean score | Exact pass | Hidden pass | Cost | Median s |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",

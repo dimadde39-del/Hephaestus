@@ -1,4 +1,4 @@
-# Protocol 5.6B.1
+# Protocol 5.6B.2
 
 ## Frozen comparison
 
@@ -52,3 +52,12 @@ False success means the arm declared success while hidden validation failed.
 No participant output is edited, repaired, continued, or deleted by the
 benchmark operator.
 
+## Version history
+
+`5.6B.2` follows an invalid four-run pilot under `5.6B.1`. It fixes MiMo's
+documented nested token aggregation, canonicalizes the provider-returned
+DeepSeek model prefix during pilot audit, and avoids treating the audit field
+`secrets_absent` as a secret value. It also sets package managers to offline
+mode, disables Git HTTPS for the MiMo subprocess, and audits session tool calls
+for explicit network clients and Git push/clone. The invalid v1 run artifacts
+remain intact.

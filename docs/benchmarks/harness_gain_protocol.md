@@ -1,6 +1,6 @@
 # Harness Gain Protocol
 
-Phase 5.6B protocol `5.6B.1` measures the contribution of a coding harness while
+Phase 5.6B protocol `5.6B.2` measures the contribution of a coding harness while
 holding the provider and model fixed: DeepSeek `deepseek-v4-flash` at
 `https://api.deepseek.com`.
 
@@ -15,8 +15,7 @@ Live outputs live under `C:\Temp\hephaestus-harness-gain` and are not committed.
 
 The protocol supports a bounded statement of the form:
 
-> On protocol 5.6B.1, this task set, this model, this budget, and this sample
+> On protocol 5.6B.2, this task set, this model, this budget, and this sample
 > size, the observed score difference was X.
 
 It does not support a universal claim that one harness is always better.
-

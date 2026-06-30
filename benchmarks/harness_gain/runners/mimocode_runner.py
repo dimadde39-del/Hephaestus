@@ -11,6 +11,7 @@ from typing import Any
 
 from benchmarks.harness_gain.schemas import FailureCode, ProviderUsage, RunnerResult
 from benchmarks.harness_gain.secret_redaction import redact_data
+from hephaestus.models.catalog import DEEPSEEK_V4_FLASH_PRICING
 
 WRAPPER = Path(r"C:\Users\Admin\Desktop\mimo-deepseek-setup\scripts\mimo-deepseek-run.ps1")
 DATABASE = Path(r"C:\Users\Admin\Desktop\mimo-deepseek-setup\data\mimocode.db")
@@ -51,6 +52,15 @@ def isolated_environment(session_root: Path) -> dict[str, str]:
         "USERPROFILE": str(session_root),
         "PYTHONIOENCODING": "utf-8",
         "MIMOCODE_DISABLE_PROJECT_CONFIG": "true",
+        "PIP_NO_INDEX": "1",
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "UV_OFFLINE": "1",
+        "NPM_CONFIG_OFFLINE": "true",
+        "CARGO_NET_OFFLINE": "true",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "protocol.https.allow",
+        "GIT_CONFIG_VALUE_0": "never",
     }
 
 
@@ -79,6 +89,11 @@ def run(prompt: str, target: Path, session_root: Path) -> RunnerResult:
     session = _export_session(new_sessions) or _parse_json_output(process.stdout)
     session["fresh_session"] = len(new_sessions) == 1
     session["new_session_count"] = len(new_sessions)
+    session["environment_policy"] = {
+        "package_managers_offline": True,
+        "git_https_disabled": True,
+        "project_config_disabled": True,
+    }
     usage = _usage(session)
     usage.protocol_mismatch.append("provider calls and token cap are observed, not pre-enforced")
     code = None if process.returncode == 0 else FailureCode.TOOL_FAILURE
@@ -108,6 +123,43 @@ def _parse_json_output(text: str) -> dict[str, Any]:
 
 
 def _usage(session: dict[str, Any]) -> ProviderUsage:
+    messages = session.get("messages")
+    if isinstance(messages, list):
+        call_tokens: list[dict[str, Any]] = []
+        for message in messages:
+            data = message.get("data") if isinstance(message, dict) else None
+            tokens = data.get("tokens") if isinstance(data, dict) else None
+            if (
+                isinstance(data, dict)
+                and isinstance(tokens, dict)
+                and int(tokens.get("total", 0) or 0) > 0
+                and data.get("providerID") == "deepseek-bench"
+                and data.get("modelID") == "deepseek-v4-flash"
+            ):
+                call_tokens.append(tokens)
+        if call_tokens:
+            uncached_input = sum(int(item.get("input", 0) or 0) for item in call_tokens)
+            cached = sum(_cache_token(item, "read") for item in call_tokens)
+            cache_write = sum(_cache_token(item, "write") for item in call_tokens)
+            output = sum(
+                int(item.get("output", 0) or 0) + int(item.get("reasoning", 0) or 0)
+                for item in call_tokens
+            )
+            input_total = uncached_input + cached + cache_write
+            pricing = DEEPSEEK_V4_FLASH_PRICING
+            cost = (
+                (uncached_input + cache_write) * pricing.input_cost_per_million
+                + cached * (pricing.cached_input_cost_per_million or pricing.input_cost_per_million)
+                + output * pricing.output_cost_per_million
+            ) / 1_000_000
+            return ProviderUsage(
+                logical_provider_calls=len(call_tokens),
+                transport_attempts=len(call_tokens),
+                input_tokens=input_total,
+                cached_tokens=cached,
+                output_tokens=output,
+                estimated_cost=cost,
+            )
     totals = {
         "input_tokens": 0,
         "cached_tokens": 0,
@@ -137,10 +189,15 @@ def _usage(session: dict[str, Any]) -> ProviderUsage:
                 visit(item)
 
     visit(session)
-    calls = _count_keys(session, {"model", "provider_response", "assistant"})
-    totals["logical_provider_calls"] = max(1, calls) if session else 0
+    fallback_calls = _count_keys(session, {"model", "provider_response", "assistant"})
+    totals["logical_provider_calls"] = max(1, fallback_calls) if session else 0
     totals["transport_attempts"] = totals["logical_provider_calls"]
     return ProviderUsage(**totals)
+
+
+def _cache_token(tokens: dict[str, Any], kind: str) -> int:
+    cache = tokens.get("cache")
+    return int(cache.get(kind, 0) or 0) if isinstance(cache, dict) else 0
 
 
 def _count_keys(value: Any, keys: set[str]) -> int:

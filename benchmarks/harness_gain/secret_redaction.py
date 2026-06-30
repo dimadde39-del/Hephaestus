@@ -28,10 +28,7 @@ def redact_data(value: Any) -> Any:
     if isinstance(value, dict):
         return {
             key: "[REDACTED]"
-            if any(
-                marker in key.lower()
-                for marker in ("api_key", "authorization", "credential", "secret", "reasoning_content")
-            )
+            if _sensitive_key(key)
             else redact_data(item)
             for key, item in value.items()
         }
@@ -40,6 +37,26 @@ def redact_data(value: Any) -> Any:
     if isinstance(value, str):
         return redact_text(value)
     return value
+
+
+def _sensitive_key(key: str) -> bool:
+    normalized = key.lower()
+    return (
+        normalized
+        in {
+            "api_key",
+            "authorization",
+            "credential",
+            "credentials",
+            "credential_store",
+            "secret",
+            "access_token",
+            "refresh_token",
+            "reasoning_content",
+        }
+        or normalized.endswith("_secret")
+        or normalized.endswith("_api_key")
+    )
 
 
 def write_text(path: Path, value: str) -> None:
