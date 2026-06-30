@@ -30,3 +30,12 @@ sanitized failed workspace outside the target before rollback.
 
 This is not a native model tool loop or Claude Code equivalent. Model quality
 still needs live benchmark evidence. Raw reasoning is never persisted.
+
+Greenfield coding is one bounded harness path inside the broader learning
+architecture. Its validation evidence, repair outcome, rollback residue status,
+provider usage, and failed-workspace snapshot can feed future governed
+experience records, but they are not model-weight training data by default.
+
+See [Validation-coupled repair](validation_coupled_repair.md),
+[Learning stack](learning_stack.md), [Experience governance](experience_governance.md),
+and [Verifier and reward model](verifier_and_reward_model.md).

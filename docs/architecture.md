@@ -1,9 +1,24 @@
 # Architecture
 
-Hephaestus is organized around a local-first core that can grow into a safely
-executable agent runtime without forcing paid APIs or a single model provider.
+Hephaestus is a model-agnostic intelligence harness. A model supplies raw
+intellectual potential; Hephaestus turns that potential into checked work
+through context, planning, tools, validation, repair, outcome evidence, and
+learning.
 
-The public alpha architecture is easiest to read as one planning loop:
+The current alpha is local-first and approval-gated. It can grow into a safely
+executable agent runtime without forcing paid APIs or a single model provider,
+but it is not a daemon, deployer, native open-ended model tool loop, or
+uncontrolled self-modifying system.
+
+The long-term learning architecture is documented in:
+
+- [Learning stack](learning_stack.md)
+- [Experience governance](experience_governance.md)
+- [Verifier and reward model](verifier_and_reward_model.md)
+- [Personal, project, and global learning](personal_project_global_learning.md)
+- [Model adaptation lab](model_adaptation_lab.md)
+
+The built alpha spine is easiest to read as one planning loop:
 
 ```text
 Repo -> Profile -> Tasks -> Optimizer -> Pareto -> QUBO -> Explain -> Outcomes -> Learning Profiles
@@ -48,6 +63,18 @@ Request -> Repo Context -> Scoped Plan -> Patch Proposal -> Review -> Approved A
 This is still not full autonomy. It handles small docs, tests, config/help text,
 and clear bugfix-style changes. Conversation turns can propose coding plans, but
 they do not edit files automatically.
+
+Phase 5.6A.1.2 hardens provider-backed greenfield coding:
+
+```text
+Model Plan -> Operation Manifest -> Normalized Validation Plan -> Approved Apply
+-> Staged Validation -> One Optional Repair -> Revalidation -> Outcome / Rollback Evidence
+```
+
+Model-proposed validation commands are candidates. The deterministic validation
+planner normalizes them before approval and execution. Repair is bounded to one
+provider call, must return strict JSON, and cannot delete tests or declare
+success without revalidation.
 
 Phase 5.5A adds the first local Studio surface:
 
@@ -185,6 +212,17 @@ history before any daemon process exists.
   can influence future decisions.
 - Require explicit activation; draft profiles do not silently change behavior.
 - Record profile applications so profile influence can be explained later.
+- Treat model-proposed validation commands as candidates, then normalize them
+  through deterministic validation planning before apply approval.
+- Permit validation-coupled repair only as a bounded, approved path with
+  revalidation and rollback evidence.
+- Keep reward models, CPU controller learning, LoRA, DPO, SFT, distillation,
+  personal adapters, project adapters, and global/community learning out of the
+  implemented-status category until code and governed evidence exist.
+- Never let learned systems modify hidden benchmarks, holdouts, permission
+  boundaries, audit logs, rollback mechanisms, dataset governance, or promotion
+  gates.
+- Keep repository context permission separate from training permission.
 - Expose tradeoff frontiers instead of hiding all decisions behind one scalar
   score.
 - Make QUBO/Ising-style formulations explicit: variables, objective terms,

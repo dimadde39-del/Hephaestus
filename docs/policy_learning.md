@@ -1,6 +1,10 @@
 # Policy Learning
 
 Phase 3C adds controlled policy learning through decision quality profiles.
+This is Level 1 harness learning. It does not train base LLM weights and it is
+separate from planned CPU-trained controller policies and research-only reward
+models/adapters. See [Learning stack](learning_stack.md) and
+[Model adaptation lab](model_adaptation_lab.md).
 
 ```text
 Hermes learns workflows.

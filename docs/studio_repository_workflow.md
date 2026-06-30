@@ -21,3 +21,9 @@ rollback now, or keep the failed workspace. The bounded repair path is available
 through `allow_one_repair`; rollback cleanup is scoped to affected paths; failed
 workspace snapshots are opt-in and sanitized. Native model tool looping is still
 absent.
+
+Repository workflow evidence can later inform project intelligence, validation
+strategy, and skill/capability candidates, but repository context permission is
+not training permission. See [Learning stack](learning_stack.md),
+[Experience governance](experience_governance.md), and
+[Personal, project, and global learning](personal_project_global_learning.md).

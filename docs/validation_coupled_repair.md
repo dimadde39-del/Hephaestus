@@ -63,3 +63,7 @@ databases, and raw reasoning are excluded.
 
 This still is not a native model tool loop. Hephaestus remains a bounded,
 approval-driven coding loop with deterministic validation and rollback hygiene.
+
+Validation and repair evidence is part of the broader harness-learning story.
+See [Learning stack](learning_stack.md), [Experience governance](experience_governance.md),
+and [Verifier and reward model](verifier_and_reward_model.md).

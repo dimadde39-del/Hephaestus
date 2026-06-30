@@ -9,11 +9,12 @@ This guide gives new contributors the project context behind
 
 ## The Product Bet
 
-Most agent demos jump from prompt to action and then lose the trail.
-Hephaestus focuses on the local loop around the model:
+Hephaestus is a model-agnostic intelligence harness. Most agent demos jump from
+prompt to action and then lose the trail. Hephaestus focuses on the loop around
+the model:
 
 ```text
-context -> plan -> patch -> validate -> outcome -> memory
+context -> planning -> tools -> validation -> repair -> outcome evidence -> learning
 ```
 
 That means the core system should be able to answer:
@@ -26,8 +27,20 @@ That means the core system should be able to answer:
 - Why did it choose this option?
 - What patch or command was proposed?
 - What validation evidence exists?
+- Was repair attempted, and was it bounded?
 - What happened afterward?
 - What should future decisions learn?
+
+Benchmark language should compare:
+
+```text
+same model without Hephaestus vs same model with Hephaestus
+```
+
+Do not claim that a weaker model always beats a stronger one. On bounded tasks,
+a good harness can sometimes let a weaker model outperform a stronger model
+without comparable context/tool/verification support; that still requires
+evidence.
 
 ## Current Priorities
 
@@ -46,6 +59,11 @@ That means the core system should be able to answer:
   packaging, and public-alpha validation.
 - Prepare Phase 5.6 coding-quality benchmarks before making Claude Code parity
   claims.
+- Treat Phase 6 as the learning-stack program: Context Forge, Experience
+  Ledger governance, cognitive strategies, personal/project/global boundaries,
+  CPU controller learning, skill distillation, reward/model adaptation research,
+  SWE-RL/self-play research, and opt-in community/global learning.
+- Keep status labels explicit: Built, Partially built, Planned, Research.
 - Keep all provider tests offline. Live smoke commands must require `--live`,
   use isolated databases/workspaces, redact secrets and raw reasoning, and
   enforce call/output/estimated-cost limits.
@@ -54,6 +72,10 @@ That means the core system should be able to answer:
 
 The following are intentionally not current priorities:
 
+- Reward models as production authorities.
+- SFT, LoRA, QLoRA, DPO, distillation, or adapters.
+- CPU-trained adaptive controller policies.
+- Global/community learning without explicit opt-in governance.
 - Voice features.
 - Telegram/Discord bots.
 - Always-on daemon work.
@@ -115,9 +137,26 @@ tested flow only; it is not coding parity evidence.
   docs.
 - For advanced views, show structured decision artifacts only. Do not expose
   private chain-of-thought.
+- Repository context permission is not training permission.
+- Private code and personal facts must not enter global learning by default.
+- Reward models must never replace deterministic verification.
+- Self-evaluation alone must not create positive training labels.
+- Hidden tests, holdouts, permission boundaries, audit logs, rollback
+  mechanisms, dataset governance, and promotion gates must not be modified by
+  the learning system.
+- Do not delete tests, weaken assertions, hide failing commands, or select
+  easier tasks merely to improve metrics.
 - Claims about coding parity require reproducible benchmark evidence: same
   model, same repo snapshot, same task, same budget, hidden validation,
   multiple runs, and median results.
+
+## Learning Architecture Docs
+
+- [Learning stack](learning_stack.md)
+- [Experience governance](experience_governance.md)
+- [Verifier and reward model](verifier_and_reward_model.md)
+- [Personal, project, and global learning](personal_project_global_learning.md)
+- [Model adaptation lab](model_adaptation_lab.md)
 
 ## Good First Issue Areas
 

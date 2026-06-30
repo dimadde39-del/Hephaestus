@@ -8,9 +8,9 @@ honest: early, real, local-first, and intentionally scoped.
 Say:
 
 ```text
-Hephaestus is a self-improving AI agent for people building ambitious things.
-It remembers project context, helps you think, helps you code, validates its
-work, and records outcomes so future runs are less forgetful.
+Hephaestus is a model-agnostic intelligence harness. It turns a model's raw
+potential into checked work through context, planning, tools, validation,
+repair, outcome evidence, and learning.
 ```
 
 Show the README top section.
@@ -127,7 +127,25 @@ asking me to trust a chat transcript.
 
 Time: 8-10 seconds.
 
-## 7. Optional Advanced Engine
+## 7. Optional Studio View
+
+Run only if the local Studio build is available:
+
+```bash
+uv run heph studio
+```
+
+Say:
+
+```text
+Studio is the local interface for exact conversation history, Workbench
+evidence, Memory, Settings, provider configuration, validation runs, coding
+changes, checkpoints, outcomes, and backup/export.
+```
+
+Time: 10-15 seconds.
+
+## 8. Optional Advanced Engine
 
 Run only if the audience is technical and there is time:
 
@@ -145,19 +163,21 @@ engine supports the loop; it is not the headline.
 
 Time: 10-15 seconds.
 
-## 8. Honest Close
+## 9. Honest Close
 
 Say:
 
 ```text
 What works today is conversation memory, repo inspection, safe local tools, real
-validation, small scoped coding loops, outcomes, and learning signals. What is
-not built yet is full autonomous coding, daemon mode, Studio UI, browser
-automation, voice, or deploy/publish/push execution.
+validation, small scoped coding loops, provider-backed greenfield manifests,
+one bounded validation repair, Studio, outcomes, and learning signals. What is
+not built yet is full autonomous coding, daemon mode, browser automation, voice,
+reward models, model weight adaptation, CPU-trained controller policies,
+community/global learning, or deploy/publish/push execution.
 
-The next phase is a persistent Studio interface: readable chat history, run
-history, validation evidence, coding-loop results, checkpoints, and outcomes in
-one place.
+The next phase is deeper harness learning: better context selection, governed
+experience records, capability lifecycle controls, and measurable harness gain
+against the same raw model.
 ```
 
 Time: 8-10 seconds.
@@ -168,7 +188,9 @@ Time: 8-10 seconds.
 - Do not claim local validation proves production readiness.
 - Do not claim deploy/publish/push execution.
 - Do not imply QUBO means quantum hardware or quantum speedups.
-- Do not describe learning as model weight training.
+- Do not describe current learning as model weight training.
+- Do not imply reward models, LoRA, DPO, SFT, distillation, CPU-trained
+  controller policies, or community/global learning are implemented.
 - Do not mention voice, Jarvis, Telegram, daemon, or browser automation as
   current product features.
 
@@ -181,6 +203,7 @@ validate run
 code propose
 code run --dry-run
 code results
+optional Studio
 optional release plan with Pareto/QUBO
 limitations and next phase
 ```

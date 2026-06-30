@@ -9,17 +9,37 @@ staged manifest validation, one bounded validation-coupled repair call, scoped
 rollback cleanup, and opt-in failed-workspace snapshots for benchmark/debug
 review.
 
-Hephaestus is building toward a self-improving local AI agent for people
-building ambitious things: memory-backed, repo-aware, validation-aware, and
-careful about execution. The public alpha goal is not to look autonomous before
-the core is ready. It is to make the working loop understandable:
+Hephaestus is a model-agnostic intelligence harness. A model provides raw
+intellectual potential; Hephaestus turns it into checked work through context,
+planning, tools, validation, repair, outcome evidence, and learning. The public
+alpha goal is not to look autonomous before the core is ready. It is to make the
+working loop understandable:
 
 ```text
-context -> plan -> patch -> validate -> outcome -> memory
+context -> planning -> tools -> validation -> repair -> outcome evidence -> learning
 ```
 
 Optimization, decision traces, Pareto, and QUBO remain part of the technical
 spine, but they are not the public headline.
+
+The main benchmark is:
+
+```text
+same model without Hephaestus vs same model with Hephaestus
+```
+
+Hephaestus should not claim that weak models always beat strong models. The
+claim to measure is narrower: on bounded tasks, a strong harness can sometimes
+let a weaker model outperform a stronger model without comparable
+context/tool/verification support.
+
+Deep learning and governance details live in:
+
+- [Learning stack](learning_stack.md)
+- [Experience governance](experience_governance.md)
+- [Verifier and reward model](verifier_and_reward_model.md)
+- [Personal, project, and global learning](personal_project_global_learning.md)
+- [Model adaptation lab](model_adaptation_lab.md)
 
 ## Current Sequence
 
@@ -27,13 +47,16 @@ spine, but they are not the public headline.
 - Phase 5.5B: Agent Workbench.
 - Phase 5.5C: Advanced Views + Packaging + Polish.
 - Phase 5.6A.0: DeepSeek V4 Flash First Live Smoke.
-- Phase 5.6: Claude Code Parity Program.
-- Phase 6A: Personal Context + Project Memory Expansion.
-- Phase 6B: Skill Forge.
-- Phase 6C: Skill Evaluation + Quarantine.
-- Phase 6D: Adaptive Work Router / Model Economy.
-- Phase 6E: Capability Gap Detector.
-- Phase 6F: Capability Forge.
+- Phase 5.6: Coding Quality and Harness Benchmark Program.
+- Phase 6A: Context Forge.
+- Phase 6B: Experience Ledger and Governance.
+- Phase 6C: Cognitive Strategy Engine and User-Controlled Capabilities.
+- Phase 6D: Personal, Project and Cross-Project Intelligence.
+- Phase 6E: Adaptive Policy Learning on CPU.
+- Phase 6F: Skill and Capability Distillation.
+- Phase 6G: Reward and Model Adaptation Lab.
+- Phase 6H: SWE-RL and Self-Play.
+- Phase 6I: Community and Global Learning.
 - Phase 7: Always-On Runtime / VPS / Telegram / async work.
 
 Phase 5.5 is mandatory before Phase 5.6. Phase 5.5A establishes the persistent
@@ -386,71 +409,124 @@ Repo Inspect -> Repo Plan -> Optimize -> Pareto -> QUBO -> Explain -> Evaluate -
 
 ## Upcoming
 
-### Phase 5.6: Claude Code Parity Program
+### Phase 5.6: Coding Quality And Harness Benchmark Program
 
-Establish reproducible coding-quality benchmarks before making parity claims.
+Phase 5.6 remains the coding-quality and harness benchmark program. It should
+establish reproducible evidence before making parity or superiority claims.
 
 Required controls:
 
-- same model;
-- same repo snapshot;
-- same task;
-- same budget;
-- hidden validation;
-- multiple runs;
+- same model.
+- same repo snapshot.
+- same task.
+- same budget.
+- hidden validation.
+- multiple runs.
 - median results.
 
-Primary metrics:
+Harness Gain Evaluation compares:
 
-- task completion rate;
-- hidden tests passed;
-- regression rate;
-- iterations to success;
-- human intervention;
-- token cost per successful task;
-- time to successful validation;
+```text
+same model raw
+vs
+same model with Hephaestus
+```
+
+Metrics:
+
+- successful completion.
+- hidden tests.
+- regressions.
+- recovery after failure.
+- human intervention.
+- latency.
+- tokens and cost per successful task.
 - unnecessary files and LOC.
+- scope violations.
+- verifier confidence.
 
-Hephaestus must not publicly claim Claude Code parity until benchmark evidence
-supports it.
+Hephaestus must not publicly claim Claude Code parity, general model
+superiority, or "weak model always beats strong model" until benchmark evidence
+supports the specific claim.
 
-### Phase 6A: Personal Context + Project Memory Expansion
+### Phase 6A: Context Forge
 
-- Build on Studio Memory with richer recall explanations, verification,
-  project/persona boundaries, and memory lifecycle review.
-- Keep sensitive personal context explicit and user-owned.
+- Build better context selection across repo state, conversations, strategic
+  memory, validation history, and outcome evidence.
+- Explain why context was included or excluded.
+- Keep context permission separate from training permission.
 
-### Phase 6B: Skill Forge
+### Phase 6B: Experience Ledger And Governance
 
-- Add a user-approved workflow for creating reusable local skills from repeated
-  project work.
-- Keep skill creation evidence-backed: source runs, validation, examples, and
-  approval history should be inspectable.
+- Introduce governed experience records with provenance, permission records,
+  validation confidence, deduplication, staleness, contamination, retention,
+  deletion, dataset versioning, and rollback.
+- Track dataset states: `clean`, `suspect`, `contaminated`, `rejected`, and
+  `expired`.
+- Keep failed and unknown outcomes as evidence, not silent positives.
 
-### Phase 6C: Skill Evaluation + Quarantine
+### Phase 6C: Cognitive Strategy Engine And User-Controlled Capabilities
 
-- Evaluate skills against deterministic fixtures and real validation where
-  possible.
-- Quarantine weak, risky, stale, or failing skills before they influence future
-  work.
+- Turn repeated strategies into reviewable capabilities with explicit approval,
+  quarantine, and monitoring.
+- Ask clarifying questions only when expected value of information is greater
+  than interruption cost.
+- Keep strategy changes reversible and visible.
 
-### Phase 6D: Adaptive Work Router / Model Economy
+### Phase 6D: Personal, Project And Cross-Project Intelligence
 
-- Route tasks across local deterministic behavior and configured model
-  providers based on cost, risk, context size, quality needs, and policy.
-- Make routing decisions explainable and measurable.
+- Separate project intelligence, personal intelligence, and global intelligence.
+- Transfer abstractions across projects without transferring confidential
+  details.
+- Keep global/community learning explicit opt-in.
 
-### Phase 6E: Capability Gap Detector
+### Phase 6E: Adaptive Policy Learning On CPU
 
-- Detect repeated failure patterns, missing skills, missing context, weak
-  validation coverage, and tool gaps.
-- Turn gaps into reviewable improvement proposals, not automatic self-edits.
+- Train controller-layer policies on CPU: contextual bandits, small rankers,
+  classifiers, strategy routers, model selectors, tool selectors, validation
+  planners, uncertainty estimators, and cost/risk models.
+- Improve the harness/controller layer, not base LLM weights.
 
-### Phase 6F: Capability Forge
+### Phase 6F: Skill And Capability Distillation
 
-- Convert approved capability proposals into bounded improvements with
-  checkpoints, validation, and rollback.
-- Keep self-improvement evidence-based and reversible.
+- Distill repeated validated work into reusable skills and generated
+  capabilities.
+- Apply the lifecycle: need detected, candidate, quarantine, offline A/B
+  benchmark, regression tests, shadow mode, canary, approval, active, monitor,
+  restrict/update/deprecate/delete.
+
+### Phase 6G: Reward And Model Adaptation Lab
+
+- Research reward models for subjective estimates such as architecture quality,
+  scope-drift risk, strategy utility, and likely future success.
+- Research SFT, LoRA, QLoRA, DPO, distillation, and personal/project/task
+  adapters.
+- Train adapters only from governed, permissioned, validated datasets.
+
+### Phase 6H: SWE-RL And Self-Play
+
+- Explore software-engineering reinforcement learning and self-play only behind
+  deterministic verifier, holdout, governance, and promotion gates.
+- Prevent reward hacking: no benchmark mutation, no test deletion, no weakened
+  assertions, no permission bypass, and no audit-log rewriting.
+
+### Phase 6I: Community And Global Learning
+
+- Explore anonymized aggregate evidence, generic skills, shared model
+  capability profiles, and validation heuristics.
+- Require explicit opt-in for community/global learning.
+- Move abstractions, not private code, personal facts, or confidential project
+  details.
+
+### Phase 7: Always-On Runtime / VPS / Telegram / Async Work
+
+- Introduce long-running or remote execution only after Studio, memory UX,
+  governance, skills, evaluation, quarantine, and capability lifecycle controls
+  exist.
+- Explore VPS, Telegram, async work queues, and background tasks with explicit
+  user controls.
+- Do not make always-on autonomy the public promise before it has trustworthy
+  visibility and approval surfaces.
 
 ### Phase 7: Always-On Runtime / VPS / Telegram / Async Work
 

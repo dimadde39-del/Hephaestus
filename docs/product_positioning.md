@@ -3,9 +3,9 @@
 ## Public Promise
 
 ```text
-Hephaestus is a self-improving AI agent for people building ambitious things.
-It remembers your context, helps you think, helps you code, validates its work,
-and improves from real outcomes.
+Hephaestus is a model-agnostic intelligence harness.
+It turns a model's raw potential into checked work through context, planning,
+tools, validation, repair, outcome evidence, and learning.
 ```
 
 This is the public-facing identity. It should appear before advanced internals.
@@ -50,7 +50,7 @@ This is the public-facing identity. It should appear before advanced internals.
 ### Layer 3: Developer Workflow
 
 ```text
-context -> plan -> patch -> validate -> outcome -> memory
+context -> planning -> tools -> validation -> repair -> outcome evidence -> learning
 ```
 
 Example commands:
@@ -82,6 +82,11 @@ story rather than replace it.
   small scoped coding loops.
 - Learning means outcome-based memory, reviewable signals, and future
   capability improvements with evidence.
+- The main benchmark is same model without Hephaestus versus the same model
+  with Hephaestus.
+- On bounded tasks, a good harness can sometimes let a weaker model outperform
+  a stronger model without comparable context/tool/verification support, but
+  that is an evidence claim, not a blanket promise.
 - Local validation is real evidence, not a production guarantee.
 - The advanced engine exists to make tradeoffs inspectable.
 
@@ -96,7 +101,9 @@ story rather than replace it.
   browser-served app.
 - Do not imply Claude Code coding parity until Phase 5.6 benchmark evidence
   supports it.
-- Do not describe learning as model weight training.
+- Do not describe current learning as model weight training.
+- Do not imply reward models, LoRA, DPO, SFT, distillation, CPU-trained
+  controller policies, or community/global learning are implemented.
 - Do not imply local validation proves external release safety.
 - Do not call it a replacement for mature coding tools.
 
@@ -224,10 +231,10 @@ record what happened, and improve the next loop.
 Use them. They are excellent models and coding tools.
 
 Hephaestus wraps model calls inside a local agent loop:
-context -> plan -> patch -> validate -> outcome -> memory.
+context -> planning -> tools -> validation -> repair -> outcome evidence -> learning.
 
-The goal is not to replace the model. The goal is to make the agent around the
-model remember, verify, and improve.
+The goal is not to replace the model. The goal is to make the harness around
+the model remember, verify, recover, and improve.
 ```
 
 ### "Is it autonomous?"
@@ -246,20 +253,29 @@ memory updates, and future capability proposals. It does not mean hidden model
 weight training or uncontrolled self-modification.
 ```
 
+### "Does a weak model beat a strong model?"
+
+```text
+Not always, and Hephaestus should not claim that. The fair benchmark is the
+same model raw versus the same model inside the harness. On bounded tasks, a
+good harness can sometimes let a weaker model outperform a stronger model that
+lacks comparable context, tools, validation, and recovery.
+```
+
 ## One-Sentence Versions
 
 Short:
 
 ```text
-Hephaestus is a self-improving AI agent that remembers context, helps you think
-and code, validates work, and improves from outcomes.
+Hephaestus is a model-agnostic intelligence harness that turns a model's raw
+potential into checked work.
 ```
 
 Practical:
 
 ```text
 Hephaestus wraps AI conversations and coding help in a local loop: context,
-plan, patch, validation, outcome, and memory.
+planning, tools, validation, repair, outcome evidence, and learning.
 ```
 
 Technical:

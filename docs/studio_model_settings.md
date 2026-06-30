@@ -80,6 +80,31 @@ Estimated cost: ...
 
 Adaptive multi-model routing is not implemented in Phase 5.5C.
 
+## Capability Metadata
+
+Settings -> Models is also the visible home for model capability metadata. The
+current implementation stores provider/model, base URL, intended roles, context
+window, JSON/tool/streaming support, thinking settings, output limits, latency,
+and cost metadata where available.
+
+Future Model Capability Profiles should track coding, planning, tool
+reliability, JSON reliability, context reliability, vision, latency, cost, and
+known failure modes. Those profiles help the harness choose safer prompts,
+validation plans, budgets, and repair limits for the selected model.
+
+Status labels:
+
+- **Built:** local deterministic, DeepSeek, and OpenAI-compatible settings with
+  redacted secrets and usage estimates.
+- **Partially built:** role metadata, context/cost metadata, and provider usage
+  evidence.
+- **Planned:** adaptive controller-layer model selection.
+- **Research:** reward models and model weight adapters.
+
+Model profiles do not mean Hephaestus is training base model weights today.
+See [Model adaptation lab](model_adaptation_lab.md) and
+[Learning stack](learning_stack.md).
+
 ## API
 
 ```text

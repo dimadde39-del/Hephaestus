@@ -21,6 +21,10 @@ Use this checklist before publishing README or launch-copy changes.
 - [ ] No deploy/publish/push automation claim.
 - [ ] No implication that local validation proves production readiness.
 - [ ] No uncontrolled self-modification claim.
+- [ ] No implication that reward models, LoRA, DPO, SFT, distillation,
+  CPU-trained controller policies, or community/global learning are implemented.
+- [ ] No implication that repository context permission is training permission.
+- [ ] No claim that weak models always beat strong models.
 
 ## Academic-Language Smell
 
@@ -36,7 +40,7 @@ Use this checklist before publishing README or launch-copy changes.
 - [ ] The current loop is visible:
 
 ```text
-context -> plan -> patch -> validate -> outcome -> memory
+context -> planning -> tools -> validation -> repair -> outcome evidence -> learning
 ```
 
 - [ ] `heph ask` or `uv run heph ask` appears.
@@ -51,6 +55,7 @@ context -> plan -> patch -> validate -> outcome -> memory
 - [ ] Repo-aware coding is described as small/scoped.
 - [ ] Validation is described as real local evidence, not a guarantee.
 - [ ] Learning is described as outcomes, memory, and reviewable signals.
+- [ ] Built, Partially built, Planned, and Research labels are explicit.
 - [ ] Future phases do not sound already shipped.
 
 ## Reason To Care
@@ -59,6 +64,8 @@ context -> plan -> patch -> validate -> outcome -> memory
 - [ ] It explains why local memory matters.
 - [ ] It explains why validation evidence matters.
 - [ ] It explains how outcomes improve future work.
+- [ ] It explains same model raw versus same model with Hephaestus as the
+  harness benchmark.
 - [ ] It answers "Why not just ChatGPT or Claude Code?"
 - [ ] It explains why this is not just Hermes.
 - [ ] It distinguishes public promise from technical spine.

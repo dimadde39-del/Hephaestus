@@ -1,8 +1,8 @@
 # Brand Direction
 
-Hephaestus is a self-improving AI agent for people building ambitious things.
-It remembers context, helps people think and code, validates its work, and
-improves from real outcomes.
+Hephaestus is a model-agnostic intelligence harness. It turns a model's raw
+potential into checked work through context, planning, tools, validation,
+repair, outcome evidence, and learning.
 
 ![Hephaestus Talos brand badge](assets/brand/talos-badge.svg)
 
@@ -19,14 +19,14 @@ Hephaestus should feel like a practical forge for agent work:
 Core public line:
 
 ```text
-A self-improving AI agent for people building ambitious things.
+A model-agnostic intelligence harness for checked AI work.
 ```
 
 Product promise:
 
 ```text
-Hephaestus remembers your context, helps you think, helps you code, validates
-its work, and improves from real outcomes.
+Hephaestus helps a model remember project context, plan scoped work, use tools
+safely, validate results, recover honestly, and learn from evidence.
 ```
 
 Technical spine:
@@ -37,6 +37,7 @@ repo intelligence
 -> safe tool runtime
 -> repo-aware coding loop
 -> real validation
+-> bounded repair
 -> outcomes
 -> learning
 ```
@@ -56,6 +57,7 @@ The forge for agents that think before they act.
 - It can work on a repo in small scoped loops.
 - It proposes patches before applying them.
 - It validates local work.
+- It can attempt one bounded validation-coupled repair when approved.
 - It records outcomes and learning signals.
 
 ### Then
@@ -64,6 +66,8 @@ The forge for agents that think before they act.
 - It is approval-gated.
 - It keeps checkpoints.
 - It persists runs, conversations, validation evidence, and coding-loop results.
+- It distinguishes Built, Partially built, Planned, and Research capability
+  claims.
 
 ### Later
 
@@ -87,12 +91,14 @@ Use:
 - Concrete product nouns: memory, repo context, patch, checkpoint, validation
   evidence, outcome, learning signal.
 - Technical nouns after the value is clear: decision trace, Pareto frontier,
-  QUBO problem, policy profile.
+  QUBO problem, policy profile, Experience Ledger, reward model.
 - Confidence without hype.
 
 Avoid:
 
 - "Optimization-first agent OS" as the public headline.
+- Claims that reward models, LoRA, DPO, SFT, distillation, CPU-trained
+  controller policies, or community/global learning are implemented.
 - "Autonomous" unless describing a current limitation or future phase.
 - "Quantum speedup" or anything implying quantum hardware.
 - "AGI" positioning.
@@ -182,7 +188,8 @@ README hero banner.
 Useful next visual assets, when they support the public reveal:
 
 - A restrained terminal demo card showing real CLI output.
-- A product-loop card based on context, plan, patch, validate, outcome, memory.
+- A product-loop card based on context, planning, tools, validation, repair,
+  outcome evidence, and learning.
 - A few social update images that reuse Talos and the decision graph motif.
 - Optional small CLI splash using `talos-pixel.png`, only when it serves the
   developer experience.

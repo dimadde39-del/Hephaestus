@@ -3,6 +3,11 @@
 Phase 3B adds outcome tracking and failure-learning foundations. Phase 3C uses
 those artifacts as evidence for decision quality profiles.
 
+This is Level 1 system learning, not model weight training. The broader
+learning architecture is documented in [Learning stack](learning_stack.md),
+[Experience governance](experience_governance.md), and
+[Verifier and reward model](verifier_and_reward_model.md).
+
 ```text
 Hephaestus does not only explain decisions.
 It observes whether decisions worked, records outcomes, and turns failures into learning signals.
@@ -70,7 +75,8 @@ Current evaluation is deterministic and local:
 - high-risk actions without approval create policy update suggestions.
 
 This is simulated outcome learning for benchmark and optimize-style traces. It
-does not require DeepSeek or any paid API.
+does not require DeepSeek or any paid API. Later validation and coding phases
+also attach real command evidence, rollback evidence, and validation outcomes.
 
 ## CLI
 

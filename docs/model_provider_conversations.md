@@ -180,9 +180,44 @@ not count the `reasoning_content` text as separately visible output.
 Adaptive multi-model routing is not implemented yet; the data model prepares
 for a later Adaptive Work Router / Model Economy phase.
 
+## Model Capability Profiles
+
+Hephaestus records provider/model metadata so the harness can adapt its
+expectations to the selected model. Current metadata includes provider, model,
+context window, costs, JSON support, streaming support, tool support,
+intended roles, latency estimates, quality scores, and known provider usage.
+
+Future profiles should track:
+
+- coding.
+- planning.
+- tool reliability.
+- JSON reliability.
+- context reliability.
+- vision.
+- latency.
+- cost.
+- known failure modes.
+
+Status:
+
+- **Built:** provider-agnostic profile schemas, fake/local profiles, DeepSeek
+  and OpenAI-compatible provider paths, context/cost metadata, and usage
+  estimates.
+- **Partially built:** deterministic routing and context packing primitives.
+- **Planned:** adaptive model selection from governed evidence.
+- **Research:** reward models and model adapters.
+
+The harness may add stricter schema checks, smaller manifests, stronger
+validation, or different budgets for a model with known weaknesses. This is
+controller behavior, not base-model training.
+
 ## Limitations
 
 Studio remains text-first and Workbench-bounded. It does not browse, run a
 daemon, perform autonomous workflows, or adaptively route between multiple
 models. Research mode prepares a research plan; it does not claim live research
 unless a later phase adds an explicit research tool.
+
+See also [Learning stack](learning_stack.md), [Model adaptation lab](model_adaptation_lab.md),
+and [Verifier and reward model](verifier_and_reward_model.md).
