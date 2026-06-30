@@ -1,4 +1,4 @@
-# Protocol 5.6B.3
+# Protocol 5.6B.4
 
 ## Frozen comparison
 
@@ -67,3 +67,10 @@ redacted provider/model call summary when Hephaestus fails before producing its
 normal success session export. This lets pilot validation distinguish a real
 DeepSeek coding failure from missing observability. All v1 and v2 artifacts
 remain intact.
+
+`5.6B.4` follows a stopped main run under `5.6B.3`. Windows terminated the
+PowerShell wrapper at 600 seconds but an orphaned MiMo child retained the output
+pipe, so the orchestrator did not regain control. The runner now launches a new
+process group and kills the complete process tree at the wall limit before
+collecting partial session telemetry. Completed and incomplete v3 main
+artifacts remain intact.

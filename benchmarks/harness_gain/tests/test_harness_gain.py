@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -139,6 +141,27 @@ def test_mimo_nested_usage_accounting() -> None:
     assert usage.estimated_cost > 0
 
 
+def test_mimo_wall_timeout_terminates_child_tree(tmp_path: Path) -> None:
+    script = (
+        "import subprocess,sys,time;"
+        "subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
+        "time.sleep(60)"
+    )
+    started = time.monotonic()
+    try:
+        mimocode_runner._run_with_tree_timeout(
+            [sys.executable, "-c", script],
+            cwd=tmp_path,
+            env=dict(os.environ),
+            timeout=0.2,
+        )
+    except subprocess.TimeoutExpired:
+        pass
+    else:
+        raise AssertionError("expected process-tree timeout")
+    assert time.monotonic() - started < 10
+
+
 def test_hephaestus_official_runner_with_fake_provider(tmp_path: Path) -> None:
     target = tmp_path / "target"
     target.mkdir()
@@ -261,7 +284,7 @@ def test_randomized_schedule_is_reproducible_and_interleaved() -> None:
 def test_report_generation(tmp_path: Path) -> None:
     now = datetime.now(UTC)
     record = RunRecord(
-        protocol_version="5.6B.3",
+        protocol_version="5.6B.4",
         phase="main",
         run_id="main-task-bare_one_shot-r1",
         task_id="task",

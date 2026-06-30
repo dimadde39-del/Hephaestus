@@ -67,23 +67,27 @@ def isolated_environment(session_root: Path) -> dict[str, str]:
 def run(prompt: str, target: Path, session_root: Path) -> RunnerResult:
     before_sessions = _session_ids(target)
     try:
-        process = subprocess.run(
+        process = _run_with_tree_timeout(
             build_command(prompt, target),
             cwd=target,
             env=isolated_environment(session_root),
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
             timeout=600,
         )
     except subprocess.TimeoutExpired as error:
+        new_sessions = _session_ids(target) - before_sessions
+        session = _export_session(new_sessions)
+        session["fresh_session"] = len(new_sessions) == 1
+        session["new_session_count"] = len(new_sessions)
+        session["terminated_at_wall_limit"] = True
+        usage = _usage(session)
+        usage.protocol_mismatch.append("provider calls and token cap are observed, not pre-enforced")
         return RunnerResult(
             failure_code=FailureCode.PROCESS_TIMEOUT,
             failure_detail="MiMo exceeded 600 seconds.",
             stdout=error.stdout or "",
             stderr=error.stderr or "",
-            usage=ProviderUsage(protocol_mismatch=["provider calls and token cap are not pre-enforced"]),
+            usage=usage,
+            session_export=session,
         )
     new_sessions = _session_ids(target) - before_sessions
     session = _export_session(new_sessions) or _parse_json_output(process.stdout)
@@ -106,6 +110,51 @@ def run(prompt: str, target: Path, session_root: Path) -> RunnerResult:
         stderr=process.stderr,
         session_export=session,
     )
+
+
+def _run_with_tree_timeout(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                text=True,
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+        else:
+            process.kill()
+        try:
+            stdout, stderr = process.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(
+            error.cmd,
+            timeout,
+            output=stdout,
+            stderr=stderr,
+        ) from error
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
 
 def _parse_json_output(text: str) -> dict[str, Any]:
