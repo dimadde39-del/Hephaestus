@@ -1,0 +1,1 @@
+В существующем config parser отдели parsing от validation, сохрани public API и supported values, улучши errors, добавь focused tests и избегай unnecessary abstractions.

@@ -19,6 +19,11 @@ On bounded tasks, a good harness can sometimes let a weaker model outperform a
 stronger model that lacks comparable context, tools, verification, and recovery.
 That is a measurement claim to prove with evidence, not a blanket promise.
 
+Phase 5.6B includes a frozen same-model harness-gain protocol comparing bare
+DeepSeek, two-stage prompting, MiMo-Code, and Hephaestus. It makes no winner
+claim before deterministic live results exist. See the
+[harness-gain protocol](docs/benchmarks/harness_gain_protocol.md).
+
 ## What It Does Today
 
 - Remembers project context in CLI and Studio conversations.
@@ -127,6 +132,7 @@ Smoke commands are network-free until `--live` is added. See
 - [Model adaptation lab](docs/model_adaptation_lab.md)
 - [Greenfield coding loop](docs/greenfield_coding_loop.md)
 - [Validation-coupled repair](docs/validation_coupled_repair.md)
+- [Harness-gain benchmark protocol](docs/benchmarks/harness_gain_protocol.md)
 - [Repo-aware coding loop](docs/repo_aware_coding_loop.md)
 - [Studio](docs/studio.md)
 - [Studio Workbench](docs/studio_workbench.md)

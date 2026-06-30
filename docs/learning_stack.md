@@ -11,6 +11,11 @@ The primary benchmark is:
 same model without Hephaestus vs same model with Hephaestus
 ```
 
+Phase 5.6B makes this measurable through a frozen four-arm DeepSeek protocol
+with deterministic hidden validators. It reports raw metrics and harness deltas
+without collapsing cost, latency, exact pass, hidden pass, false success, and
+infrastructure failures into one claim.
+
 This does not mean a weaker model always beats a stronger one. It means that on
 bounded tasks, a good harness can sometimes let a weaker model outperform a
 stronger model that lacks comparable context, tools, verification, and recovery.

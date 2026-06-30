@@ -1,0 +1,1 @@
+В существующий stdlib tracker добавь CSV export command: stable columns, correct CSV escaping, deterministic ordering, UTF-8, atomic output replacement и clear errors. Добавь tests и README example. Не добавляй dependencies.

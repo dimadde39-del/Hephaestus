@@ -9,6 +9,11 @@ staged manifest validation, one bounded validation-coupled repair call, scoped
 rollback cleanup, and opt-in failed-workspace snapshots for benchmark/debug
 review.
 
+Phase 5.6B freezes a reproducible DeepSeek V4 Flash harness-gain benchmark:
+bare one-shot, bare two-stage, MiMo-Code, and Hephaestus, with external hidden
+validators, fixed scheduling, explicit budgets, immutable live artifacts, and
+infrastructure-failure separation. Results remain protocol-specific.
+
 Hephaestus is a model-agnostic intelligence harness. A model provides raw
 intellectual potential; Hephaestus turns it into checked work through context,
 planning, tools, validation, repair, outcome evidence, and learning. The public
@@ -48,6 +53,7 @@ Deep learning and governance details live in:
 - Phase 5.5C: Advanced Views + Packaging + Polish.
 - Phase 5.6A.0: DeepSeek V4 Flash First Live Smoke.
 - Phase 5.6: Coding Quality and Harness Benchmark Program.
+- Phase 5.6B: Same-model DeepSeek harness-gain benchmark.
 - Phase 6A: Context Forge.
 - Phase 6B: Experience Ledger and Governance.
 - Phase 6C: Cognitive Strategy Engine and User-Controlled Capabilities.

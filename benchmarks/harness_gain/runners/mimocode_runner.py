@@ -1,0 +1,238 @@
+"""Arm C: isolated MiMo-Code wrapper invocation."""
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from benchmarks.harness_gain.schemas import FailureCode, ProviderUsage, RunnerResult
+from benchmarks.harness_gain.secret_redaction import redact_data
+
+WRAPPER = Path(r"C:\Users\Admin\Desktop\mimo-deepseek-setup\scripts\mimo-deepseek-run.ps1")
+DATABASE = Path(r"C:\Users\Admin\Desktop\mimo-deepseek-setup\data\mimocode.db")
+
+
+def build_command(prompt: str, target: Path) -> list[str]:
+    return [
+        "powershell.exe",
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(WRAPPER),
+        "-WorkingDirectory",
+        str(target),
+        "-Agent",
+        "build",
+        "-Format",
+        "json",
+        "-Prompt",
+        prompt,
+    ]
+
+
+def isolated_environment(session_root: Path) -> dict[str, str]:
+    session_root.mkdir(parents=True, exist_ok=True)
+    return {
+        "PATH": os.environ.get("PATH", ""),
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        "WINDIR": os.environ.get("WINDIR", ""),
+        "COMSPEC": os.environ.get("COMSPEC", ""),
+        "PATHEXT": os.environ.get("PATHEXT", ""),
+        "TEMP": str(session_root),
+        "TMP": str(session_root),
+        "HOME": str(session_root),
+        "USERPROFILE": str(session_root),
+        "PYTHONIOENCODING": "utf-8",
+        "MIMOCODE_DISABLE_PROJECT_CONFIG": "true",
+    }
+
+
+def run(prompt: str, target: Path, session_root: Path) -> RunnerResult:
+    before_sessions = _session_ids(target)
+    try:
+        process = subprocess.run(
+            build_command(prompt, target),
+            cwd=target,
+            env=isolated_environment(session_root),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired as error:
+        return RunnerResult(
+            failure_code=FailureCode.PROCESS_TIMEOUT,
+            failure_detail="MiMo exceeded 600 seconds.",
+            stdout=error.stdout or "",
+            stderr=error.stderr or "",
+            usage=ProviderUsage(protocol_mismatch=["provider calls and token cap are not pre-enforced"]),
+        )
+    new_sessions = _session_ids(target) - before_sessions
+    session = _export_session(new_sessions) or _parse_json_output(process.stdout)
+    session["fresh_session"] = len(new_sessions) == 1
+    session["new_session_count"] = len(new_sessions)
+    usage = _usage(session)
+    usage.protocol_mismatch.append("provider calls and token cap are observed, not pre-enforced")
+    code = None if process.returncode == 0 else FailureCode.TOOL_FAILURE
+    return RunnerResult(
+        declared_success=process.returncode == 0,
+        failure_code=code,
+        failure_detail="" if code is None else f"MiMo wrapper exit code {process.returncode}",
+        usage=usage,
+        stdout=process.stdout,
+        stderr=process.stderr,
+        session_export=session,
+    )
+
+
+def _parse_json_output(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    candidates = [stripped, *reversed([line for line in stripped.splitlines() if line.strip()])]
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        return {"events": parsed}
+    return {"raw_output_sha256_only": True}
+
+
+def _usage(session: dict[str, Any]) -> ProviderUsage:
+    totals = {
+        "input_tokens": 0,
+        "cached_tokens": 0,
+        "output_tokens": 0,
+        "estimated_cost": 0.0,
+        "logical_provider_calls": 0,
+        "transport_attempts": 0,
+    }
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            lowered = {str(key).lower(): item for key, item in value.items()}
+            for key, aliases in {
+                "input_tokens": ("input_tokens", "prompt_tokens"),
+                "cached_tokens": ("cached_tokens", "cached_input_tokens"),
+                "output_tokens": ("output_tokens", "completion_tokens"),
+                "estimated_cost": ("estimated_cost", "cost"),
+            }.items():
+                for alias in aliases:
+                    item = lowered.get(alias)
+                    if isinstance(item, (int, float)):
+                        totals[key] = max(totals[key], item)
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(session)
+    calls = _count_keys(session, {"model", "provider_response", "assistant"})
+    totals["logical_provider_calls"] = max(1, calls) if session else 0
+    totals["transport_attempts"] = totals["logical_provider_calls"]
+    return ProviderUsage(**totals)
+
+
+def _count_keys(value: Any, keys: set[str]) -> int:
+    if isinstance(value, dict):
+        own = int(any(str(key).lower() in keys for key in value))
+        return own + sum(_count_keys(item, keys) for item in value.values())
+    if isinstance(value, list):
+        return sum(_count_keys(item, keys) for item in value)
+    return 0
+
+
+def _session_ids(target: Path) -> set[str]:
+    if not DATABASE.exists():
+        return set()
+    try:
+        with sqlite3.connect(f"file:{DATABASE}?mode=ro", uri=True, timeout=5) as connection:
+            rows = connection.execute(
+                "SELECT id FROM session WHERE lower(directory) = lower(?)",
+                (str(target.resolve()),),
+            ).fetchall()
+    except sqlite3.Error:
+        return set()
+    return {str(row[0]) for row in rows}
+
+
+def _export_session(session_ids: set[str]) -> dict[str, Any]:
+    if len(session_ids) != 1 or not DATABASE.exists():
+        return {}
+    session_id = next(iter(session_ids))
+    try:
+        with sqlite3.connect(f"file:{DATABASE}?mode=ro", uri=True, timeout=5) as connection:
+            session = connection.execute(
+                """
+                SELECT id, directory, title, version, summary_additions, summary_deletions,
+                       summary_files, time_created, time_updated
+                FROM session WHERE id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+            messages = connection.execute(
+                "SELECT id, agent_id, time_created, time_updated, data FROM message WHERE session_id = ? ORDER BY time_created",
+                (session_id,),
+            ).fetchall()
+            parts = connection.execute(
+                "SELECT id, message_id, time_created, time_updated, data FROM part WHERE session_id = ? ORDER BY time_created",
+                (session_id,),
+            ).fetchall()
+    except sqlite3.Error:
+        return {}
+    if session is None:
+        return {}
+    payload = {
+        "session": {
+            "id": session[0],
+            "directory": session[1],
+            "title": session[2],
+            "version": session[3],
+            "summary_additions": session[4],
+            "summary_deletions": session[5],
+            "summary_files": session[6],
+            "time_created": session[7],
+            "time_updated": session[8],
+        },
+        "messages": [
+            {
+                "id": row[0],
+                "agent_id": row[1],
+                "time_created": row[2],
+                "time_updated": row[3],
+                "data": _safe_json(row[4]),
+            }
+            for row in messages
+        ],
+        "parts": [
+            {
+                "id": row[0],
+                "message_id": row[1],
+                "time_created": row[2],
+                "time_updated": row[3],
+                "data": _safe_json(row[4]),
+            }
+            for row in parts
+        ],
+    }
+    redacted = redact_data(payload)
+    return redacted if isinstance(redacted, dict) else {}
+
+
+def _safe_json(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value

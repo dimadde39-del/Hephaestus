@@ -1,0 +1,1 @@
+Создай небольшой Python CLI TaskForge. Команды: add "text", list, done <id>, delete <id>. Python 3.12. Только стандартная библиотека runtime. JSON persistence. Atomic JSON write. Пустая задача запрещена. Missing ID даёт понятную ошибку и ненулевой exit code. Повторный done безопасен. Добавь tests и README.

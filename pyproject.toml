@@ -55,7 +55,8 @@ artifacts = ["src/hephaestus/studio/static/**"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["tests"]
+testpaths = ["tests", "benchmarks/harness_gain/tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
@@ -69,5 +70,6 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["hephaestus"]
+files = ["src/hephaestus", "benchmarks/harness_gain"]
+exclude = ["benchmarks/harness_gain/tasks/.*/fixture/"]
 plugins = ["pydantic.mypy"]

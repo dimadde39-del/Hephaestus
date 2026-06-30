@@ -1,0 +1,1 @@
+Исправь существующий TTLCache: expired keys are not returned; expired keys are removed; len excludes expired entries; ttl <= 0 is rejected; custom clock remains supported; public API remains compatible. Добавь focused tests. Не добавляй dependencies.
