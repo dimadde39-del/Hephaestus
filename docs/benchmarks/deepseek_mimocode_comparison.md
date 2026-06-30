@@ -64,9 +64,9 @@ while false-success rates were 37.5% for one-shot, 25% for two-stage, and 50%
 for MiMo-Code. In this task set, verification improved honesty but did not
 improve Hephaestus's verifier-adjusted implementation score.
 
-The global live spend, including four preserved invalid pilots and one
-preserved incomplete main run, was `$0.177201`; the final main track cost was
-`$0.085446`.
+The global live spend, including three preserved invalid pilots, two valid
+pilots, and one preserved incomplete main run, was `$0.177201`; the final main
+track cost was `$0.085446`.
 
 These results do not support a universal product ranking. They show that on
 this small deterministic task set, with this model and budget, MiMo-Code
